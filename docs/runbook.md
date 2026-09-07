@@ -25,6 +25,7 @@ Supabase → Project Settings → Edge Functions → Secrets:
 | `KASHIER_TRANSFER_API_KEY_TEST` | Transfer API key, test (if you have one) |
 | `KASHIER_TRANSFER_API_KEY_LIVE` | Transfer API key, live (if you have one) |
 | `UKKERA_WEBHOOK_TOKEN` | The generated token in `.secrets/SETUP-SECRETS.md` |
+| `DASHBOARD_ORIGINS` | Comma-separated browser origins allowed to call `kashier-sync-payouts` (the Vercel URL). localhost is always allowed. |
 
 **Every Kashier variable accepts a comma-separated list.** A merchant can hold
 several Payment API keys (this account has `Default-Live-Key` and one named
@@ -77,6 +78,10 @@ Without a row in `admin_users`, a signed-in user sees nothing at all — RLS
 returns zero rows and the proxy bounces them to `/login?denied=1`.
 
 ## 3. Register the webhooks
+
+> Going live with real payments has its own checklist, including the two live
+> Payment API keys that must both be listed:
+> [`kashier-live-webhook.md`](kashier-live-webhook.md).
 
 Kashier dashboard → Developers → Integrations → Webhooks. Register **two**
 separate webhooks rather than one covering both resource types — that avoids
@@ -184,8 +189,9 @@ order by start_time desc limit 10;
 Edge Functions (Supabase CLI linked to this project):
 
 ```bash
-supabase functions deploy kashier-webhook --no-verify-jwt
-supabase functions deploy ukkera-webhook --no-verify-jwt
+supabase functions deploy kashier-webhook      --no-verify-jwt
+supabase functions deploy ukkera-webhook       --no-verify-jwt
+supabase functions deploy kashier-sync-payouts --no-verify-jwt
 ```
 
 `--no-verify-jwt` is required: neither Kashier nor ukkera can present a
