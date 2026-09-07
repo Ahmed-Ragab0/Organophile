@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
+import { useMode } from '@/lib/mode/context';
 import { createClient } from '@/lib/supabase/client';
 import { formatDateTime } from '@/lib/format';
 import { Badge, Button, Card, CardHeader, PageHeader } from '@/components/ui/primitives';
@@ -14,6 +15,7 @@ type StateKey = 'pending' | 'processed' | 'failed' | 'ignored';
 
 export default function HealthPage() {
   const { t, locale } = useI18n();
+  const { mode } = useMode();
   const [sweeping, setSweeping] = useState(false);
   const [sweepResult, setSweepResult] = useState<string | null>(null);
 
@@ -24,9 +26,9 @@ export default function HealthPage() {
 
   const failed = useSupabaseQuery<KashierRawEvent[]>(
     (sb) =>
-      sb.from('kashier_events_raw').select('*').eq('state', 'failed')
+      sb.from('kashier_events_raw').select('*').eq('state', 'failed').eq('mode', mode)
         .order('received_at', { ascending: false }).limit(50),
-    [sweepResult],
+    [sweepResult, mode],
   );
 
   const rejections = useSupabaseQuery<WebhookRejection[]>(
@@ -75,6 +77,7 @@ export default function HealthPage() {
   return (
     <>
       <PageHeader
+        eyebrow={t.navGroups.ops}
         title={t.health.title}
         subtitle={t.health.subtitle}
         action={

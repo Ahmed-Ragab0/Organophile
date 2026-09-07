@@ -6,7 +6,7 @@ import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { formatDate, formatDateTime, formatMoney } from '@/lib/format';
 import {
-  Card, CardHeader, ErrorState, PageHeader, Spinner,
+  Card, CardHeader, ErrorState, PageHeader, PageSkeleton,
 } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
 import {
@@ -49,7 +49,7 @@ export default function StudentDetailPage() {
     [id],
   );
 
-  if (student.loading) return <Spinner label={t.common.loading} />;
+  if (student.loading) return <PageSkeleton label={t.common.loading} />;
   if (student.error) return <ErrorState message={t.common.error} detail={student.error} />;
 
   const s = student.data;

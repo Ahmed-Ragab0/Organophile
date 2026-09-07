@@ -118,6 +118,7 @@ export default function ExpensesPage() {
   return (
     <>
       <PageHeader
+        eyebrow={t.navGroups.money}
         title={t.expenses.title}
         subtitle={t.expenses.subtitle}
         action={

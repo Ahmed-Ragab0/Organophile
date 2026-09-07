@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
+import { useMode } from '@/lib/mode/context';
 import { createClient } from '@/lib/supabase/client';
 import { formatDateTime, formatMoney } from '@/lib/format';
 import { Button, Card, CardHeader, Field, Input, PageHeader, Select } from '@/components/ui/primitives';
@@ -20,6 +21,7 @@ import type { EnrichedPayment, UnpaidSubscription } from '@/types/database';
  */
 export default function ReconciliationPage() {
   const { t, locale } = useI18n();
+  const { mode } = useMode();
   const [linking, setLinking] = useState<string | null>(null);
   const [pickedSubscription, setPickedSubscription] = useState('');
   const [reason, setReason] = useState('');
@@ -28,9 +30,9 @@ export default function ReconciliationPage() {
 
   const unmatched = useSupabaseQuery<EnrichedPayment[]>(
     (sb) =>
-      sb.from('v_unmatched_payments').select('*').eq('mode', 'live')
+      sb.from('v_unmatched_payments').select('*').eq('mode', mode)
         .order('transaction_date', { ascending: false, nullsFirst: false }).limit(200),
-    [version],
+    [version, mode],
   );
 
   const unpaid = useSupabaseQuery<UnpaidSubscription[]>(
@@ -98,7 +100,7 @@ export default function ReconciliationPage() {
 
   return (
     <>
-      <PageHeader title={t.reconciliation.title} subtitle={t.reconciliation.subtitle} />
+      <PageHeader eyebrow={t.navGroups.ops} title={t.reconciliation.title} subtitle={t.reconciliation.subtitle} />
 
       <section className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
         <StatCard

@@ -7,6 +7,7 @@ import { downloadCsv, formatDate, formatMoney, toCsv } from '@/lib/format';
 import { Button, Card, CardHeader, Field, Input, PageHeader } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
 import { Mono } from '@/components/domain';
+import Link from 'next/link';
 
 /**
  * Shaped by the embedded select below rather than a generated view type: the
@@ -44,7 +45,15 @@ export default function SubscriptionsPage() {
   const rows = data ?? [];
 
   const columns: Array<Column<SubscriptionRow>> = [
-    { key: 'order', header: t.subscriptions.orderId, render: (r) => <Mono value={r.order_id} /> },
+    {
+      key: 'order',
+      header: t.subscriptions.orderId,
+      render: (r) => (
+        <Link href={`/pricing/${r.id}`} className="hover:text-accent-strong">
+          <Mono value={r.order_id} />
+        </Link>
+      ),
+    },
     {
       key: 'student',
       header: t.subscriptions.student,
@@ -69,9 +78,17 @@ export default function SubscriptionsPage() {
   return (
     <>
       <PageHeader
+        eyebrow={t.navGroups.people}
         title={t.subscriptions.title}
         subtitle={t.subscriptions.subtitle}
         action={
+          <>
+          <Link
+            href="/pricing"
+            className="inline-flex items-center rounded-field border border-border bg-surface px-4 py-2.5 text-sm font-medium text-ink shadow-card transition-colors hover:bg-surface-2"
+          >
+            {t.nav.pricing} →
+          </Link>
           <Button
             variant="secondary"
             onClick={() =>
@@ -94,6 +111,7 @@ export default function SubscriptionsPage() {
           >
             {t.common.export}
           </Button>
+          </>
         }
       />
 

@@ -115,7 +115,7 @@ export default function CoursesPage() {
 
   return (
     <>
-      <PageHeader title={t.courses.title} subtitle={t.courses.subtitle} />
+      <PageHeader eyebrow={t.navGroups.people} title={t.courses.title} subtitle={t.courses.subtitle} />
 
       <nav className="mb-4 flex flex-wrap items-center gap-1.5 text-sm">
         {crumbs.map((c, i) => (

@@ -6,7 +6,7 @@ import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { downloadCsv, formatDate, toCsv } from '@/lib/format';
 import {
-  Button, Card, CardHeader, Field, Input, PageHeader, Select,
+  Button, Card, CardHeader, Checkbox, Field, Input, PageHeader, Select,
 } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
 import { Money, PaymentStatusBadge, StatCard } from '@/components/domain';
@@ -142,6 +142,7 @@ export default function StudentsPage() {
   return (
     <>
       <PageHeader
+        eyebrow={t.navGroups.people}
         title={t.students.title}
         subtitle={t.students.subtitle}
         action={
@@ -231,23 +232,24 @@ export default function StudentsPage() {
             />
           </Field>
 
-          <div className="flex flex-col justify-end gap-2 pb-1">
-            <label className="flex items-center gap-2 text-xs text-ink-muted">
-              <input
-                type="checkbox" checked={onlyDebt}
-                onChange={(e) => { setPage(0); setOnlyDebt(e.target.checked); if (e.target.checked) setOnlyPaid(false); }}
-                className="accent-[var(--color-accent)]"
-              />
-              {t.statuses.overdue} / {t.statuses.partial}
-            </label>
-            <label className="flex items-center gap-2 text-xs text-ink-muted">
-              <input
-                type="checkbox" checked={onlyPaid}
-                onChange={(e) => { setPage(0); setOnlyPaid(e.target.checked); if (e.target.checked) setOnlyDebt(false); }}
-                className="accent-[var(--color-accent)]"
-              />
-              {t.statuses.paid}
-            </label>
+          {/* Mutually exclusive by construction: "owes money" and "fully paid"
+              cannot both be true, so ticking one clears the other rather than
+              silently returning nothing. */}
+          <div className="flex flex-col justify-end gap-1 pb-1">
+            <Checkbox
+              checked={onlyDebt}
+              onChange={(next) => {
+                setPage(0); setOnlyDebt(next); if (next) setOnlyPaid(false);
+              }}
+              label={`${t.statuses.overdue} / ${t.statuses.partial}`}
+            />
+            <Checkbox
+              checked={onlyPaid}
+              onChange={(next) => {
+                setPage(0); setOnlyPaid(next); if (next) setOnlyDebt(false);
+              }}
+              label={t.statuses.paid}
+            />
           </div>
         </div>
       </Card>

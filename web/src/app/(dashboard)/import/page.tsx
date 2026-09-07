@@ -111,7 +111,7 @@ export default function ImportPage() {
 
   return (
     <>
-      <PageHeader title={t.importPage.title} subtitle={t.importPage.subtitle} />
+      <PageHeader eyebrow={t.navGroups.ops} title={t.importPage.title} subtitle={t.importPage.subtitle} />
 
       <Card className="mb-4">
         <CardHeader title={t.importPage.kind} />

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
+import { useMode } from '@/lib/mode/context';
 import { downloadCsv, formatDateTime, formatMoney, toCsv } from '@/lib/format';
 import { Button, Card, CardHeader, Field, Input, PageHeader, Select } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
@@ -18,10 +19,12 @@ const EVENTS: KashierTxnEvent[] = ['pay', 'capture', 'authorize', 'refund', 'voi
 
 export default function PaymentsPage() {
   const { t, locale } = useI18n();
+  // Mode is a session-wide choice made in the top bar, not a per-page filter:
+  // it decides which of Kashier's two worlds you are looking at.
+  const { mode } = useMode();
 
   const [status, setStatus] = useState('');
   const [event, setEvent] = useState('');
-  const [mode, setMode] = useState('live');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [search, setSearch] = useState('');
@@ -33,11 +36,13 @@ export default function PaymentsPage() {
         .from('v_payments_enriched')
         .select('*')
         .order('transaction_date', { ascending: false, nullsFirst: false })
-        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1)
+        // Test and live are separate worlds with their own ids and balances.
+        // Never mix them in one table.
+        .eq('mode', mode);
 
       if (status) q = q.eq('status', status);
       if (event) q = q.eq('event', event);
-      if (mode) q = q.eq('mode', mode);
       if (from) q = q.gte('transaction_date', `${from}T00:00:00Z`);
       // `to` is inclusive of the whole day, which is what a person picking a
       // date on a filter means.
@@ -132,6 +137,7 @@ export default function PaymentsPage() {
   return (
     <>
       <PageHeader
+        eyebrow={t.navGroups.ops}
         title={t.payments.title}
         subtitle={t.payments.subtitle}
         action={<Button variant="secondary" onClick={exportCsv}>{t.common.export}</Button>}
@@ -156,13 +162,6 @@ export default function PaymentsPage() {
             <Select value={event} onChange={(e) => resetPageAnd(setEvent)(e.target.value)}>
               <option value="">{t.common.all}</option>
               {EVENTS.map((ev) => <option key={ev} value={ev}>{t.events[ev]}</option>)}
-            </Select>
-          </Field>
-          <Field label={t.common.mode}>
-            <Select value={mode} onChange={(e) => resetPageAnd(setMode)(e.target.value)}>
-              <option value="live">{t.common.live}</option>
-              <option value="test">{t.common.test}</option>
-              <option value="">{t.common.all}</option>
             </Select>
           </Field>
           <Field label={t.common.from}>

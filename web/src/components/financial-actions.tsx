@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useI18n } from '@/lib/i18n/context';
 import { toCairoDateKey } from '@/lib/format';
 import {
-  Button, Field, Input, Modal, Select, Textarea,
+  Button, Checkbox, Field, Input, Modal, Notice, Select, Textarea,
 } from './ui/primitives';
 import { EXPENSE_CATEGORIES, type WalletBalance } from '@/types/database';
 
@@ -117,7 +117,7 @@ export function AddExpenseModal({
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
 
-        {error && <p className="text-xs text-danger">{error}</p>}
+        {error && <Notice tone="danger">{error}</Notice>}
 
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="ghost" onClick={onClose}>{t.common.cancel}</Button>
@@ -174,9 +174,7 @@ export function TransferModal({
       <form onSubmit={submit} className="space-y-3">
         {/* Stated up front, because treating a transfer as income is the
             single easiest way to misread your own books. */}
-        <p className="rounded-[--radius-field] bg-info-soft px-3 py-2 text-xs text-info">
-          {t.transfer.note}
-        </p>
+        <Notice tone="info">{t.transfer.note}</Notice>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={`${t.transfer.from} *`}>
@@ -207,17 +205,13 @@ export function TransferModal({
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
 
-        <label className="flex items-center gap-2 text-xs text-ink-muted">
-          <input
-            type="checkbox"
-            checked={overdraft}
-            onChange={(e) => setOverdraft(e.target.checked)}
-            className="accent-[var(--color-accent)]"
-          />
-          {t.transfer.allowOverdraft}
-        </label>
+        <Checkbox
+          checked={overdraft}
+          onChange={setOverdraft}
+          label={t.transfer.allowOverdraft}
+        />
 
-        {error && <p className="text-xs text-danger">{error}</p>}
+        {error && <Notice tone="danger">{error}</Notice>}
 
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="ghost" onClick={onClose}>{t.common.cancel}</Button>
@@ -309,7 +303,7 @@ export function AddRevenueModal({
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
 
-        {error && <p className="text-xs text-danger">{error}</p>}
+        {error && <Notice tone="danger">{error}</Notice>}
 
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="ghost" onClick={onClose}>{t.common.cancel}</Button>

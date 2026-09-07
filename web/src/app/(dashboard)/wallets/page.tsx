@@ -7,6 +7,7 @@ import { formatDateTime, formatMoney } from '@/lib/format';
 import {
   Badge, Button, Card, cx, ErrorState, PageHeader, Spinner,
 } from '@/components/ui/primitives';
+import { MoneyModeNotice } from '@/components/money-mode-notice';
 import { Money, StatCard } from '@/components/domain';
 import { AddExpenseModal, AddRevenueModal, TransferModal } from '@/components/financial-actions';
 import type { WalletBalance } from '@/types/database';
@@ -34,6 +35,7 @@ export default function WalletsPage() {
   return (
     <>
       <PageHeader
+        eyebrow={t.navGroups.money}
         title={t.wallets.title}
         subtitle={t.wallets.subtitle}
         action={
@@ -50,6 +52,8 @@ export default function WalletsPage() {
           </div>
         }
       />
+
+      <MoneyModeNotice />
 
       <section className="mb-4">
         <StatCard

@@ -121,6 +121,11 @@ export function Money({
   return <span className={cx('tnum whitespace-nowrap', cls, className)}>{formatMoney(n, locale)}</span>;
 }
 
+/**
+ * One number, named. The emphasised variant gets an accent hairline along the
+ * inline edge rather than a ring, so a row of tiles still reads as one row —
+ * a ring around one card breaks the grid.
+ */
 export function StatCard({
   label, value, hint, tone = 'neutral', emphasis = false,
 }: {
@@ -136,18 +141,26 @@ export function StatCard({
   }[tone];
 
   return (
-    <Card className={cx('p-4', emphasis && 'ring-1 ring-accent/25')}>
+    <Card className={cx('relative overflow-hidden p-4', emphasis && 'border-accent/25')}>
+      {emphasis && (
+        // Inset from the corners rather than run edge to edge: a full-height
+        // bar has square ends that fight the card's radius.
+        <span
+          aria-hidden
+          className="brand-ramp absolute inset-y-4 start-0 w-1 rounded-e-full"
+        />
+      )}
       <p className="text-xs font-medium text-ink-muted">{label}</p>
       <p
         className={cx(
-          'mt-2 font-display font-semibold tnum',
-          emphasis ? 'text-3xl' : 'text-2xl',
+          'mt-2 font-display font-semibold tnum display-tight',
+          emphasis ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl',
           accent,
         )}
       >
         {value}
       </p>
-      {hint && <p className="mt-1 text-xs text-ink-faint">{hint}</p>}
+      {hint && <p className="mt-1.5 text-xs text-ink-faint">{hint}</p>}
     </Card>
   );
 }
@@ -169,7 +182,7 @@ export function WalletStrip({ wallets }: { wallets: WalletBalance[] }) {
   }
 
   return (
-    <div className="grid gap-px overflow-hidden rounded-b-[--radius-card] bg-border sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-px overflow-hidden rounded-b-card bg-border sm:grid-cols-2 lg:grid-cols-3">
       {active.map((w) => {
         const balance = Number(w.balance ?? 0);
         return (

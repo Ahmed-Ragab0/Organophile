@@ -5,8 +5,9 @@ import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { formatMoney, formatNumber, formatDate } from '@/lib/format';
 import {
-  Card, CardHeader, cx, ErrorState, PageHeader, Spinner,
+  Card, CardHeader, ChartSkeleton, cx, ErrorState, PageHeader, PageSkeleton, Spinner,
 } from '@/components/ui/primitives';
+import { MoneyModeNotice } from '@/components/money-mode-notice';
 import { Money, StatCard, WalletStrip } from '@/components/domain';
 import { NetProfitChart, RevenueExpensesChart } from '@/components/charts/profit-charts';
 import type {
@@ -87,7 +88,7 @@ export default function OverviewPage() {
     [],
   );
 
-  if (kpis.loading) return <Spinner label={t.common.loading} />;
+  if (kpis.loading) return <PageSkeleton label={t.common.loading} />;
   if (kpis.error) return <ErrorState message={t.common.error} detail={kpis.error} />;
 
   const k = kpis.data;
@@ -106,7 +107,9 @@ export default function OverviewPage() {
 
   return (
     <>
-      <PageHeader title={t.nav.overview} />
+      <PageHeader eyebrow={t.navGroups.money} title={t.nav.overview} />
+
+      <MoneyModeNotice />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <ProfitHero
@@ -182,11 +185,15 @@ export default function OverviewPage() {
       <section className="mt-4 grid gap-4 xl:grid-cols-2">
         <Card>
           <CardHeader title={t.charts.revenueVsExpenses} hint={t.charts.last30} />
-          {daily.loading ? <Spinner label={t.common.loading} /> : <RevenueExpensesChart rows={recent} />}
+          {daily.loading
+            ? <ChartSkeleton label={t.common.loading} />
+            : <RevenueExpensesChart rows={recent} />}
         </Card>
         <Card>
           <CardHeader title={t.charts.netProfitTrend} hint={t.charts.last30} />
-          {daily.loading ? <Spinner label={t.common.loading} /> : <NetProfitChart rows={recent} />}
+          {daily.loading
+            ? <ChartSkeleton label={t.common.loading} />
+            : <NetProfitChart rows={recent} />}
         </Card>
       </section>
 

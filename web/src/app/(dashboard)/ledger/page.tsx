@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
+import { useMode } from '@/lib/mode/context';
 import { createClient } from '@/lib/supabase/client';
 import { downloadCsv, formatDateTime, toCsv } from '@/lib/format';
 import {
@@ -22,6 +23,7 @@ const TYPES: LedgerEntryType[] = [
 
 export default function LedgerPage() {
   const { t, locale } = useI18n();
+  const { isTest } = useMode();
 
   const [type, setType] = useState('');
   const [walletId, setWalletId] = useState('');
@@ -42,7 +44,8 @@ export default function LedgerPage() {
         .from('v_ledger')
         .select('*')
         .order('occurred_at', { ascending: false })
-        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1)
+        .eq('is_test', isTest);
 
       if (type) q = q.eq('entry_type', type);
       if (walletId) q = q.eq('wallet_id', walletId);
@@ -55,7 +58,7 @@ export default function LedgerPage() {
       }
       return q;
     },
-    [type, walletId, from, to, search, includeVoided, page],
+    [type, walletId, from, to, search, includeVoided, page, isTest],
   );
 
   const rows = data ?? [];
@@ -142,6 +145,7 @@ export default function LedgerPage() {
   return (
     <>
       <PageHeader
+        eyebrow={t.navGroups.money}
         title={t.ledger.title}
         subtitle={t.ledger.subtitle}
         action={
