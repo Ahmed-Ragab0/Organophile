@@ -102,9 +102,20 @@ Every KPI, chart, and CSV export goes through it, so they cannot disagree.
 - The `app` schema is revoked from `public`, `anon`, and `authenticated`, and
   PostgREST only exposes `public` — so `app.*` is unreachable over HTTP.
 
-`public.sweep_failed_events()` is intentionally callable by `authenticated`
-(Supabase's linter flags this) because it checks `app.is_admin()` internally.
-That guard is covered by a test.
+### Accepted linter warnings
+
+Supabase's security linter flags three `SECURITY DEFINER` functions as callable
+by `authenticated`:
+
+| Function | Why it is exposed |
+|---|---|
+| `sweep_failed_events()` | Health page "Reprocess failed" button |
+| `import_students(jsonb)` | Import page needs the same student-matching rule the webhook uses |
+| `reconcile_transactions(jsonb)` | Import page comparison report (read-only) |
+
+All three are **intentional** and each begins with an `app.is_admin()` check
+that raises `forbidden` otherwise. A non-admin gets nothing and changes nothing;
+`anon` cannot execute them at all. Verified by tests SEC8–SEC11.
 
 ## Scheduled jobs
 
