@@ -1,0 +1,84 @@
+import { assertEquals } from 'jsr:@std/assert@1';
+import {
+  classifyEvent,
+  extractBearerToken,
+  isCombinedEnvelope,
+  parseMode,
+} from '../functions/_shared/webhook-parsing.ts';
+import { candidateKeys, modeFromKeyId } from '../functions/_shared/env.ts';
+
+Deno.test('classifyEvent routes each event to the key that signs it', () => {
+  for (const e of ['pay', 'capture', 'authorize', 'refund', 'void', 'reversal']) {
+    assertEquals(classifyEvent(e), 'transaction', e);
+  }
+  for (const e of ['INITIATED', 'TRANSFERRED', 'FAILED']) {
+    assertEquals(classifyEvent(e), 'transfer', e);
+  }
+  // Transfer events are documented upper-case but are matched case-insensitively.
+  assertEquals(classifyEvent('transferred'), 'transfer');
+  // Transaction events are lower-case and must NOT match upper-case, so that a
+  // future 'PAY' transfer status could never be mistaken for a payment.
+  assertEquals(classifyEvent('PAY'), 'unknown');
+  assertEquals(classifyEvent('something_new'), 'unknown');
+  assertEquals(classifyEvent(null), 'unknown');
+  assertEquals(classifyEvent(42), 'unknown');
+});
+
+Deno.test('parseMode only accepts the two real modes', () => {
+  assertEquals(parseMode('test'), 'test');
+  assertEquals(parseMode('live'), 'live');
+  assertEquals(parseMode('LIVE'), null);
+  assertEquals(parseMode('production'), null);
+  assertEquals(parseMode(null), null);
+});
+
+Deno.test('isCombinedEnvelope only matches the Test-button shape', () => {
+  assertEquals(isCombinedEnvelope({ isTestWebhook: true, transaction: {}, transfer: {} }), true);
+  // A real delivery always has a top-level event, even if data mentions transfers.
+  assertEquals(isCombinedEnvelope({ event: 'pay', data: {} }), false);
+  assertEquals(isCombinedEnvelope({ transaction: {} }), false);
+  assertEquals(isCombinedEnvelope({}), false);
+});
+
+Deno.test('extractBearerToken handles the scheme, casing, spacing and bare tokens', () => {
+  assertEquals(extractBearerToken('Bearer abc123'), 'abc123');
+  assertEquals(extractBearerToken('bearer abc123'), 'abc123');
+  assertEquals(extractBearerToken('BEARER   abc123  '), 'abc123');
+  assertEquals(extractBearerToken('abc123'), 'abc123');
+  assertEquals(extractBearerToken(''), null);
+  assertEquals(extractBearerToken(null), null);
+  assertEquals(extractBearerToken('Bearer '), 'Bearer');
+});
+
+Deno.test('candidateKeys picks only keys that exist and match the resource', () => {
+  Deno.env.set('KASHIER_PAYMENT_API_KEY_LIVE', 'plive');
+  Deno.env.set('KASHIER_PAYMENT_API_KEY_TEST', 'ptest');
+  Deno.env.set('KASHIER_TRANSFER_API_KEY_LIVE', 'tlive');
+  Deno.env.delete('KASHIER_TRANSFER_API_KEY_TEST');
+
+  assertEquals(
+    candidateKeys('transaction', null).map((k) => k.id),
+    ['payment:live', 'payment:test'],
+  );
+  // The unconfigured transfer:test key is simply absent, not an empty secret.
+  assertEquals(candidateKeys('transfer', null).map((k) => k.id), ['transfer:live']);
+  assertEquals(candidateKeys('transaction', 'test').map((k) => k.id), ['payment:test']);
+  assertEquals(candidateKeys('unknown', null).length, 3);
+
+  Deno.env.delete('KASHIER_PAYMENT_API_KEY_LIVE');
+  Deno.env.delete('KASHIER_PAYMENT_API_KEY_TEST');
+  Deno.env.delete('KASHIER_TRANSFER_API_KEY_LIVE');
+});
+
+Deno.test('candidateKeys treats a blank secret as unconfigured', () => {
+  Deno.env.set('KASHIER_PAYMENT_API_KEY_LIVE', '   ');
+  assertEquals(candidateKeys('transaction', 'live').length, 0);
+  Deno.env.delete('KASHIER_PAYMENT_API_KEY_LIVE');
+});
+
+Deno.test('modeFromKeyId derives the mode from whichever key matched', () => {
+  assertEquals(modeFromKeyId('payment:test'), 'test');
+  assertEquals(modeFromKeyId('transfer:test'), 'test');
+  assertEquals(modeFromKeyId('payment:live'), 'live');
+  assertEquals(modeFromKeyId(null), null);
+});

@@ -1,0 +1,19 @@
+{
+  "lock": false,
+  "lint": {
+    "rules": {
+      "exclude": [
+        "no-import-prefix"
+      ]
+    }
+  },
+  "fmt": {
+    "singleQuote": true,
+    "lineWidth": 100
+  },
+  "tasks": {
+    "test": "deno test --allow-read --allow-env tests/",
+    "check": "deno check functions/kashier-webhook/index.ts functions/ukkera-webhook/index.ts",
+    "lint": "deno lint functions/ tests/"
+  }
+}

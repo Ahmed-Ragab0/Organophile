@@ -1,0 +1,248 @@
+{
+  "generatedWith": {
+    "query-string": "7.1.3",
+    "underscore": "1.13.6"
+  },
+  "vectors": [
+    {
+      "name": "canonical-pay-success",
+      "apiKey": "test-payment-api-key-0123456789",
+      "data": {
+        "amount": 100,
+        "currency": "EGP",
+        "kashierOrderId": "8a2c0f11-aaaa-bbbb",
+        "merchantOrderId": "ORDER-0001",
+        "status": "SUCCESS",
+        "transactionId": "TRX-0001",
+        "extraIgnored": "should-not-appear",
+        "signatureKeys": [
+          "amount",
+          "currency",
+          "kashierOrderId",
+          "merchantOrderId",
+          "status",
+          "transactionId"
+        ]
+      },
+      "signaturePayload": "amount=100&currency=EGP&kashierOrderId=8a2c0f11-aaaa-bbbb&merchantOrderId=ORDER-0001&status=SUCCESS&transactionId=TRX-0001",
+      "signature": "9a31c316b280b0eecd54038fdbf4d7f37e8025c9fed09afc592cb278397b7f72"
+    },
+    {
+      "name": "unsorted-signature-keys",
+      "apiKey": "test-payment-api-key-0123456789",
+      "data": {
+        "transactionId": "TRX-9",
+        "status": "FAILURE",
+        "merchantOrderId": "YOK-00123",
+        "kashierOrderId": "k-9",
+        "currency": "EGP",
+        "amount": 250.75,
+        "signatureKeys": [
+          "transactionId",
+          "amount",
+          "status",
+          "currency",
+          "merchantOrderId",
+          "kashierOrderId"
+        ]
+      },
+      "signaturePayload": "amount=250.75&currency=EGP&kashierOrderId=k-9&merchantOrderId=YOK-00123&status=FAILURE&transactionId=TRX-9",
+      "signature": "ea3709857f510200341d828f590d8bfec142fb08cc644d0eea55453063c8cc6e"
+    },
+    {
+      "name": "float-and-int-amounts",
+      "apiKey": "test-payment-api-key-0123456789",
+      "data": {
+        "amount": 0.5,
+        "currency": "EGP",
+        "status": "SUCCESS",
+        "signatureKeys": [
+          "amount",
+          "currency",
+          "status"
+        ]
+      },
+      "signaturePayload": "amount=0.5&currency=EGP&status=SUCCESS",
+      "signature": "376d65f7137fa7fe112a57c2c7d764a68e57bd5aa5ad679e1b954b3a593c671a"
+    },
+    {
+      "name": "integer-like-float",
+      "apiKey": "test-payment-api-key-0123456789",
+      "data": {
+        "amount": 100,
+        "currency": "EGP",
+        "status": "SUCCESS",
+        "signatureKeys": [
+          "amount",
+          "currency",
+          "status"
+        ]
+      },
+      "signaturePayload": "amount=100&currency=EGP&status=SUCCESS",
+      "signature": "99f6e6910deb74a0d31d6fbe2a6bc4e569dd16c663060be6ca24efbaecdabada"
+    },
+    {
+      "name": "arabic-values",
+      "apiKey": "test-payment-api-key-0123456789",
+      "data": {
+        "apikeyname": "يوكيرا",
+        "status": "SUCCESS",
+        "merchantOrderId": "طلب-١٢٣",
+        "signatureKeys": [
+          "apikeyname",
+          "status",
+          "merchantOrderId"
+        ]
+      },
+      "signaturePayload": "apikeyname=%D9%8A%D9%88%D9%83%D9%8A%D8%B1%D8%A7&merchantOrderId=%D8%B7%D9%84%D8%A8-%D9%A1%D9%A2%D9%A3&status=SUCCESS",
+      "signature": "628cb6964903ef4341cfc15e978bd11c6c66d555cce7572f2879bf59e9d63ca5"
+    },
+    {
+      "name": "spaces-and-plus",
+      "apiKey": "test-payment-api-key-0123456789",
+      "data": {
+        "a": "hello world",
+        "b": "a+b",
+        "c": "x&y=z",
+        "signatureKeys": [
+          "a",
+          "b",
+          "c"
+        ]
+      },
+      "signaturePayload": "a=hello%20world&b=a%2Bb&c=x%26y%3Dz",
+      "signature": "1ec7db4742c790b0b3acc8520a56bc0bf6985604855c26427120178788607435"
+    },
+    {
+      "name": "rfc3986-strict-chars",
+      "apiKey": "test-payment-api-key-0123456789",
+      "data": {
+        "a": "it's!",
+        "b": "(paren)",
+        "c": "star*here",
+        "d": "tilde~ok",
+        "e": "dot.dash-_",
+        "signatureKeys": [
+          "a",
+          "b",
+          "c",
+          "d",
+          "e"
+        ]
+      },
+      "signaturePayload": "a=it%27s%21&b=%28paren%29&c=star%2Ahere&d=tilde~ok&e=dot.dash-_",
+      "signature": "90c538d30be638d796f533d853c02e8ad7f2b7e2e05f92832f7d43ed9875e3f6"
+    },
+    {
+      "name": "slash-question-hash",
+      "apiKey": "test-payment-api-key-0123456789",
+      "data": {
+        "url": "https://shop.example.com/return?x=1#frag",
+        "status": "SUCCESS",
+        "signatureKeys": [
+          "url",
+          "status"
+        ]
+      },
+      "signaturePayload": "status=SUCCESS&url=https%3A%2F%2Fshop.example.com%2Freturn%3Fx%3D1%23frag",
+      "signature": "3cd1bb4200c2994a563a7d0141e864af0c060c8bcac9f92c4abc1d6ae04ed77e"
+    },
+    {
+      "name": "empty-string-value",
+      "apiKey": "test-payment-api-key-0123456789",
+      "data": {
+        "a": "",
+        "b": "ok",
+        "signatureKeys": [
+          "a",
+          "b"
+        ]
+      },
+      "signaturePayload": "a=&b=ok",
+      "signature": "9a60c6cc1f79d03224bd231c4ce3bae8fdbdd214db0d28870aff81cacdd2ebd6"
+    },
+    {
+      "name": "null-value",
+      "apiKey": "test-payment-api-key-0123456789",
+      "data": {
+        "a": null,
+        "b": "ok",
+        "signatureKeys": [
+          "a",
+          "b"
+        ]
+      },
+      "signaturePayload": "a&b=ok",
+      "signature": "2e1fe9a567bebf73bee3abb10d4a0e0bf3d876166b32da12a59303f4293f7700"
+    },
+    {
+      "name": "boolean-values",
+      "apiKey": "test-payment-api-key-0123456789",
+      "data": {
+        "isTestWebhook": true,
+        "flag": false,
+        "signatureKeys": [
+          "isTestWebhook",
+          "flag"
+        ]
+      },
+      "signaturePayload": "flag=false&isTestWebhook=true",
+      "signature": "9d38a4960816a8987c2138f315cf2159c4049b2b6c0791d997eee2b60ddb1258"
+    },
+    {
+      "name": "missing-key-in-data",
+      "apiKey": "test-payment-api-key-0123456789",
+      "data": {
+        "a": "present",
+        "signatureKeys": [
+          "a",
+          "totallyMissing"
+        ]
+      },
+      "signaturePayload": "a=present",
+      "signature": "137dd27837c88af264489adba39e0ab27d6703eb1da18a91e525aba7c2ea595b"
+    },
+    {
+      "name": "single-key",
+      "apiKey": "test-payment-api-key-0123456789",
+      "data": {
+        "transactionId": "TRX-solo",
+        "signatureKeys": [
+          "transactionId"
+        ]
+      },
+      "signaturePayload": "transactionId=TRX-solo",
+      "signature": "0418422ca0072eeb4e03ba6e7934684d976d3fc2a63ddd0846f81ac1c814d269"
+    },
+    {
+      "name": "uppercase-lowercase-sort",
+      "apiKey": "test-payment-api-key-0123456789",
+      "data": {
+        "Zebra": "1",
+        "apple": "2",
+        "Banana": "3",
+        "signatureKeys": [
+          "Zebra",
+          "apple",
+          "Banana"
+        ]
+      },
+      "signaturePayload": "Banana=3&Zebra=1&apple=2",
+      "signature": "184f03bd1bf83cca9da95d623abad4dd13991f118b951efdf7db44f32ffd98d8"
+    },
+    {
+      "name": "numeric-string-vs-number",
+      "apiKey": "test-payment-api-key-0123456789",
+      "data": {
+        "a": "007",
+        "b": 7,
+        "signatureKeys": [
+          "a",
+          "b"
+        ]
+      },
+      "signaturePayload": "a=007&b=7",
+      "signature": "07cf50ba0632a5778f0addba21aedcd6f570a921b5444b64243a314c52593059"
+    }
+  ]
+}
