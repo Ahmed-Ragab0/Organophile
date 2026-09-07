@@ -127,6 +127,10 @@ export type Database = {
           event: KashierTransferEvent; first_seen_at: string; id: string; mode: KashierMode;
           raw_payload: Json; reference: string | null; transfer_date: string | null;
           transfer_id: string; updated_at: string;
+          // Captured from the real Kashier transfer payload (migration 0009).
+          method: string | null; recipient_name: string | null;
+          recipient_number: string | null; merchant_transfer_id: string | null;
+          response_code: string | null; response_message: string | null;
         };
         Insert: never;
         Update: never;

@@ -126,12 +126,56 @@ that raises `forbidden` otherwise. A non-admin gets nothing and changes nothing;
 
 Raw event payloads are **never** purged — they are the audit trail for money.
 
+## What the real payloads turned out to be
+
+Both webhook shapes were captured from live "Test Webhook" fires, and both
+differed from the documentation.
+
+### Kashier transfers (was undocumented)
+
+Recovered from `webhook_rejections.body_excerpt` — the endpoint refused the
+delivery for having no signature, but still stored the body, so the shape was
+learnable without ever trusting the request:
+
+```json
+{ "transferId": "TEST-TRS-0001", "amount": 100, "method": "wallet",
+  "recipientName": "...", "recipientNumber": "01000000000",
+  "merchantTransferId": "TEST-TRANSFER-0001", "status": "TRANSFERRED",
+  "transferResponseCode": "00", "date": "2026-09-07T12:12:05.602Z",
+  "signatureKeys": ["merchantTransferId","method","amount","merchantId","status"] }
+```
+
+The object is **flat** (no `data` wrapper) and the event value lives in
+`status`, not `event`. Both are handled in migration 0009.
+
+### ukkera (differs from the brief)
+
+| Brief | Actual |
+|---|---|
+| `phone` | `student_phone` |
+| `payment_date` | `date` |
+| `course` | absent — **`package_name`** instead |
+| `order_id` | absent — `transfer_id` instead |
+| — | `student_email`, `event` |
+
+This contradicts the brief's note that package data could not arrive by
+webhook: it can, and migration 0010 populates `packages` from it. Every field
+is read through a coalesce over **both** spellings, because the captured sample
+is a synthetic `event: "test"` fire and a real payment may still use the
+documented names. A payload with `event: "test"` is acknowledged and ignored
+rather than inventing a student.
+
 ## Known gaps
 
-- **Transfer webhook payload shape is undocumented.** `project_kashier_transfer`
-  probes several plausible field names and, if none match, fails *retryably*
-  rather than discarding. Once the real shape is known, widen the extractor and
-  the sweeper will reprocess everything that failed.
-- **`order_id == merchantOrderId` is unconfirmed** (see above).
+- **`order_id == merchantOrderId` is unconfirmed.** Verify on the first real
+  payment (see the runbook). Note ukkera's identifier arrives as `transfer_id`,
+  so whether it equals Kashier's `merchantOrderId` is now an open question
+  rather than a likely yes.
+- **Transfer events may arrive unsigned.** Kashier signs the combined test
+  envelope with the Transfer API key, and this account does not appear to have
+  one — the fire arrived with no `x-kashier-signature` at all and was correctly
+  refused. Registering transaction and transfer webhooks *separately* makes
+  transaction events sign with the Payment API key; a Transfer API key must be
+  requested from Kashier for transfer events to verify.
 - **ukkera export column headers are unknown.** The import page auto-detects
   from a list of Arabic and English aliases and lets you remap by hand.

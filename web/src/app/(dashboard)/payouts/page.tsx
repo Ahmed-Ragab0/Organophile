@@ -3,7 +3,7 @@
 import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { formatDateTime, formatMoney } from '@/lib/format';
-import { Card, CardHeader, PageHeader } from '@/components/ui/primitives';
+import { Badge, Card, CardHeader, PageHeader } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
 import { ModeBadge, Mono, TransferBadge } from '@/components/domain';
 import { StatCard } from '@/components/domain';
@@ -45,7 +45,27 @@ export default function PayoutsPage() {
       numeric: true,
       render: (r) => r.amount === null ? <span className="text-ink-faint">—</span> : formatMoney(r.amount, locale),
     },
-    { key: 'ref', header: t.payouts.reference, render: (r) => <Mono value={r.reference} /> },
+    {
+      key: 'recipient',
+      header: t.payouts.recipient,
+      render: (r) =>
+        r.recipient_name || r.recipient_number
+          ? (
+            <div className="min-w-0">
+              {r.recipient_name && <p className="truncate text-ink">{r.recipient_name}</p>}
+              {r.recipient_number && (
+                <p className="ltr-id truncate text-xs text-ink-faint">{r.recipient_number}</p>
+              )}
+            </div>
+          )
+          : <span className="text-ink-faint">—</span>,
+    },
+    {
+      key: 'method',
+      header: t.payouts.method,
+      render: (r) => r.method ? <Badge tone="info">{r.method}</Badge> : <span className="text-ink-faint">—</span>,
+    },
+    { key: 'ref', header: t.payouts.reference, render: (r) => <Mono value={r.merchant_transfer_id ?? r.reference} /> },
   ];
 
   return (
