@@ -19,16 +19,9 @@
  * accept the public anon key. Authorisation is done properly below: either the
  * service role key (for cron) or a signed-in admin.
  */
-import {
-  badRequest,
-  failure,
-  log,
-  methodNotAllowed,
-  ok,
-  unauthorized,
-} from '../_shared/http.ts';
+import { badRequest, failure, log, methodNotAllowed, ok, unauthorized } from '../_shared/http.ts';
 import { serviceClient } from '../_shared/db.ts';
-import { optionalEnv, requiredEnv, type KashierMode } from '../_shared/env.ts';
+import { type KashierMode, optionalEnv, requiredEnv } from '../_shared/env.ts';
 import { timingSafeEqual } from '../_shared/kashier-signature.ts';
 import { extractBearerToken, parseMode } from '../_shared/webhook-parsing.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
