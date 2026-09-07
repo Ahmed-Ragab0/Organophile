@@ -222,6 +222,19 @@ export type Subscription = {
   updated_at: string;
 };
 
+/**
+ * A planned instalment. This is a collection plan, not money: nothing here
+ * touches a wallet. What was actually received lives in `ledger_entries`.
+ */
+export type SubscriptionInstallment = {
+  id: string;
+  subscription_id: string;
+  seq: number;
+  amount: number;
+  due_date: string | null;
+  created_at: string;
+};
+
 export type Payment = {
   id: string;
   transaction_id: string;
@@ -460,6 +473,88 @@ export type KashierRawEvent = {
 };
 
 /** Expense categories the business actually uses. */
+/**
+ * Where the money is, per mode. The four numbers people confuse constantly:
+ * gross is what students paid, fees is Kashier's cut, net_settled is what
+ * Kashier owes you, and awaiting_payout is what it has not sent yet.
+ */
+export type MoneyPosition = {
+  mode: KashierMode;
+  gross: number;
+  refunded: number;
+  fees: number;
+  net_settled: number;
+  payments_count: number;
+  transferred: number;
+  in_flight: number;
+  failed: number;
+  transfers_count: number;
+  last_transfer_at: string | null;
+  awaiting_payout: number;
+  /** What Kashier itself reported at the last sync. Null until one succeeds. */
+  kashier_reported_balance: number | null;
+  kashier_synced_at: string | null;
+};
+
+export type GatewayStage = 'not_paid' | 'part_paid' | 'paid';
+export type PayoutStage = 'none' | 'at_kashier' | 'partially_paid_out' | 'paid_out';
+
+/** One ukkera order with all three stages of its life on it. */
+export type OrderJourney = {
+  subscription_id: string;
+  order_id: string;
+  ordered_at: string;
+  order_source: string;
+  student_id: string | null;
+  student_name: string | null;
+  student_phone: string | null;
+  course_name: string | null;
+  package_name: string | null;
+  total_due: number;
+  total_paid: number;
+  remaining: number;
+  payment_status: PaymentStatus;
+  kashier_payments: number;
+  paid_gross: number | null;
+  paid_settled: number | null;
+  paid_fees: number | null;
+  last_payment_at: string | null;
+  latest_transaction_id: string | null;
+  latest_mode: KashierMode | null;
+  latest_method: string | null;
+  match_method: string;
+  gateway_stage: GatewayStage;
+  payout_stage: PayoutStage;
+};
+
+export type RevenueByMethod = {
+  month: string;
+  method: string;
+  payments: number;
+  revenue: number;
+  fees: number;
+  settled: number;
+};
+
+export type FeesMonthly = {
+  month: string;
+  payments: number;
+  gross: number;
+  fees: number;
+  vat: number;
+  /** Effective rate Kashier charged, so a change in the schedule is visible. */
+  fee_rate_pct: number;
+};
+
+export type PayoutsMonthly = {
+  month: string;
+  mode: KashierMode;
+  transfers: number;
+  transferred: number;
+  in_flight: number;
+  failed: number;
+};
+
 export const EXPENSE_CATEGORIES = [
   'مرتبات',
   'تسويق',
