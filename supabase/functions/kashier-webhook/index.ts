@@ -28,7 +28,7 @@ import {
   unauthorized,
 } from '../_shared/http.ts';
 import { recordRejection, serviceClient } from '../_shared/db.ts';
-import { boolEnv, candidateKeys, type KashierMode, modeFromKeyId } from '../_shared/env.ts';
+import { boolEnv, candidateKeys, type KashierMode } from '../_shared/env.ts';
 import { verifyKashierSignature } from '../_shared/kashier-signature.ts';
 import { classifyEvent, isCombinedEnvelope, parseMode } from '../_shared/webhook-parsing.ts';
 
@@ -117,7 +117,11 @@ Deno.serve(async (req) => {
     });
   }
 
-  const mode: KashierMode = pinnedMode ?? modeFromKeyId(verdict.matchedKeyId) ?? 'live';
+  // Resolve the mode from the key that actually verified, rather than parsing
+  // its label. A delivery we could not verify never reaches here unless
+  // KASHIER_ALLOW_UNVERIFIED is on, in which case 'live' is the safe default.
+  const matchedKey = keys.find((k) => k.id === verdict.matchedKeyId) ?? null;
+  const mode: KashierMode = pinnedMode ?? matchedKey?.mode ?? 'live';
 
   try {
     const client = serviceClient();

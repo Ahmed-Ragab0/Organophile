@@ -20,11 +20,38 @@ Supabase → Project Settings → Edge Functions → Secrets:
 
 | Name | Value |
 |---|---|
-| `KASHIER_PAYMENT_API_KEY_TEST` | Kashier Payment API **secret key**, test mode |
-| `KASHIER_PAYMENT_API_KEY_LIVE` | Kashier Payment API **secret key**, live mode |
+| `KASHIER_PAYMENT_API_KEY_TEST` | Payment API key(s), test mode |
+| `KASHIER_PAYMENT_API_KEY_LIVE` | Payment API key(s), live mode |
 | `KASHIER_TRANSFER_API_KEY_TEST` | Transfer API key, test (if you have one) |
 | `KASHIER_TRANSFER_API_KEY_LIVE` | Transfer API key, live (if you have one) |
 | `UKKERA_WEBHOOK_TOKEN` | The generated token in `.secrets/SETUP-SECRETS.md` |
+
+**Every Kashier variable accepts a comma-separated list.** A merchant can hold
+several Payment API keys (this account has `Default-Live-Key` and one named
+`يوكيرا`), and Kashier signs each webhook with whichever key created that
+order — so list them all:
+
+```
+KASHIER_PAYMENT_API_KEY_LIVE = 306dfdce-...,e258efa9-...
+```
+
+Use the **Payment API Key** (the UUID from Developers → Integrations), not the
+"Secret Key" used for REST calls to `api.kashier.io`. The endpoint tries every
+configured key and records which one matched in
+`kashier_events_raw.signature_note`, so you can see at a glance which channel a
+payment came through.
+
+### The ukkera header
+
+ukkera's webhook screen calls these "معطيات الوصول (Headers)". The header **name**
+must be exactly `Authorization` — naming it after the secret (e.g.
+`UKKERA_WEBHOOK_TOKEN`) sends no `Authorization` header at all and the endpoint
+answers 401 with reason `missing_bearer_token`.
+
+| Field | Value |
+|---|---|
+| Name | `Authorization` |
+| Value | `Bearer ukk_…` (a bare token without the `Bearer ` prefix is also accepted) |
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically.
 

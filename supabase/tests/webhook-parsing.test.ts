@@ -5,7 +5,7 @@ import {
   isCombinedEnvelope,
   parseMode,
 } from '../functions/_shared/webhook-parsing.ts';
-import { candidateKeys, modeFromKeyId } from '../functions/_shared/env.ts';
+import { candidateKeys } from '../functions/_shared/env.ts';
 
 Deno.test('classifyEvent routes each event to the key that signs it', () => {
   for (const e of ['pay', 'capture', 'authorize', 'refund', 'void', 'reversal']) {
@@ -50,35 +50,74 @@ Deno.test('extractBearerToken handles the scheme, casing, spacing and bare token
   assertEquals(extractBearerToken('Bearer '), 'Bearer');
 });
 
-Deno.test('candidateKeys picks only keys that exist and match the resource', () => {
+function clearKeys() {
+  for (
+    const n of [
+      'KASHIER_PAYMENT_API_KEY_LIVE',
+      'KASHIER_PAYMENT_API_KEY_TEST',
+      'KASHIER_TRANSFER_API_KEY_LIVE',
+      'KASHIER_TRANSFER_API_KEY_TEST',
+    ]
+  ) Deno.env.delete(n);
+}
+
+Deno.test('candidateKeys picks only keys that exist, resource-matching first', () => {
+  clearKeys();
   Deno.env.set('KASHIER_PAYMENT_API_KEY_LIVE', 'plive');
   Deno.env.set('KASHIER_PAYMENT_API_KEY_TEST', 'ptest');
   Deno.env.set('KASHIER_TRANSFER_API_KEY_LIVE', 'tlive');
-  Deno.env.delete('KASHIER_TRANSFER_API_KEY_TEST');
 
+  // Transfer keys still appear, but only after the payment keys: a delivery we
+  // could verify must never be rejected just because we guessed the type wrong.
   assertEquals(
     candidateKeys('transaction', null).map((k) => k.id),
-    ['payment:live', 'payment:test'],
+    ['payment:live', 'payment:test', 'transfer:live'],
   );
-  // The unconfigured transfer:test key is simply absent, not an empty secret.
-  assertEquals(candidateKeys('transfer', null).map((k) => k.id), ['transfer:live']);
+  assertEquals(
+    candidateKeys('transfer', null).map((k) => k.id),
+    ['transfer:live', 'payment:live', 'payment:test'],
+  );
   assertEquals(candidateKeys('transaction', 'test').map((k) => k.id), ['payment:test']);
   assertEquals(candidateKeys('unknown', null).length, 3);
-
-  Deno.env.delete('KASHIER_PAYMENT_API_KEY_LIVE');
-  Deno.env.delete('KASHIER_PAYMENT_API_KEY_TEST');
-  Deno.env.delete('KASHIER_TRANSFER_API_KEY_LIVE');
+  clearKeys();
 });
 
-Deno.test('candidateKeys treats a blank secret as unconfigured', () => {
+Deno.test('a merchant with several Payment API keys gets all of them as candidates', () => {
+  // This account holds a Default-Live-Key and one named "يوكيرا"; Kashier signs
+  // each webhook with whichever key created that order.
+  clearKeys();
+  Deno.env.set(
+    'KASHIER_PAYMENT_API_KEY_LIVE',
+    '306dfdce-564b-4242-a1e4-9cb68bdca69a, e258efa9-76c2-4292-9d2c-1be415e8fde9',
+  );
+
+  const keys = candidateKeys('transaction', 'live');
+  assertEquals(keys.map((k) => k.id), ['payment:live', 'payment:live#2']);
+  assertEquals(keys[0].secret, '306dfdce-564b-4242-a1e4-9cb68bdca69a');
+  // Whitespace around the comma must not become part of the secret.
+  assertEquals(keys[1].secret, 'e258efa9-76c2-4292-9d2c-1be415e8fde9');
+  assertEquals(keys.every((k) => k.mode === 'live'), true);
+  clearKeys();
+});
+
+Deno.test('candidateKeys treats blank and empty list entries as unconfigured', () => {
+  clearKeys();
   Deno.env.set('KASHIER_PAYMENT_API_KEY_LIVE', '   ');
   assertEquals(candidateKeys('transaction', 'live').length, 0);
-  Deno.env.delete('KASHIER_PAYMENT_API_KEY_LIVE');
+
+  Deno.env.set('KASHIER_PAYMENT_API_KEY_LIVE', 'a,,  ,b');
+  assertEquals(candidateKeys('transaction', 'live').map((k) => k.secret), ['a', 'b']);
+  clearKeys();
 });
 
-Deno.test('modeFromKeyId derives the mode from whichever key matched', () => {
-  assertEquals(modeFromKeyId('payment:test'), 'test');
-  assertEquals(modeFromKeyId('transfer:test'), 'test');
-  assertEquals(modeFromKeyId('payment:live'), 'live');
-  assertEquals(modeFromKeyId(null), null);
+Deno.test('each candidate carries its own mode, so no id parsing is needed', () => {
+  clearKeys();
+  Deno.env.set('KASHIER_PAYMENT_API_KEY_LIVE', 'x,y');
+  Deno.env.set('KASHIER_PAYMENT_API_KEY_TEST', 'z');
+
+  const byId = Object.fromEntries(candidateKeys('transaction', null).map((k) => [k.id, k.mode]));
+  assertEquals(byId['payment:live'], 'live');
+  assertEquals(byId['payment:live#2'], 'live');
+  assertEquals(byId['payment:test'], 'test');
+  clearKeys();
 });
