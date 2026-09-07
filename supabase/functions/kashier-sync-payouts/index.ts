@@ -20,6 +20,7 @@
  * service role key (for cron) or a signed-in admin.
  */
 import { badRequest, failure, log, methodNotAllowed, ok, unauthorized } from '../_shared/http.ts';
+import { preflight, withCors } from '../_shared/cors.ts';
 import { serviceClient } from '../_shared/db.ts';
 import { type KashierMode, optionalEnv, requiredEnv } from '../_shared/env.ts';
 import { timingSafeEqual } from '../_shared/kashier-signature.ts';
@@ -88,6 +89,15 @@ async function kashierGet(
 }
 
 Deno.serve(async (req) => {
+  // The dashboard calls this from the browser with an Authorization header,
+  // which makes it a preflighted request. Answer OPTIONS before anything else.
+  const options = preflight(req);
+  if (options) return options;
+
+  return withCors(req, await handle(req));
+});
+
+async function handle(req: Request): Promise<Response> {
   if (req.method !== 'POST') return methodNotAllowed();
 
   const auth = await authorise(req);
@@ -192,4 +202,4 @@ Deno.serve(async (req) => {
     log('error', 'payout_sync_failed', { message: String(err), summary });
     return failure(500, 'sync_failed');
   }
-});
+}

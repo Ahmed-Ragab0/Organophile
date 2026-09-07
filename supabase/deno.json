@@ -13,7 +13,7 @@
   },
   "tasks": {
     "test": "deno test --allow-read --allow-env tests/",
-    "check": "deno check functions/kashier-webhook/index.ts functions/ukkera-webhook/index.ts",
+    "check": "deno check functions/kashier-webhook/index.ts functions/ukkera-webhook/index.ts functions/kashier-sync-payouts/index.ts",
     "lint": "deno lint functions/ tests/"
   }
 }
