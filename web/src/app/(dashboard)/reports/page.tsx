@@ -37,6 +37,8 @@ type ReportKey =
   | 'months' | 'daily' | 'courses' | 'universities'
   | 'expenses' | 'methods' | 'fees' | 'students' | 'payouts';
 
+type PresetKey = 'this' | 'last' | 'quarter' | 'year' | 'all';
+
 /** ISO month key, e.g. 2026-09-01, in Cairo. */
 function monthKey(d: Date): string {
   const cairo = new Intl.DateTimeFormat('en-CA', {
@@ -59,12 +61,12 @@ export default function ReportsPage() {
   const [report, setReport] = useState<ReportKey>('months');
 
   const monthLabel = (iso: string) =>
-    new Intl.DateTimeFormat(locale === 'ar' ? 'ar-EG' : 'en-GB', {
+    new Intl.DateTimeFormat(locale === 'ar' ? 'ar-EG-u-nu-latn' : 'en-GB', {
       month: 'long', year: 'numeric', timeZone: 'UTC',
     }).format(new Date(iso));
 
   const dayLabel = (iso: string) =>
-    new Intl.DateTimeFormat(locale === 'ar' ? 'ar-EG' : 'en-GB', {
+    new Intl.DateTimeFormat(locale === 'ar' ? 'ar-EG-u-nu-latn' : 'en-GB', {
       day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
     }).format(new Date(iso));
 
@@ -291,6 +293,9 @@ export default function ReportsPage() {
 
   const active = REPORTS[report];
 
+  /** Rows the export would actually write, for the label under the button. */
+  const exportable = active.rows.length;
+
   // Month options run from the earliest month that has data to this month, so
   // the picker can never select a range that cannot contain anything.
   const monthOptions = useMemo(() => {
@@ -303,12 +308,35 @@ export default function ReportsPage() {
     return out.reverse();
   }, [thisMonth]);
 
-  function preset(kind: 'this' | 'last' | 'quarter' | 'year' | 'all') {
-    if (kind === 'this') { setFrom(thisMonth); setTo(thisMonth); }
-    if (kind === 'last') { const m = shiftMonths(thisMonth, -1); setFrom(m); setTo(m); }
-    if (kind === 'quarter') { setFrom(shiftMonths(thisMonth, -2)); setTo(thisMonth); }
-    if (kind === 'year') { setFrom(shiftMonths(thisMonth, -11)); setTo(thisMonth); }
-    if (kind === 'all') { setFrom(monthOptions[monthOptions.length - 1]); setTo(thisMonth); }
+  /**
+   * The month range each preset stands for. Declared once so the buttons can
+   * both SET the range and recognise it: a preset that highlights itself when
+   * the range already matches is the difference between a filter you can read
+   * and five buttons that give no clue which one you pressed.
+   */
+  const presetRanges: Record<PresetKey, [string, string]> = {
+    this: [thisMonth, thisMonth],
+    last: [shiftMonths(thisMonth, -1), shiftMonths(thisMonth, -1)],
+    quarter: [shiftMonths(thisMonth, -2), thisMonth],
+    year: [shiftMonths(thisMonth, -11), thisMonth],
+    all: [monthOptions[monthOptions.length - 1], thisMonth],
+  };
+
+  const activePreset = (Object.keys(presetRanges) as PresetKey[]).find(
+    (k) => presetRanges[k][0] === from && presetRanges[k][1] === to,
+  ) ?? null;
+
+  /** How many months the range covers, inclusive. */
+  const monthSpan = useMemo(() => {
+    const [fy, fm] = from.split('-').map(Number);
+    const [ty, tm] = to.split('-').map(Number);
+    return Math.max(0, (ty - fy) * 12 + (tm - fm) + 1);
+  }, [from, to]);
+
+  function preset(kind: PresetKey) {
+    const [f, tt] = presetRanges[kind];
+    setFrom(f);
+    setTo(tt);
   }
 
   if (months.loading && monthRows.length === 0) {
@@ -322,23 +350,39 @@ export default function ReportsPage() {
         title={t.reports.title}
         subtitle={t.reports.subtitle}
         action={
-          <Button
-            variant="secondary"
-            disabled={active.rows.length === 0}
-            onClick={() =>
-              downloadCsv(
-                `${report}-${from}_${to}.csv`,
-                toCsv(active.rows as Array<Record<string, unknown>>, active.csv),
-              )}
-          >
-            {t.reportsUi.exportThis}
-          </Button>
+          /*
+            A disabled button with no reason reads as broken. Export is
+            disabled only because the selected report has no rows in the
+            selected range — so the button says which, and how many rows it
+            would write when there are some.
+          */
+          <div className="flex flex-col items-stretch gap-1">
+            <Button
+              variant="secondary"
+              disabled={exportable === 0}
+              title={exportable === 0 ? t.reportsUi.exportEmpty : undefined}
+              onClick={() =>
+                downloadCsv(
+                  `${report}-${from}_${to}.csv`,
+                  toCsv(active.rows as Array<Record<string, unknown>>, active.csv),
+                )}
+            >
+              {t.reportsUi.exportThis}
+            </Button>
+            <span className="text-center text-[0.6875rem] text-ink-faint">
+              {active.loading
+                ? t.common.loading
+                : exportable === 0
+                  ? t.reportsUi.exportEmpty
+                  : `${formatNumber(exportable, locale)} ${t.common.rows} · CSV`}
+            </span>
+          </div>
         }
       />
 
       <MoneyModeNotice />
 
-      {/* ── the period filter ────────────────────────────────────────────── */}
+      {/* ── the period filter ────────────────────────────────────────── */}
       <Card className="mb-5 p-4">
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)]">
           <Field label={t.reportsUi.fromMonth}>
@@ -351,20 +395,67 @@ export default function ReportsPage() {
               {monthOptions.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
             </Select>
           </Field>
-          <div className="flex flex-wrap items-end gap-2 pb-0.5">
+
+          {/*
+            aria-pressed rather than a tablist: these buttons do not switch
+            panels, they write a value into the two selects above. The pressed
+            one is the answer to "which filter am I looking at".
+          */}
+          <div
+            role="group"
+            aria-label={t.reportsUi.range}
+            className="flex flex-wrap items-end gap-2 pb-0.5"
+          >
             {([
               ['this', t.reportsUi.presetThisMonth],
               ['last', t.reportsUi.presetLastMonth],
               ['quarter', t.reportsUi.presetQuarter],
               ['year', t.reportsUi.presetYear],
               ['all', t.reportsUi.presetAll],
-            ] as const).map(([kind, label]) => (
-              <Button key={kind} size="sm" variant="secondary" onClick={() => preset(kind)}>
-                {label}
-              </Button>
-            ))}
+            ] as const).map(([kind, label]) => {
+              const on = activePreset === kind;
+              return (
+                <button
+                  key={kind}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => preset(kind)}
+                  className={cx(
+                    'rounded-full px-3.5 py-2 text-xs font-medium',
+                    'transition-[background-color,color,box-shadow] duration-150 ease-soft',
+                    on
+                      ? 'bg-accent-soft text-accent-strong ring-1 ring-accent/25 shadow-card'
+                      : 'border border-border bg-surface text-ink-muted hover:bg-surface-2 hover:text-ink',
+                  )}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         </div>
+
+        {/*
+          The range in words, under the controls that set it. Two selects both
+          reading "September" do not say "one month", and a hand-picked range
+          has no pressed button to speak for it at all.
+        */}
+        <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border pt-3 text-xs text-ink-muted">
+          <span className="font-medium text-ink">{t.reportsUi.showing}</span>
+          <span>{monthLabel(from)}</span>
+          <span aria-hidden className="text-ink-faint">–</span>
+          <span>{monthLabel(to)}</span>
+          <span className="text-ink-faint">·</span>
+          <span>
+            {monthSpan === 1
+              ? t.reportsUi.oneMonth
+              : `${formatNumber(monthSpan, locale)} ${t.reportsUi.monthsUnit}`}
+          </span>
+          {activePreset === null && from <= to && (
+            <Badge tone="info">{t.reportsUi.customRange}</Badge>
+          )}
+          {from > to && <Badge tone="danger">{t.reportsUi.rangeInverted}</Badge>}
+        </p>
       </Card>
 
       {/* ── the period totals ────────────────────────────────────────────── */}

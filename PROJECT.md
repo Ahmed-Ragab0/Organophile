@@ -227,11 +227,20 @@ The header must be named exactly **`Authorization`** with value `Bearer <token>`
 
 ## 7. Open issues
 
-1. **`transfer_id` (ukkera) == `merchantOrderId` (Kashier)?** Unconfirmed.
-   This is why the payment↔subscription link is a soft join plus a manual
-   override table, never a foreign key — a wrong FK would reject real payments
-   at ingest, a wrong soft join only shows up in the reconciliation report.
-   **Verify on the first real payment.**
+1. **`transfer_id` (ukkera) == `merchantOrderId` (Kashier)?** Unconfirmed, but
+   no longer unmeasured. This is why the payment↔subscription link is a soft
+   join plus a manual override table, never a foreign key — a wrong FK would
+   reject real payments at ingest, a wrong soft join only shows up in the
+   reconciliation report.
+
+   `v_payment_match_health` now counts how often the join actually holds, over
+   live `pay`/`capture` events, and the Reconciliation page shows it. It
+   distinguishes **"no evidence yet"** from **"0% matched"** — today it reads
+   the first, because no live payment has arrived. It cannot be settled in
+   advance: we do not control ukkera's checkout, so what it writes into that
+   field is unknowable until it sends one.
+   [`docs/kashier-testing.md`](docs/kashier-testing.md) has the procedure and
+   what to do if the rate is not 100%.
 2. **Transfer webhooks arrive unsigned.** Kashier sends no
    `x-kashier-signature` header at all for this account, so they are correctly
    refused. Payout tracking therefore runs through `kashier-sync-payouts`
@@ -342,7 +351,9 @@ Dashboard → Vercel, root directory `web`.
 
 See [`docs/FEATURES.md`](docs/FEATURES.md) for what every page does,
 [`docs/kashier-payouts.md`](docs/kashier-payouts.md) for how you actually get
-paid and how to test it, [`docs/kashier-live-webhook.md`](docs/kashier-live-webhook.md)
+paid and how to test it, [`docs/kashier-testing.md`](docs/kashier-testing.md)
+for Kashier's test cards and how to settle the order-id question,
+[`docs/kashier-live-webhook.md`](docs/kashier-live-webhook.md)
 for going live with real payments, [`docs/runbook.md`](docs/runbook.md) for the
 cutover procedure, and [`docs/architecture.md`](docs/architecture.md) for why
 the data flows the way it does.

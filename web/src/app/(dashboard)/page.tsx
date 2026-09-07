@@ -97,7 +97,7 @@ export default function OverviewPage() {
   const kashier = (account.data ?? [])[0];
 
   const monthLabel = k?.current_month
-    ? new Intl.DateTimeFormat(locale === 'ar' ? 'ar-EG' : 'en-GB', {
+    ? new Intl.DateTimeFormat(locale === 'ar' ? 'ar-EG-u-nu-latn' : 'en-GB', {
         month: 'long', year: 'numeric', timeZone: 'Africa/Cairo',
       }).format(new Date(k.current_month))
     : '';

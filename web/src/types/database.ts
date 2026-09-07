@@ -145,6 +145,48 @@ export type StudentFinancials = {
   payment_status: PaymentStatus;
 };
 
+/** `v_subscriptions_list` — the subscriptions list, flattened for search. */
+export type SubscriptionListRow = {
+  subscription_id: string;
+  order_id: string;
+  source: string;
+  enrolled_at: string;
+  payment_date: string | null;
+  due_date: string | null;
+  installment_count: number;
+  order_amount: number | null;
+  price_override: number | null;
+  student_id: string | null;
+  student_name: string | null;
+  student_phone: string | null;
+  student_phone_normalized: string | null;
+  course_id: string | null;
+  course_name: string | null;
+  package_id: string | null;
+  package_name: string | null;
+  package_price: number | null;
+  total_due: number;
+  total_paid: number;
+  remaining: number;
+  payment_status: PaymentStatus | null;
+  payments_count: number;
+  last_payment_at: string | null;
+  price_source: 'override' | 'package' | 'order' | 'none';
+};
+
+/** `v_payment_match_health` — how often the order-id hypothesis holds. */
+export type PaymentMatchHealth = {
+  mode: 'live' | 'test';
+  payments: number;
+  auto_matched: number;
+  manually_linked: number;
+  unmatched: number;
+  /** Null when there is nothing to measure — not the same as zero. */
+  auto_match_rate: number | null;
+  oldest_unmatched_at: string | null;
+  latest_payment_at: string | null;
+};
+
 export type SubscriptionFinancials = {
   subscription_id: string;
   order_id: string;

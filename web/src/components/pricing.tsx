@@ -1,6 +1,6 @@
 'use client';
 
-import { Badge } from './ui/primitives';
+import { Badge, Card } from './ui/primitives';
 import { useI18n } from '@/lib/i18n/context';
 
 export type PriceSource = 'override' | 'package' | 'order' | 'none';
@@ -45,4 +45,53 @@ export function PriceSourceBadge({ source }: { source: PriceSource }) {
   };
   const v = map[source];
   return <Badge tone={v.tone}>{v.label}</Badge>;
+}
+
+/**
+ * How a price is decided, stated once at the top of the page.
+ *
+ * Every row carries a source badge, and a badge with no legend is a puzzle:
+ * the reader can see that this subscription says "package" and that one says
+ * "order", but not that the first beats the second, or what to change to move
+ * a row from one to the other. Four coloured words in a table are decoration
+ * until the rule behind them is written down.
+ *
+ * The order here is the order in the database — coalesce(total_due,
+ * package.price, amount, 0) — so the page cannot drift from the view.
+ */
+export function PriceRules() {
+  const { t } = useI18n();
+
+  const steps = [
+    { source: 'override' as const, text: t.pricing.ruleOverride },
+    { source: 'package' as const, text: t.pricing.rulePackage },
+    { source: 'order' as const, text: t.pricing.ruleOrder },
+    { source: 'none' as const, text: t.pricing.ruleNone },
+  ];
+
+  return (
+    <Card className="mb-5 p-4">
+      <p className="mb-3 text-sm font-medium text-ink">{t.pricing.rulesTitle}</p>
+      <ol className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {steps.map((s, i) => (
+          <li
+            key={s.source}
+            className="flex items-start gap-2.5 rounded-tile bg-surface-2 px-3 py-2.5"
+          >
+            <span
+              aria-hidden
+              className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-surface text-[0.6875rem] font-semibold tnum text-ink-muted ring-1 ring-border"
+            >
+              {i + 1}
+            </span>
+            <span className="min-w-0">
+              <PriceSourceBadge source={s.source} />
+              <span className="mt-1 block text-xs leading-relaxed text-ink-muted">{s.text}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-3 text-xs text-ink-faint">{t.pricing.rulesFooter}</p>
+    </Card>
+  );
 }

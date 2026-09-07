@@ -1,78 +1,242 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { downloadCsv, formatDate, formatMoney, toCsv } from '@/lib/format';
-import { Button, Card, CardHeader, Field, Input, PageHeader } from '@/components/ui/primitives';
+import {
+  ActiveFilters, Button, Card, CardHeader, Field, Input, PageHeader, Select,
+} from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
-import { Mono } from '@/components/domain';
-import Link from 'next/link';
+import { Money, Mono, PaymentStatusBadge, StatCard } from '@/components/domain';
+import { PriceSourceBadge } from '@/components/pricing';
+import type {
+  Course, Package, PaymentStatus, SubscriptionListRow,
+} from '@/types/database';
+
+const STATUSES: PaymentStatus[] = ['paid', 'partial', 'unpaid', 'overdue', 'unknown'];
+const PRICE_SOURCES = ['override', 'package', 'order', 'none'] as const;
+const PAGE_SIZE = 100;
 
 /**
- * Shaped by the embedded select below rather than a generated view type: the
- * PostgREST resource embedding returns nested objects, not flat columns.
+ * PostgREST's `or=(...)` is a comma-and-parenthesis grammar, so those
+ * characters in a search term do not filter — they corrupt the query. `*` is
+ * the wildcard and would silently widen the search. Stripping them is safe
+ * here because none of them appear in an order id, a name or a phone number.
  */
-type SubscriptionRow = {
-  id: string;
-  order_id: string;
-  amount: number | null;
-  payment_date: string | null;
-  source: string;
-  created_at: string;
-  students: { name: string; phone: string | null } | null;
-  courses: { name: string } | null;
-  packages: { name: string } | null;
-};
+function sanitize(term: string): string {
+  return term.replace(/[,()*"\\]/g, ' ').replace(/\s+/g, ' ').trim();
+}
 
 export default function SubscriptionsPage() {
   const { t, locale } = useI18n();
-  const [search, setSearch] = useState('');
 
-  const { data, loading, error } = useSupabaseQuery<SubscriptionRow[]>(
+  const [search, setSearch] = useState('');
+  const [courseId, setCourseId] = useState('');
+  const [packageId, setPackageId] = useState('');
+  const [status, setStatus] = useState('');
+  const [priceSource, setPriceSource] = useState('');
+  const [enrolledFrom, setEnrolledFrom] = useState('');
+  const [enrolledTo, setEnrolledTo] = useState('');
+  const [page, setPage] = useState(0);
+
+  const courses = useSupabaseQuery<Course[]>(
+    (sb) => sb.from('courses').select('*').order('name'),
+    [],
+  );
+
+  // Packages narrow to the chosen course, so the two selects cannot be
+  // combined into a filter that can only ever return nothing.
+  const packages = useSupabaseQuery<Package[]>(
+    (sb) => {
+      let q = sb.from('packages').select('*').order('name');
+      if (courseId) q = q.eq('course_id', courseId);
+      return q;
+    },
+    [courseId],
+  );
+
+  const { data, loading, error } = useSupabaseQuery<SubscriptionListRow[]>(
     (sb) => {
       let q = sb
-        .from('subscriptions')
-        .select('id,order_id,amount,payment_date,source,created_at,students(name,phone),courses(name),packages(name)')
-        .order('created_at', { ascending: false })
-        .limit(500);
-      if (search.trim()) q = q.ilike('order_id', `%${search.trim()}%`);
-      return q as unknown as PromiseLike<{ data: SubscriptionRow[] | null; error: { message: string } | null }>;
+        .from('v_subscriptions_list')
+        .select('*')
+        .order('enrolled_at', { ascending: false })
+        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+
+      const term = sanitize(search);
+      if (term) {
+        // One box across every identifier a person actually remembers. The
+        // digits-only branch exists because a phone gets typed as 010… or
+        // +2010… or with spaces, and only the normalised column matches all
+        // three.
+        const like = `*${term}*`;
+        const clauses = [
+          `order_id.ilike.${like}`,
+          `student_name.ilike.${like}`,
+          `student_phone.ilike.${like}`,
+          `course_name.ilike.${like}`,
+          `package_name.ilike.${like}`,
+        ];
+        const digits = term.replace(/\D/g, '');
+        if (digits.length >= 4) {
+          clauses.push(`student_phone_normalized.ilike.*${digits}*`);
+        }
+        q = q.or(clauses.join(','));
+      }
+
+      if (courseId) q = q.eq('course_id', courseId);
+      if (packageId) q = q.eq('package_id', packageId);
+      if (status) q = q.eq('payment_status', status);
+      if (priceSource) q = q.eq('price_source', priceSource);
+      if (enrolledFrom) q = q.gte('enrolled_at', enrolledFrom);
+      // The end date is inclusive: `lte` on a timestamp would cut the day off
+      // at midnight and quietly drop everything enrolled that day.
+      if (enrolledTo) q = q.lt('enrolled_at', `${enrolledTo}T23:59:59.999`);
+
+      return q as unknown as PromiseLike<{
+        data: SubscriptionListRow[] | null;
+        error: { message: string } | null;
+      }>;
     },
-    [search],
+    [search, courseId, packageId, status, priceSource, enrolledFrom, enrolledTo, page],
   );
 
   const rows = data ?? [];
 
-  const columns: Array<Column<SubscriptionRow>> = [
+  const totals = rows.reduce(
+    (acc, r) => ({
+      due: acc.due + Number(r.total_due ?? 0),
+      paid: acc.paid + Number(r.total_paid ?? 0),
+      remaining: acc.remaining + Number(r.remaining ?? 0),
+    }),
+    { due: 0, paid: 0, remaining: 0 },
+  );
+
+  /** Any filter change returns to page 1: page 3 of a new filter is meaningless. */
+  function change<T>(setter: (v: T) => void) {
+    return (v: T) => { setPage(0); setter(v); };
+  }
+
+  function resetFilters() {
+    setPage(0);
+    setSearch(''); setCourseId(''); setPackageId(''); setStatus('');
+    setPriceSource(''); setEnrolledFrom(''); setEnrolledTo('');
+  }
+
+  const courseName = (courses.data ?? []).find((c) => c.id === courseId)?.name ?? courseId;
+  const packageName = (packages.data ?? []).find((p) => p.id === packageId)?.name ?? packageId;
+
+  const chips = [
+    search.trim() && {
+      key: 'search', label: t.common.search, value: search.trim(),
+      onRemove: () => change(setSearch)(''),
+    },
+    courseId && {
+      key: 'course', label: t.courses.course, value: courseName,
+      onRemove: () => change(setCourseId)(''),
+    },
+    packageId && {
+      key: 'package', label: t.subscriptions.package, value: packageName,
+      onRemove: () => change(setPackageId)(''),
+    },
+    status && {
+      key: 'status', label: t.studentDetail.status,
+      value: t.statuses[status as PaymentStatus],
+      onRemove: () => change(setStatus)(''),
+    },
+    priceSource && {
+      key: 'priceSource', label: t.pricing.priceSource,
+      value: t.pricing[
+        (`source${priceSource[0].toUpperCase()}${priceSource.slice(1)}`) as
+          'sourceOverride' | 'sourcePackage' | 'sourceOrder' | 'sourceNone'
+      ],
+      onRemove: () => change(setPriceSource)(''),
+    },
+    enrolledFrom && {
+      key: 'from', label: t.common.from, value: enrolledFrom,
+      onRemove: () => change(setEnrolledFrom)(''),
+    },
+    enrolledTo && {
+      key: 'to', label: t.common.to, value: enrolledTo,
+      onRemove: () => change(setEnrolledTo)(''),
+    },
+  ].filter(Boolean) as Array<{
+    key: string; label: string; value: string; onRemove: () => void;
+  }>;
+
+  const columns: Array<Column<SubscriptionListRow>> = [
     {
       key: 'order',
       header: t.subscriptions.orderId,
       render: (r) => (
-        <Link href={`/pricing/${r.id}`} className="hover:text-accent-strong">
+        <Link href={`/pricing/${r.subscription_id}`} className="block min-w-0">
           <Mono value={r.order_id} />
+          <p className="truncate text-xs text-ink-muted">
+            {r.student_name ?? <span className="text-ink-faint">{t.pricing.noStudent}</span>}
+          </p>
         </Link>
       ),
     },
     {
-      key: 'student',
-      header: t.subscriptions.student,
-      render: (r) => r.students?.name ?? <span className="text-ink-faint">—</span>,
+      key: 'course',
+      header: t.subscriptions.course,
+      render: (r) => (
+        <div className="min-w-0">
+          <p className="truncate text-ink">{r.course_name ?? '—'}</p>
+          {r.package_name && <p className="truncate text-xs text-ink-faint">{r.package_name}</p>}
+        </div>
+      ),
     },
-    { key: 'course', header: t.subscriptions.course, render: (r) => r.courses?.name ?? <span className="text-ink-faint">—</span> },
-    { key: 'package', header: t.subscriptions.package, render: (r) => r.packages?.name ?? <span className="text-ink-faint">—</span> },
     {
-      key: 'amount',
-      header: t.subscriptions.amount,
-      numeric: true,
-      render: (r) => r.amount === null ? <span className="text-ink-faint">—</span> : formatMoney(r.amount, locale),
+      key: 'source',
+      header: t.pricing.priceSource,
+      render: (r) => <PriceSourceBadge source={r.price_source} />,
+    },
+    {
+      key: 'due', header: t.studentDetail.totalDue, numeric: true,
+      render: (r) => <Money value={Number(r.total_due ?? 0)} tone="plain" />,
+    },
+    {
+      key: 'paid', header: t.studentDetail.totalPaid, numeric: true,
+      render: (r) => <Money value={Number(r.total_paid ?? 0)} tone="ok" />,
+    },
+    {
+      key: 'remaining', header: t.studentDetail.remaining, numeric: true,
+      render: (r) => (
+        <Money
+          value={Number(r.remaining ?? 0)}
+          tone={Number(r.remaining ?? 0) > 0 ? 'danger' : 'plain'}
+        />
+      ),
+    },
+    {
+      key: 'status',
+      header: t.studentDetail.status,
+      render: (r) => <PaymentStatusBadge status={r.payment_status ?? undefined} />,
     },
     {
       key: 'date',
       header: t.subscriptions.paymentDate,
-      render: (r) => <span className="text-xs text-ink-muted">{formatDate(r.payment_date ?? r.created_at, locale)}</span>,
+      render: (r) => (
+        <span className="text-xs text-ink-muted">
+          {formatDate(r.payment_date ?? r.enrolled_at, locale)}
+        </span>
+      ),
     },
-    { key: 'source', header: t.subscriptions.source, render: (r) => <span className="text-xs text-ink-faint">{r.source}</span> },
+    {
+      key: 'edit',
+      header: '',
+      render: (r) => (
+        <Link
+          href={`/pricing/${r.subscription_id}`}
+          className="text-xs font-medium text-accent-strong hover:underline"
+        >
+          {t.pricing.openEditor} →
+        </Link>
+      ),
+    },
   ];
 
   return (
@@ -83,57 +247,174 @@ export default function SubscriptionsPage() {
         subtitle={t.subscriptions.subtitle}
         action={
           <>
-          <Link
-            href="/pricing"
-            className="inline-flex items-center rounded-field border border-border bg-surface px-4 py-2.5 text-sm font-medium text-ink shadow-card transition-colors hover:bg-surface-2"
-          >
-            {t.nav.pricing} →
-          </Link>
-          <Button
-            variant="secondary"
-            onClick={() =>
-              downloadCsv(
-                `subscriptions-${new Date().toISOString().slice(0, 10)}.csv`,
-                toCsv(
-                  rows.map((r) => ({
-                    order_id: r.order_id,
-                    student: r.students?.name ?? '',
-                    phone: r.students?.phone ?? '',
-                    course: r.courses?.name ?? '',
-                    package: r.packages?.name ?? '',
-                    amount: r.amount ?? '',
-                    payment_date: r.payment_date ?? '',
-                    source: r.source,
-                  })),
-                  ['order_id', 'student', 'phone', 'course', 'package', 'amount', 'payment_date', 'source'],
-                ),
-              )}
-          >
-            {t.common.export}
-          </Button>
+            <Link
+              href="/pricing"
+              className="inline-flex items-center rounded-field border border-border bg-surface px-4 py-2.5 text-sm font-medium text-ink shadow-card transition-colors hover:bg-surface-2"
+            >
+              {t.nav.pricing} →
+            </Link>
+            <Button
+              variant="secondary"
+              disabled={rows.length === 0}
+              title={rows.length === 0 ? t.reportsUi.exportEmpty : undefined}
+              onClick={() =>
+                downloadCsv(
+                  `subscriptions-${new Date().toISOString().slice(0, 10)}.csv`,
+                  toCsv(
+                    rows.map((r) => ({
+                      order_id: r.order_id,
+                      student: r.student_name ?? '',
+                      phone: r.student_phone ?? '',
+                      course: r.course_name ?? '',
+                      package: r.package_name ?? '',
+                      price_source: r.price_source,
+                      total_due: r.total_due,
+                      total_paid: r.total_paid,
+                      remaining: r.remaining,
+                      payment_status: r.payment_status ?? '',
+                      installments: r.installment_count,
+                      payment_date: r.payment_date ?? '',
+                      enrolled_at: r.enrolled_at,
+                      source: r.source,
+                    })),
+                    [
+                      'order_id', 'student', 'phone', 'course', 'package', 'price_source',
+                      'total_due', 'total_paid', 'remaining', 'payment_status',
+                      'installments', 'payment_date', 'enrolled_at', 'source',
+                    ],
+                  ),
+                )}
+            >
+              {t.common.export}
+            </Button>
           </>
         }
       />
 
-      <Card className="mb-4 p-4">
-        <div className="max-w-sm">
-          <Field label={t.common.search}>
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="YOK-…" />
+      {/* Totals for the filtered page, so a filter's effect is a number. */}
+      <section className="mb-5 grid gap-3 sm:grid-cols-3">
+        <StatCard label={t.studentDetail.totalDue} value={formatMoney(totals.due, locale)} />
+        <StatCard label={t.studentDetail.totalPaid} value={formatMoney(totals.paid, locale)} tone="ok" />
+        <StatCard
+          label={t.studentDetail.remaining}
+          value={formatMoney(totals.remaining, locale)}
+          tone={totals.remaining > 0 ? 'warn' : 'neutral'}
+          emphasis
+        />
+      </section>
+
+      <Card className="mb-4">
+        <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Field label={t.common.search} hint={t.subscriptions.searchHint}>
+            <Input
+              value={search}
+              placeholder="YOK-… / أحمد / 010…"
+              onChange={(e) => change(setSearch)(e.target.value)}
+            />
+          </Field>
+
+          <Field label={t.courses.course}>
+            <Select
+              value={courseId}
+              onChange={(e) => { change(setCourseId)(e.target.value); setPackageId(''); }}
+            >
+              <option value="">{t.common.all}</option>
+              {(courses.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+          </Field>
+
+          <Field label={t.subscriptions.package}>
+            <Select value={packageId} onChange={(e) => change(setPackageId)(e.target.value)}>
+              <option value="">{t.common.all}</option>
+              {(packages.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </Select>
+          </Field>
+
+          <Field label={t.studentDetail.status}>
+            <Select value={status} onChange={(e) => change(setStatus)(e.target.value)}>
+              <option value="">{t.common.all}</option>
+              {STATUSES.map((s) => <option key={s} value={s}>{t.statuses[s]}</option>)}
+            </Select>
+          </Field>
+
+          <Field label={t.pricing.priceSource} hint={t.subscriptions.priceSourceHint}>
+            <Select value={priceSource} onChange={(e) => change(setPriceSource)(e.target.value)}>
+              <option value="">{t.common.all}</option>
+              {PRICE_SOURCES.map((s) => (
+                <option key={s} value={s}>
+                  {t.pricing[
+                    (`source${s[0].toUpperCase()}${s.slice(1)}`) as
+                      'sourceOverride' | 'sourcePackage' | 'sourceOrder' | 'sourceNone'
+                  ]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label={`${t.subscriptions.enrolledAt} — ${t.common.from}`}>
+            <Input
+              type="date" value={enrolledFrom}
+              onChange={(e) => change(setEnrolledFrom)(e.target.value)}
+            />
+          </Field>
+          <Field label={`${t.subscriptions.enrolledAt} — ${t.common.to}`}>
+            <Input
+              type="date" value={enrolledTo}
+              onChange={(e) => change(setEnrolledTo)(e.target.value)}
+            />
           </Field>
         </div>
+
+        <ActiveFilters
+          filters={chips}
+          onClear={resetFilters}
+          label={t.subscriptions.activeFilters}
+          clearAllLabel={t.subscriptions.clearFilters}
+        />
       </Card>
 
       <Card>
-        <CardHeader title={t.subscriptions.title} hint={`${rows.length} ${t.common.rows}`} />
+        <CardHeader
+          title={t.subscriptions.title}
+          hint={
+            chips.length > 0
+              ? `${rows.length} ${t.common.rows} · ${t.subscriptions.filtered}`
+              : `${rows.length} ${t.common.rows}`
+          }
+          action={
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm" variant="secondary"
+                disabled={page === 0}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                {t.common.prev}
+              </Button>
+              <span className="tnum text-xs text-ink-muted">{page + 1}</span>
+              <Button
+                size="sm" variant="secondary"
+                disabled={rows.length < PAGE_SIZE}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                {t.common.next}
+              </Button>
+            </div>
+          }
+        />
         <DataTable
           columns={columns}
           rows={rows}
-          keyOf={(r) => r.id}
+          keyOf={(r) => r.subscription_id}
           loading={loading}
           error={error}
-          emptyMessage={t.common.empty}
+          emptyMessage={chips.length > 0 ? t.subscriptions.noMatches : t.common.empty}
           loadingMessage={t.common.loading}
           errorMessage={t.common.error}
+          emptyAction={
+            chips.length > 0
+              ? <Button variant="secondary" onClick={resetFilters}>{t.subscriptions.clearFilters}</Button>
+              : undefined
+          }
         />
       </Card>
     </>

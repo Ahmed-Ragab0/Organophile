@@ -9,7 +9,10 @@ import { formatDateTime, formatMoney } from '@/lib/format';
 import { Button, Card, CardHeader, Field, Input, PageHeader, Select } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
 import { Mono, SignedMoney, StatCard } from '@/components/domain';
-import type { EnrichedPayment, UnpaidSubscription } from '@/types/database';
+import { MatchHealthPanel } from '@/components/match-health';
+import type {
+  EnrichedPayment, PaymentMatchHealth, UnpaidSubscription,
+} from '@/types/database';
 
 /**
  * The two directions of reconciliation, side by side.
@@ -33,6 +36,13 @@ export default function ReconciliationPage() {
       sb.from('v_unmatched_payments').select('*').eq('mode', mode)
         .order('transaction_date', { ascending: false, nullsFirst: false }).limit(200),
     [version, mode],
+  );
+
+  // Live only, by definition: the view measures the hypothesis against real
+  // traffic, and test payments carry order ids we made up ourselves.
+  const matchHealth = useSupabaseQuery<PaymentMatchHealth[]>(
+    (sb) => sb.from('v_payment_match_health').select('*').eq('mode', 'live'),
+    [version],
   );
 
   const unpaid = useSupabaseQuery<UnpaidSubscription[]>(
@@ -102,19 +112,26 @@ export default function ReconciliationPage() {
     <>
       <PageHeader eyebrow={t.navGroups.ops} title={t.reconciliation.title} subtitle={t.reconciliation.subtitle} />
 
-      <section className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <StatCard
-          label={t.kpi.unmatched}
-          value={unmatchedRows.length}
-          hint={formatMoney(unmatchedTotal, locale)}
-          tone={unmatchedRows.length > 0 ? 'warn' : 'ok'}
+      <div className="mb-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+        <section className="grid h-fit grid-cols-2 gap-3">
+          <StatCard
+            label={t.kpi.unmatched}
+            value={unmatchedRows.length}
+            hint={formatMoney(unmatchedTotal, locale)}
+            tone={unmatchedRows.length > 0 ? 'warn' : 'ok'}
+          />
+          <StatCard
+            label={t.kpi.unpaid}
+            value={unpaidRows.length}
+            tone={unpaidRows.length > 0 ? 'warn' : 'ok'}
+          />
+        </section>
+
+        <MatchHealthPanel
+          health={(matchHealth.data ?? [])[0]}
+          loading={matchHealth.loading}
         />
-        <StatCard
-          label={t.kpi.unpaid}
-          value={unpaidRows.length}
-          tone={unpaidRows.length > 0 ? 'warn' : 'ok'}
-        />
-      </section>
+      </div>
 
       {linking && (
         <Card className="mb-4">

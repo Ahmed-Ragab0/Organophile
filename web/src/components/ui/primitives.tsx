@@ -409,6 +409,59 @@ export function Modal({
 }
 
 /** A proportional fill, used to make relative size readable without numbers. */
+/**
+ * The filters currently applied, as removable chips.
+ *
+ * A row of selects tells you what you COULD filter by; it does not tell you
+ * what you ARE filtering by without reading every control. This states it in
+ * one line, and each chip removes its own filter — which is also the fastest
+ * way out of a filter combination that returns nothing.
+ *
+ * Renders nothing when no filter is set, so an unfiltered list stays quiet.
+ */
+export function ActiveFilters({
+  filters, onClear, clearAllLabel, label,
+}: {
+  filters: Array<{ key: string; label: string; value: string; onRemove: () => void }>;
+  onClear: () => void;
+  clearAllLabel: string;
+  label: string;
+}) {
+  if (filters.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3">
+      <span className="text-xs font-medium text-ink-muted">{label}</span>
+      {filters.map((f) => (
+        <span
+          key={f.key}
+          className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft py-1 ps-3 pe-1 text-xs text-accent-strong ring-1 ring-accent/20"
+        >
+          <span className="text-ink-muted">{f.label}:</span>
+          <span className="font-medium">{f.value}</span>
+          <button
+            type="button"
+            onClick={f.onRemove}
+            aria-label={`${f.label}: ${f.value} — ×`}
+            className="grid h-5 w-5 place-items-center rounded-full text-accent-strong/70 transition-colors hover:bg-accent/15 hover:text-accent-strong"
+          >
+            <svg aria-hidden viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round">
+              <path d="m6 6 12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </span>
+      ))}
+      <button
+        type="button"
+        onClick={onClear}
+        className="rounded-chip px-2 py-1 text-xs font-medium text-ink-muted underline-offset-2 transition-colors hover:bg-surface-2 hover:text-ink hover:underline"
+      >
+        {clearAllLabel}
+      </button>
+    </div>
+  );
+}
+
 export function FillBar({
   value, max, tone = 'brand',
 }: { value: number; max: number; tone?: 'brand' | 'ok' | 'danger' | 'accent' }) {

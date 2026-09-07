@@ -7,11 +7,11 @@ import { useSupabaseQuery } from '@/lib/use-query';
 import { createClient } from '@/lib/supabase/client';
 import { formatMoney } from '@/lib/format';
 import {
-  Badge, Button, Card, CardHeader, Checkbox, Field, Input, PageHeader,
+  ActiveFilters, Badge, Card, CardHeader, Checkbox, Field, Input, PageHeader,
 } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
 import { Money, Mono, PaymentStatusBadge, StatCard } from '@/components/domain';
-import { effectivePrice, PriceSourceBadge } from '@/components/pricing';
+import { effectivePrice, PriceRules, PriceSourceBadge } from '@/components/pricing';
 import type { Package, SubscriptionFinancials } from '@/types/database';
 
 /** A subscription plus the names the financials view does not carry. */
@@ -279,6 +279,8 @@ export default function PricingPage() {
         subtitle={t.pricing.subtitle}
       />
 
+      <PriceRules />
+
       <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label={t.pricing.billedTotal} value={formatMoney(totals.billed, locale)} />
         <StatCard
@@ -292,32 +294,61 @@ export default function PricingPage() {
           tone={totals.remaining > 0 ? 'warn' : 'neutral'}
           emphasis
         />
-        <StatCard
-          label={t.pricing.unpricedCount}
-          value={String(totals.unpriced)}
-          tone={totals.unpriced > 0 ? 'danger' : 'neutral'}
-          hint={totals.unpriced > 0 ? t.pricing.packagePricesHint : undefined}
-        />
+        {/*
+          The only tile that is a task rather than a figure, so it is the only
+          one you can press: it filters the table to exactly the rows it is
+          counting. Reading "3 unpriced" and then hunting for which three is
+          work the page can do itself.
+        */}
+        <button
+          type="button"
+          onClick={() => setOnlyUnpriced((v) => !v)}
+          aria-pressed={onlyUnpriced}
+          disabled={totals.unpriced === 0 && !onlyUnpriced}
+          className="rounded-card text-start transition-transform duration-150 ease-soft enabled:hover:-translate-y-px disabled:cursor-default"
+        >
+          <StatCard
+            label={t.pricing.unpricedCount}
+            value={String(totals.unpriced)}
+            tone={totals.unpriced > 0 ? 'danger' : 'neutral'}
+            hint={
+              totals.unpriced > 0
+                ? (onlyUnpriced ? t.pricing.showingUnpriced : t.pricing.showUnpriced)
+                : t.pricing.allPriced
+            }
+          />
+        </button>
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
+        {/*
+          Two panels, in the order the work is actually done: price the
+          package once on the left, and only reach for the right when a single
+          order needs to differ. Presented as steps because side-by-side
+          panels with no stated relationship read as two unrelated tools.
+        */}
         <Card className="h-fit">
-          <CardHeader title={t.pricing.packagePrices} hint={t.pricing.packagePricesHint} />
+          <CardHeader
+            title={t.pricing.packagePrices}
+            hint={t.pricing.packagePricesHint}
+            action={<Badge tone="brand">{t.pricing.stepOne}</Badge>}
+          />
           <DataTable
             columns={packageColumns}
             rows={packages.data ?? []}
             keyOf={(p) => p.id}
             loading={packages.loading}
             error={packages.error}
-            emptyMessage={t.common.empty}
+            emptyMessage={t.pricing.noPackages}
             loadingMessage={t.common.loading}
             errorMessage={t.common.error}
+            loadingRows={4}
           />
         </Card>
 
         <div className="min-w-0">
-          <Card className="mb-4 p-4">
-            <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <Card className="mb-4">
+            <div className="grid items-end gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto]">
               <Field label={t.common.search} hint={t.pricing.searchHint}>
                 <Input
                   value={search}
@@ -331,26 +362,34 @@ export default function PricingPage() {
                   onChange={setOnlyUnpriced}
                   label={t.pricing.onlyUnpriced}
                 />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => { setSearch(''); setOnlyUnpriced(false); }}
-                >
-                  {t.common.reset}
-                </Button>
               </div>
             </div>
+
+            <ActiveFilters
+              label={t.subscriptions.activeFilters}
+              clearAllLabel={t.subscriptions.clearFilters}
+              onClear={() => { setSearch(''); setOnlyUnpriced(false); }}
+              filters={[
+                search.trim() && {
+                  key: 'search', label: t.common.search, value: search.trim(),
+                  onRemove: () => setSearch(''),
+                },
+                onlyUnpriced && {
+                  key: 'unpriced', label: t.pricing.priceSource,
+                  value: t.pricing.sourceNone,
+                  onRemove: () => setOnlyUnpriced(false),
+                },
+              ].filter(Boolean) as Array<{
+                key: string; label: string; value: string; onRemove: () => void;
+              }>}
+            />
           </Card>
 
           <Card>
             <CardHeader
-              title={t.subscriptions.title}
+              title={t.pricing.subscriptionPrices}
               hint={`${rows.length} ${t.common.rows}`}
-              action={
-                <Badge tone="brand">
-                  {t.pricing.effectivePrice}: {formatMoney(totals.billed, locale)}
-                </Badge>
-              }
+              action={<Badge tone="brand">{t.pricing.stepTwo}</Badge>}
             />
             <DataTable
               columns={columns}
@@ -358,13 +397,16 @@ export default function PricingPage() {
               keyOf={(r) => r.id}
               loading={subscriptions.loading || financials.loading}
               error={subscriptions.error ?? financials.error}
-              emptyMessage={t.common.empty}
+              emptyMessage={
+                search.trim() || onlyUnpriced ? t.subscriptions.noMatches : t.common.empty
+              }
               loadingMessage={t.common.loading}
               errorMessage={t.common.error}
             />
           </Card>
         </div>
       </div>
+
     </>
   );
 }

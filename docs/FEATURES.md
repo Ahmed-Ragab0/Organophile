@@ -167,8 +167,16 @@ presets (this month, last month, last 3, last 12, all time). The range is a
 *month* range because every underlying view is keyed by month; a day picker
 over month-granularity data would be a lie at the edges.
 
+The **pressed preset is highlighted**, and the range is restated in words
+underneath — two selects both reading "September" do not say "one month", and
+a hand-picked range has no pressed button to speak for it, so it is labelled
+"custom range" instead.
+
 Totals for the range: revenue, expenses, net, Kashier fees, outstanding. Then
-nine reports behind one picker, each exportable to CSV from the header button:
+nine reports behind one picker, each exportable to CSV from the header button.
+The export button carries the row count it would write, and when a report has
+no rows in the range it says so rather than sitting disabled with no reason —
+which reads as broken:
 
 | Report | Reads |
 |---|---|
@@ -210,19 +218,45 @@ Reads `v_course_catalogue`.
 
 ### الاشتراكات · Subscriptions — `/subscriptions`
 
-The raw orders as ukkera sent them: order id, student, course, package, amount,
-date, source. Every order links through to its pricing editor.
+Every order ukkera sent, with its money and its search.
 
-Reads `subscriptions` with embedded student/course/package.
+- **One search box** across order id, student name, phone, course and package.
+  A phone typed as `010…`, `+2010…` or with spaces all find the same student,
+  because the query also tries the normalised column.
+- **Filters**: course, package (narrowed to the chosen course, so the pair
+  cannot be combined into a filter that returns nothing), payment status,
+  price source, and an enrolment date range.
+- **Active filters** are listed as removable chips under the controls. A row
+  of selects tells you what you *could* filter by; the chips tell you what you
+  *are* filtering by, which is the question you actually have when a list
+  looks short.
+- Totals above the table are for the filtered page, so narrowing a filter has
+  a visible effect on money, not just on row count.
+
+Reads `v_subscriptions_list`. All filtering happens in the database: the page
+before this one searched only the order id and filtered the rest in the
+browser over a capped page, so a match on row 501 did not exist.
 
 ### الأسعار والدفعات · Pricing & instalments — `/pricing`
 
 Where an order gets a price and a payment plan.
 
-- **Package prices**, editable inline.
-- **Every subscription** with its effective price and — the point — **where
-  that price came from**: its own override, the package, the order amount, or
-  nothing at all.
+ukkera says what a student bought, not what it should cost, and a package
+arrives with no price at all. Without this page there is no outstanding
+balance, because there is no figure to subtract what was paid from.
+
+- **The rule, stated at the top.** Four numbered steps showing the precedence:
+  a price set on the subscription, then the package price, then the amount
+  ukkera sent, then nothing. The source badges in the table are meaningless
+  without it — the reader can see that one row says "package" and another says
+  "order", but not that the first beats the second.
+- **Step 1 — package prices**, editable inline. Price a package once and every
+  subscription in it follows.
+- **Step 2 — subscription prices**, for the orders that need to differ. Each
+  row carries **where its price came from**.
+- **Unpriced** is the one tile that is a task rather than a figure, so it is
+  the only one you can press: it filters the table to exactly the rows it is
+  counting.
 - `/pricing/[id]` — price and terms, the instalment schedule (with "split
   evenly", which distributes to the piastre so the plan always sums to the
   price), and the payments actually received, with void.
@@ -288,7 +322,14 @@ The two failure modes of the soft join, side by side:
 You can link a payment to a subscription by hand; that writes
 `payment_subscription_overrides`, which always wins over the automatic match.
 
-Reads `v_unmatched_payments`, `v_unpaid_subscriptions`.
+**Payment match rate** measures the one open assumption in the schema — that
+ukkera's `order_id` is what Kashier returns as `merchantOrderId`. It counts
+live `pay`/`capture` events only, and distinguishes "no evidence yet" from
+"0% matched", which look identical in a naive counter and mean opposite
+things. See [kashier-testing.md](kashier-testing.md) for how to settle it.
+
+Reads `v_unmatched_payments`, `v_unpaid_subscriptions`,
+`v_payment_match_health`.
 
 ### استيراد · Import — `/import`
 
