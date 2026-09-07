@@ -111,11 +111,23 @@ by `authenticated`:
 |---|---|
 | `sweep_failed_events()` | Health page "Reprocess failed" button |
 | `import_students(jsonb)` | Import page needs the same student-matching rule the webhook uses |
-| `reconcile_transactions(jsonb)` | Import page comparison report (read-only) |
+| `reconcile_transactions(jsonb, mode)` | Import page comparison report (read-only) |
+| `add_expense(...)` | Expense form |
+| `add_manual_revenue(...)` | Cash taken outside Kashier |
+| `transfer_between_wallets(...)` | Wallet transfer form |
+| `void_ledger_entry(...)` | The only way to undo a ledger entry |
 
-All three are **intentional** and each begins with an `app.is_admin()` check
-that raises `forbidden` otherwise. A non-admin gets nothing and changes nothing;
-`anon` cannot execute them at all. Verified by tests SEC8–SEC11.
+All seven are **intentional**. Each begins with an `app.is_admin()` check that
+raises `forbidden` otherwise, and `anon` cannot execute any of them. They exist
+as functions precisely *because* RLS denies direct writes to `ledger_entries`:
+the invariants live in one place instead of being re-implemented in the client.
+
+Verified by assertion — every one refuses a non-admin, a direct INSERT on
+`ledger_entries` is denied (42501), and the row count is unchanged afterwards.
+
+One further advisor finding is **not** ours to dismiss: *Leaked Password
+Protection Disabled*. Turn it on at Authentication → Providers → Password so
+Supabase checks new passwords against HaveIBeenPwned.
 
 ## Scheduled jobs
 
