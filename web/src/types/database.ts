@@ -1,9 +1,11 @@
 /**
- * Generated from the live Supabase schema.
+ * Types for the live Supabase schema.
  *
- * Regenerate after any migration. With the Supabase CLI linked to this
- * project:  supabase gen types typescript --project-id egaaigoplqinjvwtnhoo
- * Do not edit by hand — changes here will be overwritten.
+ * Regenerate after a migration with:
+ *   supabase gen types typescript --project-id egaaigoplqinjvwtnhoo
+ *
+ * Money is `number` here because PostgREST returns numeric as a JSON number.
+ * Every amount is EGP in major units, matching what Kashier sends.
  */
 export type Json =
   | string
@@ -13,319 +15,457 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+// --- Enums ------------------------------------------------------------------
+
 export type IngestState = 'pending' | 'processed' | 'failed' | 'ignored';
 export type KashierMode = 'test' | 'live';
-export type KashierTransferEvent = 'INITIATED' | 'TRANSFERRED' | 'FAILED';
+export type KashierTransferEvent =
+  | 'INITIATED'
+  | 'IN_TRANSIT'
+  | 'TRANSFERRED'
+  | 'PARTIALLY_TRANSFERRED'
+  | 'FAILED';
 export type KashierTxnEvent = 'pay' | 'capture' | 'authorize' | 'refund' | 'void' | 'reversal';
 export type TxnStatus =
   | 'SUCCESS' | 'FAILURE' | 'PENDING' | 'INITIATED'
   | 'EXPIRED' | 'CANCEL' | 'REVOKED' | 'UNKNOWN';
 
-export type Database = {
-  public: {
-    Tables: {
-      admin_users: {
-        Row: { created_at: string; email: string | null; user_id: string };
-        Insert: { created_at?: string; email?: string | null; user_id: string };
-        Update: { created_at?: string; email?: string | null; user_id?: string };
-        Relationships: [];
-      };
-      courses: {
-        Row: {
-          created_at: string; id: string; is_active: boolean;
-          name: string; name_key: string | null; updated_at: string;
-        };
-        Insert: {
-          created_at?: string; id?: string; is_active?: boolean;
-          name: string; updated_at?: string;
-        };
-        Update: {
-          created_at?: string; id?: string; is_active?: boolean;
-          name?: string; updated_at?: string;
-        };
-        Relationships: [];
-      };
-      expenses: {
-        Row: {
-          amount: number; category: string; created_at: string; created_by: string | null;
-          currency: string; id: string; note: string | null; spent_at: string; updated_at: string;
-        };
-        Insert: {
-          amount: number; category: string; created_at?: string; created_by?: string | null;
-          currency?: string; id?: string; note?: string | null; spent_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          amount?: number; category?: string; created_at?: string; created_by?: string | null;
-          currency?: string; id?: string; note?: string | null; spent_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      kashier_events_raw: {
-        Row: {
-          body_sha256: string; duplicate_count: number; event: string | null; id: string;
-          last_duplicate_at: string | null; mode: KashierMode; payload: Json;
-          process_attempts: number; process_error: string | null; processed_at: string | null;
-          received_at: string; resource_type: string; signature_note: string | null;
-          signature_valid: boolean; source: string; state: IngestState;
-        };
-        Insert: never;
-        Update: never;
-        Relationships: [];
-      };
-      packages: {
-        Row: {
-          course_id: string | null; created_at: string; id: string; name: string;
-          name_key: string | null; price: number | null; updated_at: string;
-        };
-        Insert: {
-          course_id?: string | null; created_at?: string; id?: string; name: string;
-          price?: number | null; updated_at?: string;
-        };
-        Update: {
-          course_id?: string | null; created_at?: string; id?: string; name?: string;
-          price?: number | null; updated_at?: string;
-        };
-        Relationships: [];
-      };
-      payment_subscription_overrides: {
-        Row: {
-          created_at: string; created_by: string | null; payment_id: string;
-          reason: string | null; subscription_id: string;
-        };
-        Insert: {
-          created_at?: string; created_by?: string | null; payment_id: string;
-          reason?: string | null; subscription_id: string;
-        };
-        Update: {
-          created_at?: string; created_by?: string | null; payment_id?: string;
-          reason?: string | null; subscription_id?: string;
-        };
-        Relationships: [];
-      };
-      payments: {
-        Row: {
-          amount: number | null; apikey_name: string | null; card_brand: string | null;
-          card_holder_name: string | null; channel: string | null; created_at: string;
-          currency: string | null; event: KashierTxnEvent; fees: number | null;
-          first_seen_at: string; id: string; is_test_webhook: boolean;
-          kashier_order_id: string | null; masked_card: string | null;
-          merchant_order_id: string | null; merchant_order_key: string | null;
-          method: string | null; mode: KashierMode; order_reference: string | null;
-          raw_payload: Json; response_code: string | null; response_message: string | null;
-          settled_amount: number | null; status: TxnStatus; transaction_date: string | null;
-          transaction_id: string; updated_at: string; vat: number | null;
-        };
-        Insert: never;
-        Update: never;
-        Relationships: [];
-      };
-      payouts: {
-        Row: {
-          amount: number | null; created_at: string; currency: string | null;
-          event: KashierTransferEvent; first_seen_at: string; id: string; mode: KashierMode;
-          raw_payload: Json; reference: string | null; transfer_date: string | null;
-          transfer_id: string; updated_at: string;
-          // Captured from the real Kashier transfer payload (migration 0009).
-          method: string | null; recipient_name: string | null;
-          recipient_number: string | null; merchant_transfer_id: string | null;
-          response_code: string | null; response_message: string | null;
-        };
-        Insert: never;
-        Update: never;
-        Relationships: [];
-      };
-      students: {
-        Row: {
-          created_at: string; email: string | null; group_name: string | null; id: string;
-          name: string; notes: string | null; phone: string | null;
-          phone_normalized: string | null; ukkera_student_id: string | null;
-          university: string | null; updated_at: string;
-        };
-        Insert: {
-          created_at?: string; email?: string | null; group_name?: string | null; id?: string;
-          name: string; notes?: string | null; phone?: string | null;
-          ukkera_student_id?: string | null; university?: string | null; updated_at?: string;
-        };
-        Update: {
-          created_at?: string; email?: string | null; group_name?: string | null; id?: string;
-          name?: string; notes?: string | null; phone?: string | null;
-          ukkera_student_id?: string | null; university?: string | null; updated_at?: string;
-        };
-        Relationships: [];
-      };
-      subscriptions: {
-        Row: {
-          amount: number | null; course_id: string | null; created_at: string; currency: string;
-          id: string; order_id: string; order_key: string | null; package_id: string | null;
-          payment_date: string | null; source: string; student_id: string | null;
-          updated_at: string;
-        };
-        Insert: {
-          amount?: number | null; course_id?: string | null; created_at?: string;
-          currency?: string; id?: string; order_id: string; package_id?: string | null;
-          payment_date?: string | null; source?: string; student_id?: string | null;
-          updated_at?: string;
-        };
-        Update: {
-          amount?: number | null; course_id?: string | null; created_at?: string;
-          currency?: string; id?: string; order_id?: string; package_id?: string | null;
-          payment_date?: string | null; source?: string; student_id?: string | null;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      ukkera_events_raw: {
-        Row: {
-          body_sha256: string; duplicate_count: number; id: string;
-          last_duplicate_at: string | null; payload: Json; process_attempts: number;
-          process_error: string | null; processed_at: string | null; received_at: string;
-          state: IngestState;
-        };
-        Insert: never;
-        Update: never;
-        Relationships: [];
-      };
-      webhook_rejections: {
-        Row: {
-          body_excerpt: string | null; body_sha256: string | null; detail: string | null;
-          endpoint: string; id: string; reason: string; received_at: string;
-        };
-        Insert: never;
-        Update: never;
-        Relationships: [];
-      };
-    };
-    Views: {
-      v_dashboard_kpis: {
-        Row: {
-          expenses_all_time: number | null; failed_ingest_events: number | null;
-          payouts_in_flight: number | null; payouts_transferred: number | null;
-          revenue_all_time: number | null; revenue_this_month: number | null;
-          students_total: number | null; subscriptions_total: number | null;
-          unmatched_payments: number | null; unpaid_subscriptions: number | null;
-        };
-        Relationships: [];
-      };
-      v_expenses_daily: {
-        Row: { day: string | null; entries: number | null; expenses: number | null };
-        Relationships: [];
-      };
-      v_ingest_health: {
-        Row: {
-          duplicates: number | null; events: number | null; latest_at: string | null;
-          pipeline: string | null; state: string | null;
-        };
-        Relationships: [];
-      };
-      v_payment_matches: {
-        Row: {
-          match_method: string | null; payment_id: string | null; subscription_id: string | null;
-        };
-        Relationships: [];
-      };
-      v_payments_enriched: {
-        Row: {
-          amount: number | null; apikey_name: string | null; card_brand: string | null;
-          channel: string | null; course_id: string | null; course_name: string | null;
-          created_at: string | null; currency: string | null; event: KashierTxnEvent | null;
-          fees: number | null; id: string | null; is_test_webhook: boolean | null;
-          kashier_order_id: string | null; masked_card: string | null;
-          match_method: string | null; merchant_order_id: string | null; method: string | null;
-          mode: KashierMode | null; order_reference: string | null; package_id: string | null;
-          package_name: string | null; response_code: string | null;
-          response_message: string | null; settled_amount: number | null;
-          signed_amount: number | null; status: TxnStatus | null; student_group: string | null;
-          student_id: string | null; student_name: string | null; student_phone: string | null;
-          student_university: string | null; subscription_id: string | null;
-          subscription_order_id: string | null; subscription_payment_date: string | null;
-          transaction_date: string | null; transaction_id: string | null;
-          updated_at: string | null; vat: number | null;
-        };
-        Relationships: [];
-      };
-      v_payout_summary: {
-        Row: {
-          event: KashierTransferEvent | null; latest_transfer_at: string | null;
-          mode: KashierMode | null; total_amount: number | null; transfers: number | null;
-        };
-        Relationships: [];
-      };
-      v_profit_daily: {
-        Row: {
-          day: string | null; expenses: number | null; fees: number | null;
-          net_profit: number | null; revenue: number | null;
-        };
-        Relationships: [];
-      };
-      v_revenue_daily: {
-        Row: {
-          day: string | null; failed_payments: number | null; fees: number | null;
-          gross: number | null; mode: KashierMode | null; refunds: number | null;
-          settled: number | null; successful_payments: number | null;
-        };
-        Relationships: [];
-      };
-      v_revenue_monthly: {
-        Row: {
-          expenses: number | null; fees: number | null; month: string | null;
-          net_profit: number | null; revenue: number | null;
-        };
-        Relationships: [];
-      };
-      v_unmatched_payments: {
-        Row: Database['public']['Views']['v_payments_enriched']['Row'];
-        Relationships: [];
-      };
-      v_unpaid_subscriptions: {
-        Row: {
-          amount: number | null; course_name: string | null; created_at: string | null;
-          id: string | null; order_id: string | null; payment_date: string | null;
-          student_name: string | null; student_phone: string | null;
-        };
-        Relationships: [];
-      };
-    };
-    Functions: {
-      sweep_failed_events: { Args: Record<string, never>; Returns: Json };
-    };
-    Enums: {
-      kashier_mode: KashierMode;
-      kashier_transfer_event: KashierTransferEvent;
-      kashier_txn_event: KashierTxnEvent;
-      txn_status: TxnStatus;
-    };
-    CompositeTypes: Record<string, never>;
-  };
+export type WalletType = 'bank' | 'cash' | 'digital';
+
+export type LedgerEntryType =
+  | 'revenue'
+  | 'expense'
+  | 'transfer_in'
+  | 'transfer_out'
+  | 'refund'
+  | 'reversal'
+  | 'adjustment_in'
+  | 'adjustment_out';
+
+/** Derived on v_student_financials / v_subscription_financials. */
+export type PaymentStatus = 'paid' | 'partial' | 'unpaid' | 'overdue' | 'unknown';
+
+// --- Rows -------------------------------------------------------------------
+
+export type Wallet = {
+  id: string;
+  name: string;
+  name_key: string | null;
+  type: WalletType;
+  is_active: boolean;
+  opening_balance: number;
+  sort_order: number;
+  is_kashier_default: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
-type PublicSchema = Database['public'];
+export type WalletBalance = {
+  id: string;
+  name: string;
+  type: WalletType;
+  is_active: boolean;
+  sort_order: number;
+  is_kashier_default: boolean;
+  opening_balance: number;
+  balance: number;
+  money_in: number;
+  money_out: number;
+  entries: number;
+  last_movement_at: string | null;
+};
 
-export type Tables<T extends keyof (PublicSchema['Tables'] & PublicSchema['Views'])> =
-  (PublicSchema['Tables'] & PublicSchema['Views'])[T] extends { Row: infer R } ? R : never;
+export type LedgerEntry = {
+  id: string;
+  entry_type: LedgerEntryType;
+  amount: number;
+  occurred_at: string;
+  description: string | null;
+  category: string | null;
+  reference: string | null;
+  metadata: Json;
+  is_test: boolean;
+  transfer_group_id: string | null;
+  voided_at: string | null;
+  void_reason: string | null;
+  created_at: string;
+  wallet_delta: number;
+  revenue_effect: number;
+  expense_effect: number;
+  wallet_id: string;
+  wallet_name: string;
+  wallet_type: WalletType;
+  student_id: string | null;
+  student_name: string | null;
+  student_phone: string | null;
+  course_id: string | null;
+  course_name: string | null;
+  subscription_id: string | null;
+  subscription_order_id: string | null;
+  payment_id: string | null;
+  kashier_transaction_id: string | null;
+  payment_method: string | null;
+  payment_status: TxnStatus | null;
+};
 
-export type TablesInsert<T extends keyof PublicSchema['Tables']> =
-  PublicSchema['Tables'][T] extends { Insert: infer I } ? I : never;
+export type Student = {
+  id: string;
+  ukkera_student_id: string | null;
+  name: string;
+  phone: string | null;
+  phone_normalized: string | null;
+  email: string | null;
+  group_name: string | null;
+  university: string | null;
+  university_id: string | null;
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
-export type TablesUpdate<T extends keyof PublicSchema['Tables']> =
-  PublicSchema['Tables'][T] extends { Update: infer U } ? U : never;
+export type StudentFinancials = {
+  student_id: string;
+  name: string;
+  phone: string | null;
+  phone_normalized: string | null;
+  email: string | null;
+  group_name: string | null;
+  is_active: boolean;
+  registered_at: string;
+  university_id: string | null;
+  university_name: string | null;
+  subscriptions_count: number;
+  total_due: number;
+  total_paid: number;
+  remaining: number;
+  last_payment_at: string | null;
+  courses: string | null;
+  payment_status: PaymentStatus;
+};
 
-// --- Convenience aliases used across the app --------------------------------
-export type Student = Tables<'students'>;
-export type Course = Tables<'courses'>;
-export type Package = Tables<'packages'>;
-export type Subscription = Tables<'subscriptions'>;
-export type Payment = Tables<'payments'>;
-export type Payout = Tables<'payouts'>;
-export type Expense = Tables<'expenses'>;
-export type EnrichedPayment = Tables<'v_payments_enriched'>;
-export type UnpaidSubscription = Tables<'v_unpaid_subscriptions'>;
-export type DashboardKpis = Tables<'v_dashboard_kpis'>;
-export type ProfitDaily = Tables<'v_profit_daily'>;
-export type RevenueMonthly = Tables<'v_revenue_monthly'>;
-export type IngestHealth = Tables<'v_ingest_health'>;
-export type PayoutSummary = Tables<'v_payout_summary'>;
-export type WebhookRejection = Tables<'webhook_rejections'>;
-export type KashierRawEvent = Tables<'kashier_events_raw'>;
-export type UkkeraRawEvent = Tables<'ukkera_events_raw'>;
+export type SubscriptionFinancials = {
+  subscription_id: string;
+  order_id: string;
+  student_id: string | null;
+  course_id: string | null;
+  package_id: string | null;
+  enrolled_at: string;
+  due_date: string | null;
+  installment_count: number;
+  total_due: number;
+  total_paid: number;
+  remaining: number;
+  last_payment_at: string | null;
+  payments_count: number | null;
+  payment_status: PaymentStatus;
+};
+
+export type University = {
+  id: string;
+  name: string;
+  name_key: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Course = {
+  id: string;
+  name: string;
+  name_key: string | null;
+  is_active: boolean;
+  university_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CourseCatalogueRow = {
+  course_id: string;
+  course_name: string;
+  is_active: boolean;
+  university_id: string | null;
+  university_name: string;
+  students_count: number;
+  total_due: number;
+  total_paid: number;
+  remaining: number;
+};
+
+export type Package = {
+  id: string;
+  course_id: string | null;
+  name: string;
+  name_key: string | null;
+  price: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Subscription = {
+  id: string;
+  student_id: string | null;
+  course_id: string | null;
+  package_id: string | null;
+  order_id: string;
+  order_key: string | null;
+  amount: number | null;
+  currency: string;
+  payment_date: string | null;
+  source: string;
+  total_due: number | null;
+  installment_count: number;
+  due_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Payment = {
+  id: string;
+  transaction_id: string;
+  kashier_order_id: string | null;
+  merchant_order_id: string | null;
+  merchant_order_key: string | null;
+  order_reference: string | null;
+  event: KashierTxnEvent;
+  status: TxnStatus;
+  mode: KashierMode;
+  amount: number | null;
+  currency: string | null;
+  settled_amount: number | null;
+  fees: number | null;
+  vat: number | null;
+  method: string | null;
+  channel: string | null;
+  card_brand: string | null;
+  card_holder_name: string | null;
+  masked_card: string | null;
+  apikey_name: string | null;
+  transaction_date: string | null;
+  response_code: string | null;
+  response_message: string | null;
+  is_test_webhook: boolean;
+  raw_payload: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EnrichedPayment = {
+  id: string | null;
+  transaction_id: string | null;
+  kashier_order_id: string | null;
+  merchant_order_id: string | null;
+  order_reference: string | null;
+  event: KashierTxnEvent | null;
+  status: TxnStatus | null;
+  mode: KashierMode | null;
+  amount: number | null;
+  currency: string | null;
+  settled_amount: number | null;
+  fees: number | null;
+  vat: number | null;
+  signed_amount: number | null;
+  method: string | null;
+  channel: string | null;
+  card_brand: string | null;
+  masked_card: string | null;
+  apikey_name: string | null;
+  transaction_date: string | null;
+  response_code: string | null;
+  response_message: string | null;
+  is_test_webhook: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
+  subscription_id: string | null;
+  match_method: string | null;
+  subscription_order_id: string | null;
+  subscription_payment_date: string | null;
+  student_id: string | null;
+  student_name: string | null;
+  student_phone: string | null;
+  student_group: string | null;
+  student_university: string | null;
+  course_id: string | null;
+  course_name: string | null;
+  package_id: string | null;
+  package_name: string | null;
+};
+
+export type Payout = {
+  id: string;
+  transfer_id: string;
+  event: KashierTransferEvent;
+  mode: KashierMode;
+  amount: number | null;
+  currency: string | null;
+  reference: string | null;
+  transfer_date: string | null;
+  method: string | null;
+  recipient_name: string | null;
+  recipient_number: string | null;
+  recipient_bank: string | null;
+  merchant_transfer_id: string | null;
+  merchant_id: string | null;
+  store_name: string | null;
+  batch_id: string | null;
+  batch_name: string | null;
+  batch_transfers_count: number | null;
+  response_code: string | null;
+  response_message: string | null;
+  raw_payload: Json;
+  first_seen_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type KashierAccount = {
+  mode: KashierMode;
+  merchant_id: string | null;
+  account_id: string | null;
+  merchant_name: string | null;
+  total_balance: number | null;
+  available_balance: number | null;
+  last_transfer: number | null;
+  last_transfer_date: string | null;
+  payout_method: string | null;
+  payout_fields: Json;
+  raw_payload: Json;
+  synced_at: string;
+};
+
+export type DashboardKpis = {
+  total_revenue: number;
+  total_expenses: number;
+  net_profit: number;
+  outstanding_amount: number;
+  month_revenue: number;
+  month_expenses: number;
+  month_net_profit: number;
+  current_month: string;
+  students_active: number;
+  students_total: number;
+  subscriptions_total: number;
+  wallets_total: number;
+  unmatched_payments: number;
+  unpaid_subscriptions: number;
+  failed_ingest_events: number;
+  payouts_received: number;
+  payouts_in_flight: number;
+};
+
+export type FinanceDaily = {
+  day: string;
+  revenue: number;
+  expenses: number;
+  net_profit: number;
+  revenue_entries: number;
+  expense_entries: number;
+  refund_entries: number;
+};
+
+export type FinanceMonthly = {
+  month: string;
+  revenue: number;
+  expenses: number;
+  net_profit: number;
+  revenue_entries: number;
+  expense_entries: number;
+};
+
+export type MonthlyReport = FinanceMonthly & {
+  payments_count: number;
+  expenses_count: number;
+  payments_total: number;
+};
+
+export type ExpenseByCategory = {
+  month: string;
+  category: string;
+  total: number;
+  entries: number;
+};
+
+export type RevenueByCourse = {
+  month: string;
+  course_id: string | null;
+  course_name: string;
+  revenue: number;
+  payments: number;
+};
+
+export type RevenueByUniversity = {
+  month: string;
+  university_id: string | null;
+  university_name: string;
+  revenue: number;
+  payments: number;
+};
+
+export type UnpaidSubscription = {
+  id: string | null;
+  order_id: string | null;
+  amount: number | null;
+  payment_date: string | null;
+  created_at: string | null;
+  student_name: string | null;
+  student_phone: string | null;
+  course_name: string | null;
+};
+
+export type IngestHealth = {
+  pipeline: string | null;
+  state: string | null;
+  events: number | null;
+  latest_at: string | null;
+  duplicates: number | null;
+};
+
+export type PayoutSummary = {
+  mode: KashierMode | null;
+  event: KashierTransferEvent | null;
+  transfers: number | null;
+  total_amount: number | null;
+  latest_transfer_at: string | null;
+};
+
+export type WebhookRejection = {
+  id: string;
+  endpoint: string;
+  reason: string;
+  detail: string | null;
+  body_sha256: string | null;
+  body_excerpt: string | null;
+  received_at: string;
+};
+
+export type KashierRawEvent = {
+  id: string;
+  event: string | null;
+  resource_type: string;
+  mode: KashierMode;
+  source: string;
+  payload: Json;
+  body_sha256: string;
+  signature_valid: boolean;
+  signature_note: string | null;
+  received_at: string;
+  state: IngestState;
+  processed_at: string | null;
+  process_attempts: number;
+  process_error: string | null;
+  duplicate_count: number;
+  last_duplicate_at: string | null;
+};
+
+/** Expense categories the business actually uses. */
+export const EXPENSE_CATEGORIES = [
+  'مرتبات',
+  'تسويق',
+  'إيجارات',
+  'تقنية',
+  'إنتاج محتوى',
+  'أخرى',
+] as const;
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];

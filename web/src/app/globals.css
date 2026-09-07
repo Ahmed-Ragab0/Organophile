@@ -1,65 +1,91 @@
 @import 'tailwindcss';
 
 /*
- * Design tokens.
- * Light and dark are both defined here; the app follows the OS preference.
- * Colours are chosen so every status badge clears WCAG AA against its own
- * surface in both themes.
+ * Organophile design system
+ * ─────────────────────────
+ * Palette: the brand's violet → pink ramp, used as a DEPTH scale.
+ *   #3F1E6B deep violet   structure, chrome, the darkest ink
+ *   #5C2F80 purple        brand, primary actions
+ *   #E4588F pink          the live signal: focus, selection, what changed
+ *   #FFAAAE light pink    soft fills and highlights
+ *
+ * Money colour is deliberately NOT drawn from that ramp. In a financial
+ * interface "+" and "−" must never be ambiguous, so income and cost get their
+ * own hues, tuned to sit beside the violets without fighting them.
  */
+
 @theme {
+  --font-display: var(--font-app-display), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-app-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --color-canvas: oklch(98.4% 0.003 250);
-  --color-surface: oklch(100% 0 0);
-  --color-surface-2: oklch(96.8% 0.004 250);
-  --color-border: oklch(91% 0.006 250);
-  --color-border-strong: oklch(84% 0.008 250);
+  --color-canvas: #fbf9fd;
+  --color-surface: #ffffff;
+  --color-surface-2: #f5f1f9;
+  --color-surface-3: #ece5f3;
+  --color-border: #e9e1f0;
+  --color-border-strong: #d6c9e2;
 
-  --color-ink: oklch(21% 0.015 260);
-  --color-ink-muted: oklch(50% 0.012 260);
-  --color-ink-faint: oklch(64% 0.01 260);
+  --color-ink: #241534;
+  --color-ink-muted: #5e4e70;
+  --color-ink-faint: #8b7c9c;
 
-  --color-brand: oklch(53% 0.16 258);
-  --color-brand-hover: oklch(47% 0.17 258);
-  --color-brand-soft: oklch(95% 0.03 258);
+  --color-brand: #5c2f80;
+  --color-brand-strong: #3f1e6b;
+  --color-brand-hover: #4a2469;
+  --color-brand-soft: #f3ebfa;
 
-  --color-ok: oklch(56% 0.14 155);
-  --color-ok-soft: oklch(95% 0.05 155);
-  --color-warn: oklch(66% 0.14 75);
-  --color-warn-soft: oklch(96% 0.06 85);
-  --color-danger: oklch(56% 0.19 25);
-  --color-danger-soft: oklch(95.5% 0.03 25);
-  --color-info: oklch(58% 0.12 230);
-  --color-info-soft: oklch(95% 0.03 230);
+  --color-accent: #e4588f;
+  --color-accent-strong: #d13d78;
+  --color-accent-soft: #fde9f1;
 
-  --radius-card: 0.875rem;
+  --color-ok: #1f8a6b;
+  --color-ok-soft: #e2f4ee;
+  --color-danger: #d6336c;
+  --color-danger-soft: #fde7ef;
+  --color-warn: #b26a00;
+  --color-warn-soft: #fdf0dc;
+  --color-info: #4b5bbf;
+  --color-info-soft: #eaecfb;
+
+  --radius-card: 1rem;
+  --radius-field: 0.625rem;
 }
 
+/*
+ * Dark theme. Tokens are redefined as raw custom properties rather than in a
+ * second @theme block, which Tailwind v4 only reads at the top level.
+ */
 @media (prefers-color-scheme: dark) {
-  @theme {
-    --color-canvas: oklch(17% 0.012 260);
-    --color-surface: oklch(21% 0.014 260);
-    --color-surface-2: oklch(25% 0.015 260);
-    --color-border: oklch(30% 0.014 260);
-    --color-border-strong: oklch(38% 0.016 260);
+  :root {
+    --color-canvas: #140d1c;
+    --color-surface: #1c1428;
+    --color-surface-2: #251b33;
+    --color-surface-3: #2f2240;
+    --color-border: #332545;
+    --color-border-strong: #453357;
 
-    --color-ink: oklch(96% 0.004 250);
-    --color-ink-muted: oklch(74% 0.01 255);
-    --color-ink-faint: oklch(60% 0.012 255);
+    --color-ink: #f4eff8;
+    --color-ink-muted: #b4a6c4;
+    --color-ink-faint: #8a7a9c;
 
-    --color-brand: oklch(70% 0.14 258);
-    --color-brand-hover: oklch(77% 0.14 258);
-    --color-brand-soft: oklch(30% 0.06 258);
+    --color-brand: #a57bd0;
+    --color-brand-strong: #c4a2e8;
+    --color-brand-hover: #b892dd;
+    --color-brand-soft: #33224a;
 
-    --color-ok: oklch(74% 0.15 155);
-    --color-ok-soft: oklch(29% 0.06 155);
-    --color-warn: oklch(80% 0.13 80);
-    --color-warn-soft: oklch(31% 0.06 80);
-    --color-danger: oklch(70% 0.16 25);
-    --color-danger-soft: oklch(30% 0.07 25);
-    --color-info: oklch(74% 0.11 230);
-    --color-info-soft: oklch(29% 0.05 230);
+    --color-accent: #f27ba8;
+    --color-accent-strong: #ff9ac0;
+    --color-accent-soft: #45203a;
+
+    --color-ok: #3fcfa3;
+    --color-ok-soft: #16362e;
+    --color-danger: #ff6b95;
+    --color-danger-soft: #461d2e;
+    --color-warn: #e5a83c;
+    --color-warn-soft: #3d2e10;
+    --color-info: #8f9bf0;
+    --color-info-soft: #232a4d;
   }
 }
 
@@ -71,41 +97,72 @@ body {
   background: var(--color-canvas);
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /*
- * Tabular figures everywhere money or counts appear, so columns of numbers
- * line up on the decimal instead of jittering per glyph width.
+ * Money and counts always use tabular figures so columns of numbers align on
+ * the decimal instead of jittering per glyph width.
  */
 .tnum {
   font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
 }
 
 /*
- * Latin identifiers (transaction ids, order ids, card numbers) must stay LTR
- * even inside an RTL page, otherwise the browser reorders them and a
- * transaction id becomes unreadable and un-copyable.
+ * Latin identifiers — transaction ids, order ids, card numbers, phone numbers —
+ * must stay LTR inside an RTL page. Without isolation the browser reorders
+ * them and a transaction id becomes unreadable and impossible to copy.
  */
 .ltr-id {
   direction: ltr;
   unicode-bidi: isolate;
   font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+/* The brand ramp, as a gradient, for the few places that carry the identity. */
+.brand-ramp {
+  background-image: linear-gradient(
+    135deg,
+    #3f1e6b 0%,
+    #5c2f80 42%,
+    #e4588f 82%,
+    #ffaaae 100%
+  );
+}
+
+.brand-ramp-text {
+  background-image: linear-gradient(100deg, #5c2f80 0%, #e4588f 70%, #ffaaae 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 ::selection {
-  background: var(--color-brand-soft);
+  background: var(--color-accent-soft);
+  color: var(--color-ink);
 }
 
 /* Keyboard focus stays visible on every interactive element. */
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid var(--color-brand);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
   border-radius: 0.375rem;
 }
 
+/* Native controls should follow the theme, not the OS default. */
+input[type='date'],
+input[type='number'] {
+  color-scheme: inherit;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

@@ -7,7 +7,7 @@ import {
 import { useI18n } from '@/lib/i18n/context';
 import { formatMoney, formatShortDay } from '@/lib/format';
 import { EmptyState } from '../ui/primitives';
-import type { ProfitDaily } from '@/types/database';
+import type { FinanceDaily } from '@/types/database';
 
 /**
  * Charts are always LTR regardless of page direction: Recharts positions axes
@@ -24,7 +24,7 @@ function ChartFrame({ children }: { children: React.ReactNode }) {
 
 const AXIS = { stroke: 'var(--color-ink-faint)', fontSize: 11 };
 
-export function RevenueExpensesChart({ rows }: { rows: ProfitDaily[] }) {
+export function RevenueExpensesChart({ rows }: { rows: FinanceDaily[] }) {
   const { t, locale } = useI18n();
   if (rows.length === 0) return <EmptyState message={t.charts.noData} />;
 
@@ -60,7 +60,7 @@ export function RevenueExpensesChart({ rows }: { rows: ProfitDaily[] }) {
   );
 }
 
-export function NetProfitChart({ rows }: { rows: ProfitDaily[] }) {
+export function NetProfitChart({ rows }: { rows: FinanceDaily[] }) {
   const { t, locale } = useI18n();
   if (rows.length === 0) return <EmptyState message={t.charts.noData} />;
 
@@ -75,8 +75,8 @@ export function NetProfitChart({ rows }: { rows: ProfitDaily[] }) {
         <AreaChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
           <defs>
             <linearGradient id="netFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--color-brand)" stopOpacity={0.35} />
-              <stop offset="100%" stopColor="var(--color-brand)" stopOpacity={0} />
+              <stop offset="0%" stopColor="var(--color-accent)" stopOpacity={0.35} />
+              <stop offset="100%" stopColor="var(--color-accent)" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
@@ -96,7 +96,7 @@ export function NetProfitChart({ rows }: { rows: ProfitDaily[] }) {
             type="monotone"
             dataKey="net"
             name={t.charts.netProfit}
-            stroke="var(--color-brand)"
+            stroke="var(--color-accent)"
             strokeWidth={2}
             fill="url(#netFill)"
           />

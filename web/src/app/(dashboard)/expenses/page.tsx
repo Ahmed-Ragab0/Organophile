@@ -4,82 +4,116 @@ import { useState } from 'react';
 import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { createClient } from '@/lib/supabase/client';
-import { downloadCsv, formatDate, formatMoney, toCsv, toCairoDateKey } from '@/lib/format';
-import { Button, Card, CardHeader, Field, Input, PageHeader } from '@/components/ui/primitives';
+import { downloadCsv, formatDate, formatMoney, toCsv } from '@/lib/format';
+import {
+  Badge, Button, Card, CardHeader, Field, Input, PageHeader, Select,
+} from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
-import { StatCard } from '@/components/domain';
-import type { Expense } from '@/types/database';
+import { Money, StatCard } from '@/components/domain';
+import { AddExpenseModal } from '@/components/financial-actions';
+import { EXPENSE_CATEGORIES, type ExpenseByCategory, type LedgerEntry, type WalletBalance } from '@/types/database';
 
 export default function ExpensesPage() {
   const { t, locale } = useI18n();
+  const [open, setOpen] = useState(false);
 
   const [category, setCategory] = useState('');
-  const [amount, setAmount] = useState('');
-  const [note, setNote] = useState('');
-  const [spentAt, setSpentAt] = useState(() => toCairoDateKey(new Date()));
-  const [busy, setBusy] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [walletId, setWalletId] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
 
-  const { data, loading, error, reload } = useSupabaseQuery<Expense[]>(
-    (sb) => sb.from('expenses').select('*').order('spent_at', { ascending: false }).limit(500),
+  const wallets = useSupabaseQuery<WalletBalance[]>(
+    (sb) => sb.from('v_wallet_balances').select('*').order('sort_order'),
+    [],
+  );
+
+  const { data, loading, error, reload } = useSupabaseQuery<LedgerEntry[]>(
+    (sb) => {
+      let q = sb
+        .from('v_ledger')
+        .select('*')
+        .eq('entry_type', 'expense')
+        .is('voided_at', null)
+        .eq('is_test', false)
+        .order('occurred_at', { ascending: false })
+        .limit(500);
+
+      if (category) q = q.eq('category', category);
+      if (walletId) q = q.eq('wallet_id', walletId);
+      if (from) q = q.gte('occurred_at', `${from}T00:00:00Z`);
+      if (to) q = q.lte('occurred_at', `${to}T23:59:59Z`);
+      return q;
+    },
+    [category, walletId, from, to],
+  );
+
+  const byCategory = useSupabaseQuery<ExpenseByCategory[]>(
+    (sb) => sb.from('v_expenses_by_category').select('*').order('total', { ascending: false }),
     [],
   );
 
   const rows = data ?? [];
-  const total = rows.reduce((sum, r) => sum + Number(r.amount ?? 0), 0);
+  // Totalled over the filtered set, so the figure always matches the table
+  // the user is actually looking at.
+  const total = rows.reduce((s, r) => s + Number(r.amount ?? 0), 0);
 
-  async function addExpense(e: React.FormEvent) {
-    e.preventDefault();
-    const value = Number(amount);
-    if (!category.trim() || !Number.isFinite(value) || value < 0) return;
-
-    setBusy(true);
-    setFormError(null);
-
-    const supabase = createClient();
-    const { data: auth } = await supabase.auth.getUser();
-    const { error: insertError } = await supabase.from('expenses').insert({
-      category: category.trim(),
-      amount: value,
-      note: note.trim() || null,
-      spent_at: spentAt,
-      created_by: auth.user?.id ?? null,
+  async function voidEntry(id: string) {
+    if (!window.confirm(t.ledger.confirmVoid)) return;
+    const { error: err } = await createClient().rpc('void_ledger_entry', {
+      p_entry_id: id, p_reason: null,
     });
-
-    setBusy(false);
-    if (insertError) {
-      setFormError(insertError.message);
-      return;
-    }
-    setCategory('');
-    setAmount('');
-    setNote('');
+    if (err) { window.alert(err.message); return; }
     reload();
+    wallets.reload();
   }
 
-  async function remove(id: string) {
-    if (!window.confirm(t.expenses.confirmDelete)) return;
-    const { error: deleteError } = await createClient().from('expenses').delete().eq('id', id);
-    if (deleteError) {
-      setFormError(deleteError.message);
-      return;
-    }
-    reload();
-  }
-
-  const columns: Array<Column<Expense>> = [
-    { key: 'date', header: t.expenses.spentAt, render: (r) => <span className="text-xs text-ink-muted">{formatDate(r.spent_at, locale)}</span> },
-    { key: 'category', header: t.expenses.category, render: (r) => <span className="font-medium text-ink">{r.category}</span> },
-    { key: 'amount', header: t.expenses.amount, numeric: true, render: (r) => formatMoney(r.amount, locale) },
-    { key: 'note', header: t.expenses.note, render: (r) => r.note ?? <span className="text-ink-faint">—</span> },
+  const columns: Array<Column<LedgerEntry>> = [
+    {
+      key: 'date',
+      header: t.expenses.spentAt,
+      render: (r) => (
+        <span className="text-xs whitespace-nowrap text-ink-muted">
+          {formatDate(r.occurred_at, locale)}
+        </span>
+      ),
+    },
+    {
+      key: 'description',
+      header: t.ledger.description,
+      render: (r) => <span className="font-medium text-ink">{r.description ?? '—'}</span>,
+    },
+    {
+      key: 'category',
+      header: t.expenses.category,
+      render: (r) => r.category ? <Badge tone="brand">{r.category}</Badge> : <span className="text-ink-faint">—</span>,
+    },
+    { key: 'wallet', header: t.ledger.wallet, render: (r) => r.wallet_name },
+    {
+      key: 'amount',
+      header: t.expenses.amount,
+      numeric: true,
+      render: (r) => <Money value={Number(r.amount ?? 0)} tone="danger" />,
+    },
+    {
+      key: 'notes',
+      header: t.expenses.note,
+      render: (r) => {
+        const notes = (r.metadata as { notes?: string } | null)?.notes;
+        return notes ? <span className="text-xs text-ink-muted">{notes}</span> : <span className="text-ink-faint">—</span>;
+      },
+    },
     {
       key: 'actions',
       header: '',
       render: (r) => (
-        <Button size="sm" variant="danger" onClick={() => remove(r.id)}>{t.common.delete}</Button>
+        <Button size="sm" variant="danger" onClick={() => voidEntry(r.id)}>
+          {t.ledger.voidAction}
+        </Button>
       ),
     },
   ];
+
+  const currentMonthCategories = (byCategory.data ?? []).slice(0, 6);
 
   return (
     <>
@@ -87,46 +121,57 @@ export default function ExpensesPage() {
         title={t.expenses.title}
         subtitle={t.expenses.subtitle}
         action={
-          <Button
-            variant="secondary"
-            onClick={() =>
-              downloadCsv(
-                `expenses-${new Date().toISOString().slice(0, 10)}.csv`,
-                toCsv(rows, ['spent_at', 'category', 'amount', 'currency', 'note']),
-              )}
-          >
-            {t.common.export}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              onClick={() =>
+                downloadCsv(
+                  `expenses-${new Date().toISOString().slice(0, 10)}.csv`,
+                  toCsv(rows as unknown as Array<Record<string, unknown>>, [
+                    'occurred_at', 'description', 'category', 'wallet_name', 'amount',
+                  ]),
+                )}
+            >
+              {t.common.export}
+            </Button>
+            <Button onClick={() => setOpen(true)}>+ {t.expenses.addTitle}</Button>
+          </div>
         }
       />
 
-      <section className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label={t.common.total} value={formatMoney(total, locale)} tone="danger" />
+      <section className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label={t.common.total} value={formatMoney(total, locale)} tone="danger" emphasis />
+        {currentMonthCategories.slice(0, 3).map((c) => (
+          <StatCard
+            key={`${c.month}-${c.category}`}
+            label={c.category}
+            value={formatMoney(Number(c.total ?? 0), locale)}
+            hint={`${c.entries} ${t.common.rows}`}
+          />
+        ))}
       </section>
 
-      <Card className="mb-4">
-        <CardHeader title={t.expenses.addTitle} />
-        <form onSubmit={addExpense} className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
+      <Card className="mb-4 p-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field label={t.expenses.category}>
-            <Input value={category} onChange={(e) => setCategory(e.target.value)} required />
+            <Select value={category} onChange={(e) => setCategory(e.target.value)}>
+              <option value="">{t.common.all}</option>
+              {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </Select>
           </Field>
-          <Field label={t.expenses.amount}>
-            <Input
-              type="number" min="0" step="0.01" inputMode="decimal"
-              value={amount} onChange={(e) => setAmount(e.target.value)} required dir="ltr"
-            />
+          <Field label={t.ledger.wallet}>
+            <Select value={walletId} onChange={(e) => setWalletId(e.target.value)}>
+              <option value="">{t.common.all}</option>
+              {(wallets.data ?? []).map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+            </Select>
           </Field>
-          <Field label={t.expenses.spentAt}>
-            <Input type="date" value={spentAt} onChange={(e) => setSpentAt(e.target.value)} required />
+          <Field label={t.common.from}>
+            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
           </Field>
-          <Field label={t.expenses.note}>
-            <Input value={note} onChange={(e) => setNote(e.target.value)} />
+          <Field label={t.common.to}>
+            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </Field>
-          <div className="flex items-end">
-            <Button type="submit" disabled={busy}>{t.common.add}</Button>
-          </div>
-          {formError && <p className="text-xs text-danger sm:col-span-2 lg:col-span-5">{formError}</p>}
-        </form>
+        </div>
       </Card>
 
       <Card>
@@ -142,6 +187,13 @@ export default function ExpensesPage() {
           errorMessage={t.common.error}
         />
       </Card>
+
+      <AddExpenseModal
+        open={open}
+        onClose={() => setOpen(false)}
+        wallets={wallets.data ?? []}
+        onSaved={() => { reload(); wallets.reload(); byCategory.reload(); }}
+      />
     </>
   );
 }

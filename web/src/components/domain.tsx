@@ -1,12 +1,14 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Badge, Card, cx } from './ui/primitives';
+import { Badge, Card, cx, FillBar } from './ui/primitives';
 import { useI18n } from '@/lib/i18n/context';
 import { formatMoney } from '@/lib/format';
-import type { KashierTransferEvent, KashierTxnEvent, TxnStatus } from '@/types/database';
+import type {
+  KashierTransferEvent, KashierTxnEvent, LedgerEntryType,
+  PaymentStatus, TxnStatus, WalletBalance,
+} from '@/types/database';
 
-/** Money is not a neutral fact here: green/red must mean in/out consistently. */
 export function StatusBadge({ status }: { status: TxnStatus | null | undefined }) {
   const { t } = useI18n();
   if (!status) return <span className="text-ink-faint">—</span>;
@@ -31,10 +33,12 @@ export function EventBadge({ event }: { event: KashierTxnEvent | null | undefine
 export function TransferBadge({ event }: { event: KashierTransferEvent | null | undefined }) {
   const { t } = useI18n();
   if (!event) return <span className="text-ink-faint">—</span>;
-  const map = {
-    TRANSFERRED: { tone: 'ok' as const, label: t.payouts.transferred },
-    INITIATED: { tone: 'warn' as const, label: t.payouts.initiated },
-    FAILED: { tone: 'danger' as const, label: t.payouts.failed },
+  const map: Record<KashierTransferEvent, { tone: 'ok' | 'warn' | 'danger' | 'info'; label: string }> = {
+    TRANSFERRED: { tone: 'ok', label: t.payouts.transferred },
+    PARTIALLY_TRANSFERRED: { tone: 'info', label: t.payouts.transferred },
+    IN_TRANSIT: { tone: 'warn', label: t.finance.payoutsInFlight },
+    INITIATED: { tone: 'warn', label: t.payouts.initiated },
+    FAILED: { tone: 'danger', label: t.payouts.failed },
   };
   const v = map[event];
   return <Badge tone={v.tone}>{v.label}</Badge>;
@@ -54,46 +58,143 @@ export function ModeBadge({ mode }: { mode: string | null | undefined }) {
   return <Badge tone="warn">{t.common.test}</Badge>;
 }
 
+/** Payment status of a student or subscription. */
+export function PaymentStatusBadge({ status }: { status: PaymentStatus | null | undefined }) {
+  const { t } = useI18n();
+  if (!status) return <span className="text-ink-faint">—</span>;
+  const tone = {
+    paid: 'ok', partial: 'warn', unpaid: 'neutral', overdue: 'danger', unknown: 'neutral',
+  }[status] as 'ok' | 'warn' | 'neutral' | 'danger';
+  return <Badge tone={tone}>{t.statuses[status]}</Badge>;
+}
+
+export function LedgerTypeBadge({ type }: { type: LedgerEntryType }) {
+  const { t } = useI18n();
+  const tone = {
+    revenue: 'ok', expense: 'danger',
+    transfer_in: 'info', transfer_out: 'info',
+    refund: 'warn', reversal: 'warn',
+    adjustment_in: 'neutral', adjustment_out: 'neutral',
+  }[type] as 'ok' | 'danger' | 'info' | 'warn' | 'neutral';
+  return <Badge tone={tone}>{t.ledger.types[type]}</Badge>;
+}
+
 /** A Latin identifier that must not be reordered by RTL layout. */
 export function Mono({ value }: { value: string | null | undefined }) {
   if (!value) return <span className="text-ink-faint">—</span>;
-  return <span className="ltr-id text-xs">{value}</span>;
+  return <span className="ltr-id">{value}</span>;
 }
 
-export function SignedMoney({ value }: { value: number | null | undefined }) {
+/**
+ * Money with its sign made visible.
+ * Green up, red down, grey for zero — never left to the reader to infer.
+ */
+export function SignedMoney({
+  value, showSign = true,
+}: { value: number | null | undefined; showSign?: boolean }) {
   const { locale } = useI18n();
-  const n = value ?? 0;
+  const n = Number(value ?? 0);
+  const tone = n > 0 ? 'text-ok' : n < 0 ? 'text-danger' : 'text-ink-faint';
+  const prefix = showSign && n > 0 ? '+' : '';
   return (
-    <span className={cx('tnum font-medium', n < 0 ? 'text-danger' : n > 0 ? 'text-ink' : 'text-ink-faint')}>
+    <span className={cx('tnum font-medium whitespace-nowrap', tone)}>
+      {prefix}
       {formatMoney(n, locale)}
     </span>
   );
 }
 
+export function Money({
+  value, tone = 'auto', className,
+}: {
+  value: number | null | undefined;
+  tone?: 'auto' | 'plain' | 'ok' | 'danger';
+  className?: string;
+}) {
+  const { locale } = useI18n();
+  const n = Number(value ?? 0);
+  const cls =
+    tone === 'plain' ? 'text-ink'
+    : tone === 'ok' ? 'text-ok'
+    : tone === 'danger' ? 'text-danger'
+    : n < 0 ? 'text-danger' : 'text-ink';
+  return <span className={cx('tnum whitespace-nowrap', cls, className)}>{formatMoney(n, locale)}</span>;
+}
+
 export function StatCard({
-  label, value, hint, tone = 'neutral', icon,
+  label, value, hint, tone = 'neutral', emphasis = false,
 }: {
   label: string;
   value: ReactNode;
   hint?: string;
-  tone?: 'neutral' | 'ok' | 'warn' | 'danger';
-  icon?: ReactNode;
+  tone?: 'neutral' | 'ok' | 'warn' | 'danger' | 'brand';
+  emphasis?: boolean;
 }) {
   const accent = {
-    neutral: 'text-ink',
-    ok: 'text-ok',
-    warn: 'text-warn',
-    danger: 'text-danger',
+    neutral: 'text-ink', ok: 'text-ok', warn: 'text-warn',
+    danger: 'text-danger', brand: 'text-brand',
   }[tone];
 
   return (
-    <Card className="p-4">
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-medium text-ink-muted">{label}</p>
-        {icon}
-      </div>
-      <p className={cx('mt-2 text-2xl font-semibold tnum', accent)}>{value}</p>
+    <Card className={cx('p-4', emphasis && 'ring-1 ring-accent/25')}>
+      <p className="text-xs font-medium text-ink-muted">{label}</p>
+      <p
+        className={cx(
+          'mt-2 font-display font-semibold tnum',
+          emphasis ? 'text-3xl' : 'text-2xl',
+          accent,
+        )}
+      >
+        {value}
+      </p>
       {hint && <p className="mt-1 text-xs text-ink-faint">{hint}</p>}
     </Card>
+  );
+}
+
+/**
+ * The wallet strip — the dashboard's signature element.
+ *
+ * Each wallet's bar is scaled against the largest balance, so "where my money
+ * sits" is legible before a single number is read. Negative balances flip to
+ * the danger colour rather than rendering a bar of nothing.
+ */
+export function WalletStrip({ wallets }: { wallets: WalletBalance[] }) {
+  const { t, locale } = useI18n();
+  const active = wallets.filter((w) => w.is_active);
+  const max = Math.max(1, ...active.map((w) => Math.abs(Number(w.balance ?? 0))));
+
+  if (active.length === 0) {
+    return <p className="px-5 py-8 text-center text-sm text-ink-faint">{t.common.empty}</p>;
+  }
+
+  return (
+    <div className="grid gap-px overflow-hidden rounded-b-[--radius-card] bg-border sm:grid-cols-2 lg:grid-cols-3">
+      {active.map((w) => {
+        const balance = Number(w.balance ?? 0);
+        return (
+          <div key={w.id} className="bg-surface p-4">
+            <div className="flex items-start justify-between gap-2">
+              <p className="truncate text-sm font-medium text-ink">{w.name}</p>
+              {w.is_kashier_default && <Badge tone="accent">{t.wallets.kashierDefault}</Badge>}
+            </div>
+            <p
+              className={cx(
+                'mt-1.5 font-display text-xl font-semibold tnum',
+                balance < 0 ? 'text-danger' : 'text-ink',
+              )}
+            >
+              {formatMoney(balance, locale)}
+            </p>
+            <div className="mt-2.5">
+              <FillBar value={balance} max={max} tone={balance < 0 ? 'danger' : 'brand'} />
+            </div>
+            <p className="mt-2 text-xs text-ink-faint">
+              {t.wallets[w.type]} · {w.entries} {t.wallets.entries}
+            </p>
+          </div>
+        );
+      })}
+    </div>
   );
 }

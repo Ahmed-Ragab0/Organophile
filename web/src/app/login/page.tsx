@@ -41,8 +41,14 @@ function LoginForm() {
   return (
     <main className="flex min-h-dvh items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm">
-        <div className="mb-6 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">{t.common.appName}</h1>
+        <div className="mb-8 text-center">
+          <span
+            aria-hidden
+            className="brand-ramp mx-auto mb-4 block h-12 w-12 rounded-2xl"
+          />
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">
+            {t.common.appName}
+          </h1>
           <p className="mt-1 text-sm text-ink-muted">{t.auth.subtitle}</p>
         </div>
 
