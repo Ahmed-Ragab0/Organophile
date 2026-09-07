@@ -28,6 +28,7 @@ export default function ImportPage() {
   const fileInput = useRef<HTMLInputElement>(null);
 
   const [kind, setKind] = useState<Kind>('students');
+  const [reconcileMode, setReconcileMode] = useState<'live' | 'test'>('live');
   const [fileName, setFileName] = useState('');
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
@@ -92,7 +93,10 @@ export default function ImportPage() {
       setResult(data as ImportResult);
     } else {
       const payload = applyMapping(rows, mapping as Record<TransactionField, string>);
-      const { data, error: rpcError } = await supabase.rpc('reconcile_transactions', { p_rows: payload });
+      const { data, error: rpcError } = await supabase.rpc('reconcile_transactions', {
+        p_rows: payload,
+        p_mode: reconcileMode,
+      });
       setBusy(false);
       if (rpcError) { setError(rpcError.message); return; }
       setResult(data as ImportResult);
@@ -137,9 +141,20 @@ export default function ImportPage() {
         </div>
 
         {kind === 'transactions' && (
-          <p className="border-t border-border px-4 py-3 text-xs text-ink-muted">
-            {t.reconciliation.unmatchedHint}
-          </p>
+          <div className="border-t border-border px-4 py-3">
+            <div className="max-w-xs">
+              <Field label={t.common.mode}>
+                <Select
+                  value={reconcileMode}
+                  onChange={(e) => setReconcileMode(e.target.value as 'live' | 'test')}
+                >
+                  <option value="live">{t.common.live}</option>
+                  <option value="test">{t.common.test}</option>
+                </Select>
+              </Field>
+            </div>
+            <p className="mt-2 text-xs text-ink-muted">{t.reconciliation.unmatchedHint}</p>
+          </div>
         )}
       </Card>
 
