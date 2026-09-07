@@ -1,10 +1,17 @@
 import { assertEquals } from 'jsr:@std/assert@1';
 import {
   classifyEvent,
+  classifyPayload,
   extractBearerToken,
   isCombinedEnvelope,
   parseMode,
+  signedDataFor,
 } from '../functions/_shared/webhook-parsing.ts';
+import {
+  buildSignaturePayload,
+  hmacSha256Hex,
+  verifyKashierSignature,
+} from '../functions/_shared/kashier-signature.ts';
 import { candidateKeys } from '../functions/_shared/env.ts';
 
 Deno.test('classifyEvent routes each event to the key that signs it', () => {
@@ -120,4 +127,72 @@ Deno.test('each candidate carries its own mode, so no id parsing is needed', () 
   assertEquals(byId['payment:live#2'], 'live');
   assertEquals(byId['payment:test'], 'test');
   clearKeys();
+});
+
+// --- Real payloads captured from live Kashier deliveries ---------------------
+
+Deno.test('a flat transfer delivery is classified as transfer, not unknown', () => {
+  // Exactly what a configured Transfer webhook posted on 2026-09-07 12:35.
+  // There is no top-level `event`; the state is in `status`.
+  const flatTransfer = {
+    isTestWebhook: true,
+    transferId: 'TEST-TRS-0001',
+    amount: 100,
+    method: 'wallet',
+    recipientName: 'Test Recipient',
+    recipientNumber: '01000000000',
+    merchantTransferId: 'TEST-TRANSFER-0001',
+    status: 'TRANSFERRED',
+    date: '2026-09-07T12:12:05.602Z',
+    signatureKeys: ['merchantTransferId', 'method', 'amount', 'merchantId', 'status'],
+  };
+
+  // Classifying this 'unknown' would route it to the transaction projection,
+  // which rejects anything without a transactionId.
+  assertEquals(classifyPayload(flatTransfer), 'transfer');
+  const asRecord = flatTransfer as Record<string, unknown>;
+  assertEquals(classifyEvent(asRecord.event), 'unknown', 'there is genuinely no event field');
+});
+
+Deno.test('a transaction delivery still classifies from its top-level event', () => {
+  assertEquals(classifyPayload({ event: 'pay', data: { transactionId: 'T' } }), 'transaction');
+  assertEquals(classifyPayload({ event: 'refund', data: {} }), 'transaction');
+  assertEquals(classifyPayload({ nothing: true }), 'unknown');
+});
+
+Deno.test('signedDataFor picks the object that actually carries signatureKeys', () => {
+  // Transaction: nested under `data`.
+  const txn = { event: 'pay', data: { transactionId: 'T', signatureKeys: ['transactionId'] } };
+  assertEquals(signedDataFor(txn), txn.data);
+
+  // Transfer: flat, signed as-is. Reading `.data` here would yield undefined
+  // and the delivery would be refused as unverifiable.
+  const transfer = { transferId: 'TR', status: 'TRANSFERRED', signatureKeys: ['status'] };
+  assertEquals(signedDataFor(transfer), transfer);
+});
+
+Deno.test('the flat transfer object is verifiable end to end', async () => {
+  const secret = 'transfer-key-under-test';
+  const transfer = {
+    transferId: 'TEST-TRS-0001',
+    merchantTransferId: 'TEST-TRANSFER-0001',
+    method: 'wallet',
+    amount: 100,
+    merchantId: 'MID-48090-321',
+    status: 'TRANSFERRED',
+    signatureKeys: ['merchantTransferId', 'method', 'amount', 'merchantId', 'status'],
+  };
+
+  const canonical = buildSignaturePayload(signedDataFor(transfer));
+  // Sorted UTF-16, so 'amount' precedes 'merchantId' precedes 'merchantTransferId'.
+  assertEquals(
+    canonical,
+    'amount=100&merchantId=MID-48090-321&merchantTransferId=TEST-TRANSFER-0001&method=wallet&status=TRANSFERRED',
+  );
+
+  const signature = await hmacSha256Hex(canonical!, secret);
+  const verdict = await verifyKashierSignature(signedDataFor(transfer), signature, [
+    { id: 'transfer:test', secret },
+  ]);
+  assertEquals(verdict.valid, true, verdict.reason ?? '');
 });

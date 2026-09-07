@@ -30,7 +30,12 @@ import {
 import { recordRejection, serviceClient } from '../_shared/db.ts';
 import { boolEnv, candidateKeys, type KashierMode } from '../_shared/env.ts';
 import { verifyKashierSignature } from '../_shared/kashier-signature.ts';
-import { classifyEvent, isCombinedEnvelope, parseMode } from '../_shared/webhook-parsing.ts';
+import {
+  classifyPayload,
+  isCombinedEnvelope,
+  parseMode,
+  signedDataFor,
+} from '../_shared/webhook-parsing.ts';
 
 const ENDPOINT = 'kashier-webhook';
 
@@ -72,10 +77,10 @@ Deno.serve(async (req) => {
   const isCombined = isCombinedEnvelope(payload);
 
   const event = isCombined ? null : payload.event;
-  const resource = isCombined ? 'unknown' : classifyEvent(event);
+  const resource = isCombined ? 'unknown' : classifyPayload(payload);
   const signedData = isCombined
-    ? (payload.transfer as Record<string, unknown>)?.data ?? payload
-    : payload.data;
+    ? (payload.transfer as Record<string, unknown>) ?? payload
+    : signedDataFor(payload);
 
   const keys = candidateKeys(resource, pinnedMode);
   const verdict = await verifyKashierSignature(
