@@ -3,6 +3,8 @@
 /*
  * Organophile design system
  * ─────────────────────────
+ * One person's daily money console, in Arabic first.
+ *
  * Palette: the brand's violet → pink ramp, used as a DEPTH scale.
  *   #3F1E6B deep violet   structure, chrome, the darkest ink
  *   #5C2F80 purple        brand, primary actions
@@ -12,6 +14,10 @@
  * Money colour is deliberately NOT drawn from that ramp. In a financial
  * interface "+" and "−" must never be ambiguous, so income and cost get their
  * own hues, tuned to sit beside the violets without fighting them.
+ *
+ * Form: the subject is organic chemistry, so the geometry is the benzene ring.
+ * Everything is built from soft, continuous curves and one hexagon — the
+ * lattice behind the sign-in panel — rather than scattered decoration.
  */
 
 @theme {
@@ -19,78 +25,103 @@
   --font-sans: var(--font-app-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --color-canvas: #fbf9fd;
-  --color-surface: #ffffff;
-  --color-surface-2: #f5f1f9;
-  --color-surface-3: #ece5f3;
-  --color-border: #e9e1f0;
-  --color-border-strong: #d6c9e2;
+  /*
+   * Every colour is declared ONCE, as `light-dark(light, dark)`.
+   *
+   * The alternative — repeating the whole palette inside a
+   * `prefers-color-scheme` block and again inside `[data-theme="dark"]` —
+   * means three places to update and two of them will eventually be missed.
+   * `light-dark()` resolves against the computed `color-scheme`, so the theme
+   * switch below only has to change that one property.
+   */
+  --color-canvas: light-dark(#faf8fd, #100a18);
+  --color-surface: light-dark(#ffffff, #1a1225);
+  --color-surface-2: light-dark(#f6f2fa, #221831);
+  --color-surface-3: light-dark(#ece4f4, #2c2040);
+  --color-border: light-dark(#ece4f3, #2e2142);
+  --color-border-strong: light-dark(#d8c9e5, #43305a);
 
-  --color-ink: #241534;
-  --color-ink-muted: #5e4e70;
-  --color-ink-faint: #8b7c9c;
+  --color-ink: light-dark(#211130, #f5f0f9);
+  --color-ink-muted: light-dark(#5f4e73, #b7a9c7);
+  --color-ink-faint: light-dark(#8d7d9e, #8b7b9d);
 
-  --color-brand: #5c2f80;
-  --color-brand-strong: #3f1e6b;
-  --color-brand-hover: #4a2469;
-  --color-brand-soft: #f3ebfa;
+  --color-brand: light-dark(#5c2f80, #a97ed4);
+  --color-brand-strong: light-dark(#3f1e6b, #c9a8ec);
+  --color-brand-hover: light-dark(#4a2469, #bb93e0);
+  --color-brand-soft: light-dark(#f4ecfb, #2c1c42);
 
-  --color-accent: #e4588f;
-  --color-accent-strong: #d13d78;
-  --color-accent-soft: #fde9f1;
+  --color-accent: light-dark(#e4588f, #f27ba8);
+  --color-accent-strong: light-dark(#cf3a75, #ff9ac0);
+  --color-accent-soft: light-dark(#fdeaf2, #3f1c35);
 
-  --color-ok: #1f8a6b;
-  --color-ok-soft: #e2f4ee;
-  --color-danger: #d6336c;
-  --color-danger-soft: #fde7ef;
-  --color-warn: #b26a00;
-  --color-warn-soft: #fdf0dc;
-  --color-info: #4b5bbf;
-  --color-info-soft: #eaecfb;
+  --color-ok: light-dark(#1f8a6b, #3fcfa3);
+  --color-ok-soft: light-dark(#e3f5ef, #10322a);
+  --color-danger: light-dark(#d6336c, #ff6b95);
+  --color-danger-soft: light-dark(#fde8f0, #41192a);
+  --color-warn: light-dark(#b26a00, #e5a83c);
+  --color-warn-soft: light-dark(#fdf1de, #382a0e);
+  --color-info: light-dark(#4b5bbf, #8f9bf0);
+  --color-info-soft: light-dark(#ebedfb, #1f2648);
 
-  --radius-card: 1rem;
-  --radius-field: 0.625rem;
+  /*
+   * Curvature.
+   *
+   * These were previously consumed as `rounded-[--radius-card]`, which is
+   * Tailwind v3 syntax. v4 reads that as a literal value, so it produced no
+   * radius at all and every card, button and input in the app rendered with
+   * square corners. Declaring the scale here means Tailwind generates
+   * `rounded-card` / `rounded-field` / `rounded-tile` as real utilities, which
+   * cannot silently fail the same way.
+   */
+  --radius-card: 1.25rem;
+  --radius-panel: 1.5rem;
+  --radius-tile: 0.875rem;
+  --radius-field: 0.75rem;
+  --radius-chip: 0.5rem;
+
+  /*
+   * Elevation. Two shadows per level, always: a 1px contact shadow that reads
+   * as a physical edge, plus a wide, very soft ambient one. A single hard
+   * box-shadow is what makes an interface look cheap.
+   *
+   * Only the COLOURS switch per theme; the geometry is shared. On a dark
+   * ground a shadow cannot describe an edge — nothing behind it is lighter —
+   * so `--shadow-inset-top` supplies a 1px highlight there and resolves to
+   * transparent in light, where the contact shadow already does that job.
+   */
+  --shadow-card:
+    0 1px 2px -1px light-dark(rgb(63 30 107 / 0.08), rgb(0 0 0 / 0.5)),
+    0 10px 28px -18px light-dark(rgb(63 30 107 / 0.22), rgb(0 0 0 / 0.7));
+  --shadow-raised:
+    0 1px 2px -1px light-dark(rgb(63 30 107 / 0.10), rgb(0 0 0 / 0.55)),
+    0 18px 40px -20px light-dark(rgb(63 30 107 / 0.30), rgb(0 0 0 / 0.8));
+  --shadow-pop:
+    0 2px 6px -2px light-dark(rgb(63 30 107 / 0.14), rgb(0 0 0 / 0.6)),
+    0 32px 64px -24px light-dark(rgb(63 30 107 / 0.38), rgb(0 0 0 / 0.9));
+  --shadow-inset-top:
+    inset 0 1px 0 0 light-dark(transparent, rgb(255 255 255 / 0.06));
+
+  --ease-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 /*
- * Dark theme. Tokens are redefined as raw custom properties rather than in a
- * second @theme block, which Tailwind v4 only reads at the top level.
+ * The theme switch, in three declarations.
+ *
+ * No attribute means "follow the machine", which is what `light dark` does.
+ * An explicit choice pins `color-scheme`, and every `light-dark()` token above
+ * follows — as do native controls, scrollbars and form fields, which is the
+ * part a class-based dark mode always gets wrong.
  */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-canvas: #140d1c;
-    --color-surface: #1c1428;
-    --color-surface-2: #251b33;
-    --color-surface-3: #2f2240;
-    --color-border: #332545;
-    --color-border-strong: #453357;
-
-    --color-ink: #f4eff8;
-    --color-ink-muted: #b4a6c4;
-    --color-ink-faint: #8a7a9c;
-
-    --color-brand: #a57bd0;
-    --color-brand-strong: #c4a2e8;
-    --color-brand-hover: #b892dd;
-    --color-brand-soft: #33224a;
-
-    --color-accent: #f27ba8;
-    --color-accent-strong: #ff9ac0;
-    --color-accent-soft: #45203a;
-
-    --color-ok: #3fcfa3;
-    --color-ok-soft: #16362e;
-    --color-danger: #ff6b95;
-    --color-danger-soft: #461d2e;
-    --color-warn: #e5a83c;
-    --color-warn-soft: #3d2e10;
-    --color-info: #8f9bf0;
-    --color-info-soft: #232a4d;
-  }
+:root {
+  color-scheme: light dark;
 }
 
-html {
-  color-scheme: light dark;
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
 }
 
 body {
@@ -119,6 +150,12 @@ body {
   unicode-bidi: isolate;
   font-family: var(--font-mono);
   font-size: 0.8125rem;
+  letter-spacing: -0.01em;
+}
+
+/* Display type is set tight; Readex Pro is wide enough to carry it. */
+.display-tight {
+  letter-spacing: -0.02em;
 }
 
 /* The brand ramp, as a gradient, for the few places that carry the identity. */
@@ -139,6 +176,79 @@ body {
   color: transparent;
 }
 
+/*
+ * The surface treatment that carries the whole system: a hairline border, a
+ * layered ambient shadow, and — on dark — a 1px top highlight standing in for
+ * the edge a shadow cannot draw there.
+ */
+.surface-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  /* The inset highlight resolves to transparent in light, so one rule serves
+     both themes. */
+  box-shadow: var(--shadow-card), var(--shadow-inset-top);
+}
+
+/*
+ * Loading placeholders.
+ *
+ * A spinner says "something is happening". A skeleton says "a table with this
+ * shape is arriving", which is the more useful message and stops the layout
+ * jumping when the data lands. The sweep runs along the inline axis, so it
+ * travels right-to-left in Arabic and left-to-right in English.
+ */
+@keyframes skeleton-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  /* A touch darker than surface-2: the sweep is a light band, and it cannot
+     read against a base that is already almost white. */
+  background: var(--color-surface-3);
+  border-radius: var(--radius-chip);
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--color-surface) 85%, transparent) 50%,
+    transparent 100%
+  );
+  animation: skeleton-sweep 1.5s ease-in-out infinite;
+}
+
+[dir='rtl'] .skeleton::after {
+  animation-name: skeleton-sweep-rtl;
+}
+
+@keyframes skeleton-sweep-rtl {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+/* Under reduced motion the sweep is dropped and the block simply sits there. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    display: none;
+  }
+}
+
 ::selection {
   background: var(--color-accent-soft);
   color: var(--color-ink);
@@ -148,13 +258,34 @@ body {
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-  border-radius: 0.375rem;
+  border-radius: var(--radius-chip);
 }
 
 /* Native controls should follow the theme, not the OS default. */
 input[type='date'],
 input[type='number'] {
   color-scheme: inherit;
+}
+
+/* A scrollbar that belongs to the palette rather than to the OS. */
+@supports selector(::-webkit-scrollbar) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border-strong);
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-ink-faint);
+    background-clip: content-box;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
