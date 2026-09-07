@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { createClient } from '@/lib/supabase/client';
-import { formatMoney } from '@/lib/format';
+import { formatMoney, formatNumber } from '@/lib/format';
 import {
   ActiveFilters, Badge, Card, CardHeader, Checkbox, Field, Input, PageHeader,
 } from '@/components/ui/primitives';
@@ -73,23 +73,32 @@ function PriceCell({
           {t.common.error}
         </span>
       )}
-      <Input
-        type="number"
-        min="0"
-        step="0.01"
-        inputMode="decimal"
-        dir="ltr"
-        value={draft}
-        placeholder="—"
-        disabled={state === 'saving'}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') e.currentTarget.blur();
-          if (e.key === 'Escape') setDraft(committed);
-        }}
-        className="w-32 py-1.5 text-end text-sm tnum"
-      />
+      {/*
+        Width is set by this wrapper, not by a class on the input. The shared
+        field style begins with `w-full`, and Tailwind resolves conflicting
+        width utilities by their order in the stylesheet rather than in the
+        class attribute — so `w-32` here silently lost. It only looked right
+        while the column was narrow enough to hide it.
+      */}
+      <span className="block w-32 shrink-0">
+        <Input
+          type="number"
+          min="0"
+          step="0.01"
+          inputMode="decimal"
+          dir="ltr"
+          value={draft}
+          placeholder="—"
+          disabled={state === 'saving'}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+            if (e.key === 'Escape') setDraft(committed);
+          }}
+          className="py-1.5 text-end text-sm tnum"
+        />
+      </span>
     </div>
   );
 }
@@ -136,15 +145,39 @@ export default function PricingPage() {
 
   const byId = new Map((financials.data ?? []).map((f) => [f.subscription_id, f]));
 
+  const query = search.trim().toLowerCase();
+
+  /*
+   * One search over both tables.
+   *
+   * The box sits above both, and a control positioned over two tables that
+   * only filters one is a control that lies about its scope. "Needs a price"
+   * means the same thing in each — a package with no price, a subscription
+   * with nothing to fall back on — so the pair reads as a single question:
+   * show me everything that still needs pricing.
+   */
+  const packageRows = (packages.data ?? []).filter((p) => {
+    if (query
+      && !p.name.toLowerCase().includes(query)
+      && !(p.courses?.name ?? '').toLowerCase().includes(query)) return false;
+    if (onlyUnpriced && p.price !== null) return false;
+    return true;
+  });
+
   const rows = (subscriptions.data ?? [])
     .map((s) => ({ ...s, money: byId.get(s.id) ?? null }))
     .filter((s) => {
-      const q = search.trim().toLowerCase();
-      if (q && !s.order_id.toLowerCase().includes(q) &&
-          !(s.students?.name ?? '').toLowerCase().includes(q)) return false;
+      if (query
+        && !s.order_id.toLowerCase().includes(query)
+        && !(s.students?.name ?? '').toLowerCase().includes(query)
+        && !(s.courses?.name ?? '').toLowerCase().includes(query)
+        && !(s.packages?.name ?? '').toLowerCase().includes(query)) return false;
       if (onlyUnpriced && effectivePrice(s).source !== 'none') return false;
       return true;
     });
+
+  /** Packages with no price of their own — the step-1 half of the work. */
+  const unpricedPackages = (packages.data ?? []).filter((p) => p.price === null).length;
 
   const totals = rows.reduce(
     (acc, r) => ({
@@ -170,16 +203,39 @@ export default function PricingPage() {
     return null;
   }
 
+  // At full width the course earns its own column rather than sitting as
+  // sub-text, and the status is worth stating outright: a null price is the
+  // whole reason this table exists, and an empty cell is easy to skim past.
   const packageColumns: Array<Column<PackageRow>> = [
     {
       key: 'name',
       header: t.subscriptions.package,
-      render: (p) => (
-        <div className="min-w-0">
-          <p className="truncate font-medium text-ink">{p.name}</p>
-          {p.courses?.name && <p className="truncate text-xs text-ink-faint">{p.courses.name}</p>}
-        </div>
-      ),
+      render: (p) => <p className="truncate font-medium text-ink">{p.name}</p>,
+    },
+    {
+      key: 'course',
+      header: t.subscriptions.course,
+      render: (p) =>
+        p.courses?.name ?? <span className="text-ink-faint">—</span>,
+    },
+    {
+      key: 'status',
+      header: t.studentDetail.status,
+      render: (p) =>
+        p.price === null
+          ? <Badge tone="danger">{t.pricing.sourceNone}</Badge>
+          : <Badge tone="ok">{t.pricing.priced}</Badge>,
+    },
+    {
+      key: 'uses',
+      header: t.pricing.subscriptionsUsing,
+      numeric: true,
+      render: (p) => {
+        const n = (subscriptions.data ?? []).filter((s) => s.packages?.name === p.name).length;
+        return n === 0
+          ? <span className="text-ink-faint">—</span>
+          : <span className="tnum text-ink-muted">{formatNumber(n, locale)}</span>;
+      },
     },
     {
       key: 'price',
@@ -320,91 +376,104 @@ export default function PricingPage() {
         </button>
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
-        {/*
-          Two panels, in the order the work is actually done: price the
-          package once on the left, and only reach for the right when a single
-          order needs to differ. Presented as steps because side-by-side
-          panels with no stated relationship read as two unrelated tools.
-        */}
-        <Card className="h-fit">
+      {/*
+        One search, then the two steps stacked in the order the work is done.
+        Side by side, the panels read as two unrelated tools competing for the
+        same screen, and the narrow one squeezed a table that has real columns
+        into a sliver. Stacked, each gets the full width it needs and the
+        reading order carries the meaning: search, then price the package,
+        then handle the orders that differ.
+      */}
+      <Card className="mb-5">
+        <div className="grid items-end gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <Field label={t.common.search} hint={t.pricing.searchHint}>
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="YOK-… / أحمد / كيمياء"
+            />
+          </Field>
+          <div className="flex items-center gap-3 pb-1">
+            <Checkbox
+              checked={onlyUnpriced}
+              onChange={setOnlyUnpriced}
+              label={t.pricing.onlyUnpriced}
+            />
+          </div>
+        </div>
+
+        <ActiveFilters
+          label={t.subscriptions.activeFilters}
+          clearAllLabel={t.subscriptions.clearFilters}
+          onClear={() => { setSearch(''); setOnlyUnpriced(false); }}
+          filters={[
+            search.trim() && {
+              key: 'search', label: t.common.search, value: search.trim(),
+              onRemove: () => setSearch(''),
+            },
+            onlyUnpriced && {
+              key: 'unpriced', label: t.pricing.priceSource,
+              value: t.pricing.sourceNone,
+              onRemove: () => setOnlyUnpriced(false),
+            },
+          ].filter(Boolean) as Array<{
+            key: string; label: string; value: string; onRemove: () => void;
+          }>}
+        />
+      </Card>
+
+      <div className="space-y-5">
+        <Card>
           <CardHeader
             title={t.pricing.packagePrices}
             hint={t.pricing.packagePricesHint}
-            action={<Badge tone="brand">{t.pricing.stepOne}</Badge>}
+            action={
+              <div className="flex items-center gap-2">
+                {unpricedPackages > 0 && (
+                  <Badge tone="danger">
+                    {`${formatNumber(unpricedPackages, locale)} ${t.pricing.sourceNone}`}
+                  </Badge>
+                )}
+                <Badge tone="brand">{t.pricing.stepOne}</Badge>
+              </div>
+            }
           />
           <DataTable
             columns={packageColumns}
-            rows={packages.data ?? []}
+            rows={packageRows}
             keyOf={(p) => p.id}
             loading={packages.loading}
             error={packages.error}
-            emptyMessage={t.pricing.noPackages}
+            emptyMessage={
+              search.trim() || onlyUnpriced
+                ? t.subscriptions.noMatches
+                : t.pricing.noPackages
+            }
             loadingMessage={t.common.loading}
             errorMessage={t.common.error}
             loadingRows={4}
           />
         </Card>
 
-        <div className="min-w-0">
-          <Card className="mb-4">
-            <div className="grid items-end gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <Field label={t.common.search} hint={t.pricing.searchHint}>
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="YOK-… / أحمد"
-                />
-              </Field>
-              <div className="flex items-center gap-3 pb-1">
-                <Checkbox
-                  checked={onlyUnpriced}
-                  onChange={setOnlyUnpriced}
-                  label={t.pricing.onlyUnpriced}
-                />
-              </div>
-            </div>
-
-            <ActiveFilters
-              label={t.subscriptions.activeFilters}
-              clearAllLabel={t.subscriptions.clearFilters}
-              onClear={() => { setSearch(''); setOnlyUnpriced(false); }}
-              filters={[
-                search.trim() && {
-                  key: 'search', label: t.common.search, value: search.trim(),
-                  onRemove: () => setSearch(''),
-                },
-                onlyUnpriced && {
-                  key: 'unpriced', label: t.pricing.priceSource,
-                  value: t.pricing.sourceNone,
-                  onRemove: () => setOnlyUnpriced(false),
-                },
-              ].filter(Boolean) as Array<{
-                key: string; label: string; value: string; onRemove: () => void;
-              }>}
-            />
-          </Card>
-
-          <Card>
-            <CardHeader
-              title={t.pricing.subscriptionPrices}
-              hint={`${rows.length} ${t.common.rows}`}
-              action={<Badge tone="brand">{t.pricing.stepTwo}</Badge>}
-            />
-            <DataTable
-              columns={columns}
-              rows={rows}
-              keyOf={(r) => r.id}
-              loading={subscriptions.loading || financials.loading}
-              error={subscriptions.error ?? financials.error}
-              emptyMessage={
-                search.trim() || onlyUnpriced ? t.subscriptions.noMatches : t.common.empty
-              }
-              loadingMessage={t.common.loading}
-              errorMessage={t.common.error}
-            />
-          </Card>
-        </div>
+        <Card>
+          <CardHeader
+            title={t.pricing.subscriptionPrices}
+            hint={`${formatNumber(rows.length, locale)} ${t.common.rows}`}
+            action={<Badge tone="brand">{t.pricing.stepTwo}</Badge>}
+          />
+          <DataTable
+            columns={columns}
+            rows={rows}
+            keyOf={(r) => r.id}
+            loading={subscriptions.loading || financials.loading}
+            error={subscriptions.error ?? financials.error}
+            emptyMessage={
+              search.trim() || onlyUnpriced ? t.subscriptions.noMatches : t.common.empty
+            }
+            loadingMessage={t.common.loading}
+            errorMessage={t.common.error}
+          />
+        </Card>
       </div>
 
     </>

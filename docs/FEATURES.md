@@ -250,8 +250,14 @@ balance, because there is no figure to subtract what was paid from.
   ukkera sent, then nothing. The source badges in the table are meaningless
   without it — the reader can see that one row says "package" and another says
   "order", but not that the first beats the second.
+- **One search above both tables**, covering package and course names as well
+  as order id and student. "Needs a price" means the same thing in each — a
+  package with no price, a subscription with nothing to fall back on — so the
+  pair reads as one question: show me everything that still needs pricing.
 - **Step 1 — package prices**, editable inline. Price a package once and every
-  subscription in it follows.
+  subscription in it follows. Stacked full width rather than squeezed into a
+  sidebar, so the course, the pricing status and the number of subscriptions
+  using each package all get their own column.
 - **Step 2 — subscription prices**, for the orders that need to differ. Each
   row carries **where its price came from**.
 - **Unpriced** is the one tile that is a task rather than a figure, so it is
