@@ -30,23 +30,25 @@ export function MoneyPositionPanel({
   const money = (v: number | null | undefined) => formatMoney(n(v), locale);
 
   const reported = position?.kashier_reported_balance;
-  const onHold = position?.kashier_on_hold;
+  const available = position?.kashier_available;
   const synced = position?.kashier_synced_at;
 
   /*
-   * Kashier's answer versus ours — and the comparison has to be made against
-   * the right number.
+   * Kashier's answer versus ours, on a basis that can actually be compared.
    *
-   * `availableBalance` is only what can be withdrawn this minute. Money still
-   * inside Kashier's settlement window sits in `onHoldBalance`, so comparing
-   * our figure against `available` alone reports every recent payment as a
-   * shortfall. Held funds are ours too; both go on our side of the equation.
+   * The primary account reports totalBalance 100.57 against availableBalance 0
+   * and onHoldBalance 0 — the three do not sum, so there is a bucket Kashier
+   * does not break out, and `available` is only what is withdrawable this
+   * minute. `total` is the like-for-like figure.
+   *
+   * It is also GROSS. Kashier takes its fee at settlement rather than at
+   * collection, so comparing our net-of-fees figure against it would report a
+   * permanent shortfall the size of the fees. Gross against gross is the only
+   * comparison that can ever reach zero.
    */
-  const kashierHas = reported === null || reported === undefined
-    ? null
-    : n(reported) + n(onHold);
-
-  const gap = kashierHas === null ? null : kashierHas - n(position?.awaiting_payout);
+  const kashierHas = reported === null || reported === undefined ? null : n(reported);
+  const ourGross = n(position?.awaiting_payout_gross);
+  const gap = kashierHas === null ? null : kashierHas - ourGross;
   const gapMatters = gap !== null && Math.abs(gap) > 0.5;
 
   // Two very different causes produce a gap, and they need opposite actions.
@@ -58,18 +60,11 @@ export function MoneyPositionPanel({
   const diagnosis = !gapMatters
     ? null
     : sinceSync > 0
-      // Collected after the snapshot was taken. Nothing is wrong; the number
-      // on screen is simply older than the payments.
       ? { tone: 'info' as const, text: t.position.gapStale }
       : gap! < 0
         ? (hoursSinceLatest !== null && hoursSinceLatest < 72
-          // We have money Kashier has not surfaced yet, and it is recent.
-          // Kashier settles on a schedule, so this is the expected state.
           ? { tone: 'info' as const, text: t.position.gapSettling }
           : { tone: 'warn' as const, text: t.position.gapMissingAtKashier })
-        // Kashier holds more than we recorded — transactions that never
-        // reached us, which is what a first sync on an existing account looks
-        // like.
         : { tone: 'warn' as const, text: t.position.gapExtraAtKashier };
 
   const steps = [
@@ -155,18 +150,18 @@ export function MoneyPositionPanel({
           </span>
         </div>
 
-        {/* Broken out, because a total that is the sum of two very different
-            things — withdrawable now, and held through settlement — reads as
-            one number that disagrees with ours for no stated reason. */}
+        {/* What of it can be withdrawn right now. Kashier reports these
+            separately and they rarely agree — money sits in the total long
+            before it becomes available. */}
         {kashierHas !== null && (
           <dl className="mt-2 grid grid-cols-2 gap-2">
             <div className="rounded-tile bg-surface-2 px-3 py-2">
               <dt className="text-[0.6875rem] text-ink-muted">{t.position.available}</dt>
-              <dd className="tnum text-sm font-medium text-ink">{money(reported)}</dd>
+              <dd className="tnum text-sm font-medium text-ink">{money(available)}</dd>
             </div>
             <div className="rounded-tile bg-surface-2 px-3 py-2">
-              <dt className="text-[0.6875rem] text-ink-muted">{t.position.onHold}</dt>
-              <dd className="tnum text-sm font-medium text-ink">{money(onHold)}</dd>
+              <dt className="text-[0.6875rem] text-ink-muted">{t.position.ourGross}</dt>
+              <dd className="tnum text-sm font-medium text-ink">{money(ourGross)}</dd>
             </div>
           </dl>
         )}

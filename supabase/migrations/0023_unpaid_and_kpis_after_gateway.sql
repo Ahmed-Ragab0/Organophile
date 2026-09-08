@@ -65,3 +65,29 @@ comment on view public.v_unpaid_subscriptions is
 -- expenses come from the ledger, gateway fees come from the payment feed, and
 -- mixing two sources into one figure makes it impossible to say which moved
 -- when it changes. See `dashboard_kpis_carry_net_after_gateway`.
+
+-- ---------------------------------------------------------------------------
+-- Follow-up: the balance comparison had the wrong account AND the wrong basis
+-- ---------------------------------------------------------------------------
+--
+-- With the deliberate account selection deployed, /v2/account turned out to
+-- return TWO accounts for this merchant:
+--
+--   ACC-48090-321-02  isPrimary false  total 0       lastTransfer 0
+--   ACC-48090-321-01  isPrimary true   total 100.57  lastTransfer 95.67
+--
+-- Every balance read until now came from the empty one, purely because it was
+-- first in the array. That is the whole reason Kashier appeared to hold
+-- nothing while real money had been collected.
+--
+-- The primary account then changed what the comparison has to be made
+-- against. It reports totalBalance 100.57 with availableBalance 0 and
+-- onHoldBalance 0 — the three do not sum, so Kashier keeps a bucket it does
+-- not break out, and `available` is only what is withdrawable this minute.
+--
+-- totalBalance is also GROSS: 100.57 against our 100.00 collected, while our
+-- net after fees is 90.84. Kashier takes its fee at settlement rather than at
+-- collection. So v_money_position now compares gross against gross via
+-- awaiting_payout_gross; comparing our net against their gross would report a
+-- permanent shortfall the size of the fees. The remaining difference is 0.57,
+-- a residue of the 95.67 already transferred out.

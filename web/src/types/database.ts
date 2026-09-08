@@ -587,6 +587,10 @@ export type MoneyPosition = {
   collected_since_sync: number;
   /** Server-computed, so the diagnosis never depends on the viewer's clock. */
   hours_since_latest_payment: number | null;
+  /** Gross basis — comparable with Kashier's totalBalance, which is pre-fee. */
+  awaiting_payout_gross: number;
+  kashier_available: number | null;
+  kashier_accounts_returned: string | null;
 };
 
 export type GatewayStage = 'not_paid' | 'part_paid' | 'paid';

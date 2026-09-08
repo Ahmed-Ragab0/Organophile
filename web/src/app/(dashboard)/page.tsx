@@ -20,46 +20,51 @@ import type {
  * month is readable before any digit is.
  */
 function ProfitHero({
-  revenue, expenses, net,
-}: { revenue: number; expenses: number; net: number }) {
+  revenue, fees, expenses, net,
+}: { revenue: number; fees: number; expenses: number; net: number }) {
   const { t, locale } = useI18n();
-  const scale = Math.max(revenue, expenses, 1);
+  const scale = Math.max(revenue, 1);
+
+  /*
+   * One hero, showing the subtraction that produces the only figure that
+   * matters: what reaches the account.
+   *
+   * This page previously led with net profit and repeated revenue, expenses
+   * and the net-after-Kashier figure across the tiles below — the same five
+   * numbers, three times over. A number shown twice is not reassurance, it is
+   * a second thing to reconcile.
+   */
+  const parts = [
+    { key: 'revenue', label: t.finance.totalRevenue, value: revenue, bar: 'bg-ok', tone: 'ok' as const },
+    { key: 'fees', label: t.reportsUi.fees, value: fees, bar: 'bg-warn', tone: 'danger' as const },
+    { key: 'expenses', label: t.finance.totalExpenses, value: expenses, bar: 'bg-danger', tone: 'danger' as const },
+  ];
 
   return (
     <Card className="overflow-hidden">
       <div className="brand-ramp px-6 py-5">
-        <p className="text-xs font-medium text-white/70">{t.finance.netProfit}</p>
+        <p className="text-xs font-medium text-white/70">{t.finance.netRevenue}</p>
         <p className="mt-1 font-display text-4xl font-semibold text-white tnum sm:text-5xl">
           {formatMoney(net, locale)}
         </p>
+        <p className="mt-1 text-xs text-white/70">{t.finance.netRevenueHint}</p>
       </div>
 
-      <div className="grid gap-4 p-5 sm:grid-cols-2">
-        <div>
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-xs font-medium text-ink-muted">{t.finance.totalRevenue}</span>
-            <Money value={revenue} tone="ok" className="text-sm font-semibold" />
+      <div className="grid gap-4 p-5 sm:grid-cols-3">
+        {parts.map((p) => (
+          <div key={p.key}>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-xs font-medium text-ink-muted">{p.label}</span>
+              <Money value={p.value} tone={p.tone} className="text-sm font-semibold" />
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-3">
+              <div
+                className={`h-full rounded-full transition-[width] ${p.bar}`}
+                style={{ width: `${Math.min(100, (p.value / scale) * 100)}%` }}
+              />
+            </div>
           </div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-3">
-            <div
-              className="h-full rounded-full bg-ok transition-[width]"
-              style={{ width: `${(revenue / scale) * 100}%` }}
-            />
-          </div>
-        </div>
-
-        <div>
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-xs font-medium text-ink-muted">{t.finance.totalExpenses}</span>
-            <Money value={expenses} tone="danger" className="text-sm font-semibold" />
-          </div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-3">
-            <div
-              className="h-full rounded-full bg-danger transition-[width]"
-              style={{ width: `${(expenses / scale) * 100}%` }}
-            />
-          </div>
-        </div>
+        ))}
       </div>
     </Card>
   );
@@ -114,23 +119,23 @@ export default function OverviewPage() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <ProfitHero
           revenue={n(k?.total_revenue)}
+          fees={n(k?.gateway_fees)}
           expenses={n(k?.total_expenses)}
-          net={n(k?.net_profit)}
+          net={n(k?.net_after_everything)}
         />
 
+        {/*
+          Everything here is a different question from the hero, not a
+          restatement of it: this month, what is still owed, what is in the
+          wallets, and how many people and orders that represents.
+        */}
         <div className="grid grid-cols-2 gap-3 content-start">
-          {/*
-            The figure the whole gateway chain exists to produce: what is left
-            after Kashier's fee, the VAT on it and the flat bank fee. Given the
-            full width because "charged" and "received" are different numbers
-            and this is the one that pays costs.
-          */}
           <div className="col-span-2">
             <StatCard
-              label={t.finance.netRevenue}
-              value={formatMoney(n(k?.net_revenue), locale)}
-              hint={`${t.finance.afterFees} ${formatMoney(n(k?.gateway_fees), locale)}`}
-              tone={n(k?.net_revenue) < 0 ? 'danger' : 'ok'}
+              label={t.finance.monthNetRevenue}
+              value={formatMoney(n(k?.month_net_revenue), locale)}
+              hint={`${monthLabel} · ${t.finance.afterFees} ${formatMoney(n(k?.month_gateway_fees), locale)}`}
+              tone={n(k?.month_net_revenue) < 0 ? 'danger' : 'ok'}
               emphasis
             />
           </div>
@@ -154,34 +159,6 @@ export default function OverviewPage() {
           />
         </div>
       </div>
-
-      <section className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label={t.finance.monthRevenue}
-          value={formatMoney(n(k?.month_revenue), locale)}
-          hint={monthLabel}
-          tone="ok"
-        />
-        <StatCard
-          label={t.finance.monthExpenses}
-          value={formatMoney(n(k?.month_expenses), locale)}
-          hint={monthLabel}
-          tone="danger"
-        />
-        <StatCard
-          label={t.finance.monthNet}
-          value={formatMoney(n(k?.month_net_profit), locale)}
-          hint={monthLabel}
-          tone={n(k?.month_net_profit) < 0 ? 'danger' : 'ok'}
-        />
-        <StatCard
-          label={t.finance.monthNetRevenue}
-          value={formatMoney(n(k?.month_net_revenue), locale)}
-          hint={`${monthLabel} · ${t.finance.afterFees} ${formatMoney(n(k?.month_gateway_fees), locale)}`}
-          tone={n(k?.month_net_revenue) < 0 ? 'danger' : 'ok'}
-          emphasis
-        />
-      </section>
 
       <section className="mt-6">
         <Card>
