@@ -267,7 +267,7 @@ export function AddRevenueModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={t.ledger.types.revenue}>
+    <Modal open={open} onClose={onClose} title={t.ledger.types.addManual}>
       <form onSubmit={submit} className="space-y-3">
         <Field label={`${t.ledger.description} *`}>
           <Input value={description} onChange={(e) => setDescription(e.target.value)} required />

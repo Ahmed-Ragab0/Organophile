@@ -41,7 +41,7 @@ export default function WalletsPage() {
         action={
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => setModal('revenue')}>
-              + {t.ledger.types.revenue}
+              + {t.ledger.types.addManual}
             </Button>
             <Button variant="secondary" onClick={() => setModal('expense')}>
               + {t.ledger.types.expense}

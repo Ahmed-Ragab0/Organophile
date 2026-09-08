@@ -109,12 +109,28 @@ export default function PaymentsPage() {
     { key: 'amount', header: t.payments.amount, numeric: true, render: (r) => <SignedMoney value={r.signed_amount} /> },
     {
       key: 'settled',
-      header: t.payments.settled,
+      header: t.finance.youReceived,
       numeric: true,
+      // Not Kashier's settled_amount, which is 95.67 — that figure is taken
+      // before the flat bank fee Kashier never mentions on the transaction.
+      // The number that matters is the one that reaches the account.
       render: (r) =>
-        r.settled_amount === null
+        r.net_after_bank_fee === null
           ? <span className="text-ink-faint">—</span>
-          : <span className="tnum text-ink-muted">{formatMoney(r.settled_amount, locale)}</span>,
+          : (
+            <div className="whitespace-nowrap">
+              <p className="tnum font-medium text-ink">
+                {formatMoney(r.net_after_bank_fee, locale)}
+              </p>
+              {Number(r.fees_total ?? 0) > 0 && (
+                <p className="tnum text-xs text-ink-faint">
+                  {formatMoney(Number(r.amount ?? 0), locale)}
+                  {' − '}
+                  {formatMoney(Number(r.fees_total), locale)}
+                </p>
+              )}
+            </div>
+          ),
     },
     { key: 'match', header: t.payments.match, render: (r) => <MatchBadge method={r.match_method} /> },
     {

@@ -305,10 +305,19 @@ export type CourseCatalogueRow = {
   is_active: boolean;
   university_id: string | null;
   university_name: string;
+  /** Purchases on this course. `enrolled_students` counts people. */
   students_count: number;
   total_due: number;
   total_paid: number;
   remaining: number;
+  subject: string | null;
+  level: number | null;
+  section: string | null;
+  class_year: number | null;
+  track: string | null;
+  university_label: string | null;
+  enrolled_students: number;
+  installment_plans: number;
 };
 
 export type Package = {
@@ -404,8 +413,10 @@ export type Payment = {
   kashier_order_id: string | null;
   merchant_order_id: string | null;
   merchant_order_key: string | null;
-  /** ukkera's transfer_id, decoded from the Kashier payload's base64 metaData.
-   *  This — not merchant_order_id — is what matches subscriptions.order_id. */
+  /** ukkera's payment-LINK id, decoded from the Kashier payload's base64
+   *  metaData. Shared by every buyer through that link — never join on it.
+   *  The purchase key is merchant_order_key; ukkera's own per-purchase id is
+   *  subscriptions.ukkera_transfer_id. */
   ukkera_transfer_id: string | null;
   ukkera_transfer_key: string | null;
   /** Who paid, from the same metaData. Present even with no ukkera webhook. */
@@ -481,6 +492,15 @@ export type EnrichedPayment = {
   course_name: string | null;
   package_id: string | null;
   package_name: string | null;
+  /** The flat bank fee, which Kashier's own settled_amount does not deduct. */
+  bank_fee: number | null;
+  /** Everything withheld: commission + VAT on it + bank fee. */
+  fees_total: number | null;
+  /** What actually arrives. settled_amount is Kashier's figure, before the bank fee. */
+  net_after_bank_fee: number | null;
+  subscription_transfer_id: string | null;
+  plan_id: string | null;
+  plan_kind: PackageKind | null;
 };
 
 export type Payout = {
@@ -779,9 +799,16 @@ export type RevenueByMethod = {
   month: string;
   method: string;
   payments: number;
+  /** @deprecated Gross. Use `student_payments` — same value, honest name. */
   revenue: number;
+  /** @deprecated Kashier's commission only. Use `fees_total`. */
   fees: number;
+  /** @deprecated Kashier's own figure, before the flat bank fee. */
   settled: number;
+  student_payments: number;
+  /** Commission + VAT on it + bank fee. */
+  fees_total: number;
+  net_received: number;
 };
 
 export type FeesMonthly = {

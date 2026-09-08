@@ -10,6 +10,7 @@ import {
   Button, Card, CardHeader, ErrorState, PageHeader, PageSkeleton,
 } from '@/components/ui/primitives';
 import { LedgerDetailModal } from '@/components/ledger-detail';
+import { PlanTotalInput } from '@/components/plan-total';
 import { DataTable, type Column } from '@/components/ui/table';
 import {
   InstallmentPips, LedgerTypeBadge, Money, Mono, PaymentStatusBadge, PlanStatusBadge,
@@ -199,11 +200,15 @@ export default function StudentDetailPage() {
                   <div className="mt-4 grid gap-4 sm:grid-cols-3">
                     <div>
                       <p className="text-xs text-ink-muted">{t.plans.totalDue}</p>
-                      <p className="mt-0.5 font-display text-lg font-semibold text-ink tnum">
-                        {pl.total_due === null
-                          ? <span className="text-sm font-normal text-warn">{t.plans.priceUnknown}</span>
-                          : formatMoney(Number(pl.total_due), locale)}
-                      </p>
+                      {/* Editable here because this is where you find out it is
+                          wrong: looking at one student and knowing what they
+                          agreed to pay. The package price covers the general
+                          case; this is the exception. */}
+                      <PlanTotalInput
+                        planId={pl.plan_id}
+                        value={pl.total_due}
+                        onSaved={() => plans.reload()}
+                      />
                     </div>
                     <div>
                       <p className="text-xs text-ink-muted">{t.plans.totalPaid}</p>

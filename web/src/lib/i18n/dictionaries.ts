@@ -457,7 +457,6 @@ export const ar = {
   },
 
   finance: {
-    totalRevenue: 'إجمالي الإيرادات',
     totalExpenses: 'إجمالي المصروفات',
     netProfit: 'صافي الربح',
     outstanding: 'مبالغ متبقية',
@@ -532,6 +531,9 @@ export const ar = {
     types: {
       // The gross amount a student paid. Not income — see gateway_fee.
       revenue: 'دفعة طالب',
+      // The button that adds one by hand: cash, a bank deposit, anything that
+      // did not arrive through Kashier. Named for the act, not the entry type.
+      addManual: 'دخل يدوي',
       expense: 'مصروف',
       gateway_fee: 'رسوم كاشير',
       transfer_in: 'تحويل وارد',
@@ -1173,7 +1175,6 @@ export const en: Dict = {
     noData: 'Not enough data to chart yet',
   },
   finance: {
-    totalRevenue: 'Total revenue',
     totalExpenses: 'Total expenses',
     netProfit: 'Net profit',
     outstanding: 'Outstanding',
@@ -1247,6 +1248,7 @@ export const en: Dict = {
     effect: 'Effect',
     types: {
       revenue: 'Student payment',
+      addManual: 'Manual income',
       expense: 'Expense',
       gateway_fee: 'Gateway fee',
       transfer_in: 'Transfer in',

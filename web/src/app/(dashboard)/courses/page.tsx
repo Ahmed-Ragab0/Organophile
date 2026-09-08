@@ -6,7 +6,7 @@ import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { formatMoney } from '@/lib/format';
 import {
-  Card, CardHeader, cx, PageHeader,
+  ActiveFilters, Badge, Card, CardHeader, cx, Field, PageHeader, Select,
 } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
 import { Money, PaymentStatusBadge, StatCard } from '@/components/domain';
@@ -22,6 +22,10 @@ export default function CoursesPage() {
   const { t, locale } = useI18n();
   const [universityId, setUniversityId] = useState<string | null>(null);
   const [courseId, setCourseId] = useState<string | null>(null);
+  // Track and year come out of the course title, so they can narrow the list
+  // the same way the university does — which is the point of parsing them.
+  const [track, setTrack] = useState('');
+  const [classYear, setClassYear] = useState('');
 
   const universities = useSupabaseQuery<University[]>(
     (sb) => sb.from('universities').select('*').order('name'),
@@ -53,9 +57,15 @@ export default function CoursesPage() {
   );
 
   const allCourses = catalogue.data ?? [];
-  const courses = universityId
-    ? allCourses.filter((c) => c.university_id === universityId)
-    : allCourses;
+  const courses = allCourses.filter((c) =>
+    (!universityId || c.university_id === universityId)
+    && (!track || c.track === track)
+    && (!classYear || String(c.class_year ?? '') === classYear));
+
+  /** Every value actually present, so a filter never offers an empty result. */
+  const tracks = [...new Set(allCourses.map((c) => c.track).filter(Boolean))] as string[];
+  const years = [...new Set(allCourses.map((c) => c.class_year).filter(Boolean))]
+    .sort((a, b) => Number(a) - Number(b)) as number[];
 
   const selectedCourse = courseId ? allCourses.find((c) => c.course_id === courseId) : null;
 
@@ -137,6 +147,53 @@ export default function CoursesPage() {
         ))}
       </nav>
 
+      {/* Only shown once there is something to narrow: two filters over three
+          courses is furniture, not help. */}
+      {(tracks.length > 1 || years.length > 1) && (
+        <Card className="mb-4 p-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {tracks.length > 1 && (
+              <Field label={t.courseInfo.track}>
+                <Select value={track} onChange={(e) => { setTrack(e.target.value); setCourseId(null); }}>
+                  <option value="">{t.common.all}</option>
+                  {tracks.map((tr) => <option key={tr} value={tr}>{tr}</option>)}
+                </Select>
+              </Field>
+            )}
+            {years.length > 1 && (
+              <Field label={t.courseInfo.classYear}>
+                <Select
+                  value={classYear}
+                  onChange={(e) => { setClassYear(e.target.value); setCourseId(null); }}
+                >
+                  <option value="">{t.common.all}</option>
+                  {years.map((y) => <option key={y} value={String(y)}>{y}</option>)}
+                </Select>
+              </Field>
+            )}
+          </div>
+          <div className="mt-3">
+            <ActiveFilters
+              filters={[
+                track && {
+                  key: 'track', label: t.courseInfo.track, value: track,
+                  onRemove: () => setTrack(''),
+                },
+                classYear && {
+                  key: 'year', label: t.courseInfo.classYear, value: classYear,
+                  onRemove: () => setClassYear(''),
+                },
+              ].filter(Boolean) as Array<{
+                key: string; label: string; value: string; onRemove: () => void;
+              }>}
+              onClear={() => { setTrack(''); setClassYear(''); }}
+              label={t.subscriptions.activeFilters}
+              clearAllLabel={t.subscriptions.clearFilters}
+            />
+          </div>
+        </Card>
+      )}
+
       <section className="mb-4 grid gap-3 sm:grid-cols-3">
         <StatCard label={t.courses.totalDue} value={formatMoney(totals.due, locale)} />
         <StatCard label={t.courses.totalPaid} value={formatMoney(totals.paid, locale)} tone="ok" />
@@ -190,9 +247,23 @@ export default function CoursesPage() {
               >
                 <p className="truncate font-medium text-ink">{c.course_name}</p>
                 <p className="mt-0.5 text-xs text-ink-faint">{c.university_name}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  {c.level !== null && (
+                    <Badge tone="brand">{`${t.courseInfo.level} ${c.level}`}</Badge>
+                  )}
+                  {c.track && <Badge tone="info">{c.track}</Badge>}
+                  {c.section && (
+                    <Badge tone="neutral">
+                      {t.courseInfo.sections[c.section as keyof typeof t.courseInfo.sections] ?? c.section}
+                    </Badge>
+                  )}
+                  {c.class_year !== null && (
+                    <span className="text-xs text-ink-faint tnum">{c.class_year}</span>
+                  )}
+                </div>
                 <div className="mt-3 flex items-baseline justify-between gap-2 text-xs">
                   <span className="text-ink-muted">
-                    {c.students_count} {t.courses.studentsCount}
+                    {c.enrolled_students} {t.courses.studentsCount}
                   </span>
                   <Money value={Number(c.remaining ?? 0)} tone={Number(c.remaining ?? 0) > 0 ? 'danger' : 'plain'} />
                 </div>

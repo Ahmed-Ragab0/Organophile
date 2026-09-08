@@ -38,6 +38,11 @@ export default function SubscriptionsPage() {
   const [packageId, setPackageId] = useState('');
   const [status, setStatus] = useState('');
   const [priceSource, setPriceSource] = useState('');
+  // What was bought, as opposed to who bought it: the package kind and the
+  // course's track are now columns on the view, so they can be filters rather
+  // than something you scan the list for.
+  const [planKind, setPlanKind] = useState('');
+  const [track, setTrack] = useState('');
   const [enrolledFrom, setEnrolledFrom] = useState('');
   const [enrolledTo, setEnrolledTo] = useState('');
   const [page, setPage] = useState(0);
@@ -91,6 +96,8 @@ export default function SubscriptionsPage() {
       if (packageId) q = q.eq('package_id', packageId);
       if (status) q = q.eq('payment_status', status);
       if (priceSource) q = q.eq('price_source', priceSource);
+      if (planKind) q = q.eq('plan_kind', planKind);
+      if (track) q = q.eq('track', track);
       if (enrolledFrom) q = q.gte('enrolled_at', enrolledFrom);
       // The end date is inclusive: `lte` on a timestamp would cut the day off
       // at midnight and quietly drop everything enrolled that day.
@@ -101,7 +108,8 @@ export default function SubscriptionsPage() {
         error: { message: string } | null;
       }>;
     },
-    [search, courseId, packageId, status, priceSource, enrolledFrom, enrolledTo, page],
+    [search, courseId, packageId, status, priceSource, planKind, track,
+     enrolledFrom, enrolledTo, page],
   );
 
   const rows = data ?? [];
@@ -123,8 +131,13 @@ export default function SubscriptionsPage() {
   function resetFilters() {
     setPage(0);
     setSearch(''); setCourseId(''); setPackageId(''); setStatus('');
-    setPriceSource(''); setEnrolledFrom(''); setEnrolledTo('');
+    setPriceSource(''); setPlanKind(''); setTrack('');
+    setEnrolledFrom(''); setEnrolledTo('');
   }
+
+  // Offered from what the courses actually say, so the select can never
+  // present a track that would return nothing.
+  const tracks = [...new Set((courses.data ?? []).map((c) => c.track).filter(Boolean))] as string[];
 
   const courseName = (courses.data ?? []).find((c) => c.id === courseId)?.name ?? courseId;
   const packageName = (packages.data ?? []).find((p) => p.id === packageId)?.name ?? packageId;
@@ -154,6 +167,15 @@ export default function SubscriptionsPage() {
           'sourceOverride' | 'sourcePackage' | 'sourceOrder' | 'sourceNone'
       ],
       onRemove: () => change(setPriceSource)(''),
+    },
+    planKind && {
+      key: 'planKind', label: t.pricing.packageKind,
+      value: t.plans.kinds[planKind as keyof typeof t.plans.kinds],
+      onRemove: () => change(setPlanKind)(''),
+    },
+    track && {
+      key: 'track', label: t.courseInfo.track, value: track,
+      onRemove: () => change(setTrack)(''),
     },
     enrolledFrom && {
       key: 'from', label: t.common.from, value: enrolledFrom,
@@ -380,6 +402,23 @@ export default function SubscriptionsPage() {
             <Select value={packageId} onChange={(e) => change(setPackageId)(e.target.value)}>
               <option value="">{t.common.all}</option>
               {(packages.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </Select>
+          </Field>
+
+          <Field label={t.pricing.packageKind}>
+            <Select value={planKind} onChange={(e) => change(setPlanKind)(e.target.value)}>
+              <option value="">{t.common.all}</option>
+              <option value="full">{t.plans.kinds.full}</option>
+              <option value="chapter">{t.plans.kinds.chapter}</option>
+              <option value="installment">{t.plans.kinds.installment}</option>
+              <option value="other">{t.plans.kinds.other}</option>
+            </Select>
+          </Field>
+
+          <Field label={t.courseInfo.track}>
+            <Select value={track} onChange={(e) => change(setTrack)(e.target.value)}>
+              <option value="">{t.common.all}</option>
+              {tracks.map((tr) => <option key={tr} value={tr}>{tr}</option>)}
             </Select>
           </Field>
 

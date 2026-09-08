@@ -9,12 +9,13 @@ import {
   Select, Spinner,
 } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
-import { Money, StatCard, WalletStrip } from '@/components/domain';
+import { InstallmentPips, Money, PlanStatusBadge, StatCard, WalletStrip } from '@/components/domain';
 import { MoneyModeNotice } from '@/components/money-mode-notice';
 import { MoneyPositionPanel } from '@/components/money-position';
 import type {
-  ExpenseByCategory, FeesMonthly, FinanceDaily, MoneyPosition, MonthlyReport, PayoutsMonthly,
-  RevenueByCourse, RevenueByMethod, RevenueByUniversity, StudentFinancials, WalletBalance,
+  ExpenseByCategory, FeesMonthly, FinanceDaily, InstallmentPlan, MoneyPosition, MonthlyReport,
+  PayoutsMonthly, PlanStatus, RevenueByCourse, RevenueByMethod, RevenueByUniversity,
+  StudentFinancials, WalletBalance,
 } from '@/types/database';
 
 /**
@@ -35,7 +36,7 @@ import type {
 
 type ReportKey =
   | 'months' | 'daily' | 'courses' | 'universities'
-  | 'expenses' | 'methods' | 'fees' | 'students' | 'payouts';
+  | 'expenses' | 'methods' | 'fees' | 'students' | 'plans' | 'payouts';
 
 type PresetKey = 'this' | 'last' | 'quarter' | 'year' | 'all';
 
@@ -97,6 +98,17 @@ export default function ReportsPage() {
         )).toISOString().slice(0, 10))
         .order('day', { ascending: false }),
     [from, to],
+  );
+
+  // Not range-filtered: a plan is an open obligation, not something that
+  // happened in a month. Showing only the plans started inside the range would
+  // hide exactly the ones that have been running longest.
+  const plans = useSupabaseQuery<InstallmentPlan[]>(
+    (sb) =>
+      sb.from('v_installment_plans').select('*')
+        .is('closed_at', null)
+        .order('started_at', { ascending: false }),
+    [],
   );
 
   const students = useSupabaseQuery<StudentFinancials[]>(
@@ -204,10 +216,15 @@ export default function ReportsPage() {
       label: t.reportsUi.tabCourses,
       loading: byCourse.loading, error: byCourse.error,
       rows: flat(collapse(byCourse.data ?? [], (r) => r.course_name,
-        (r) => ({ revenue: n(r.revenue), payments: n(r.payments) })), 'revenue'),
-      csv: ['label', 'revenue', 'payments'],
+        (r) => ({
+          student_payments: n(r.student_payments), gateway_fees: n(r.gateway_fees),
+          revenue: n(r.revenue), payments: n(r.payments),
+        })), 'revenue'),
+      csv: ['label', 'student_payments', 'gateway_fees', 'revenue', 'payments'],
       columns: [
         { key: 'label', header: t.reportsUi.course, render: (r) => String(r.label) },
+        { key: 'paid', header: t.reportsUi.studentPayments, numeric: true, render: (r) => <Money value={n(r.student_payments as number)} tone="plain" /> },
+        { key: 'fees', header: t.reportsUi.fees, numeric: true, render: (r) => <Money value={n(r.gateway_fees as number)} tone="danger" /> },
         { key: 'revenue', header: t.reportsUi.revenue, numeric: true, render: (r) => <Money value={n(r.revenue as number)} tone="ok" /> },
         { key: 'payments', header: t.reportsUi.count, numeric: true, render: (r) => formatNumber(n(r.payments as number), locale) },
       ],
@@ -216,10 +233,15 @@ export default function ReportsPage() {
       label: t.reportsUi.tabUniversities,
       loading: byUniversity.loading, error: byUniversity.error,
       rows: flat(collapse(byUniversity.data ?? [], (r) => r.university_name,
-        (r) => ({ revenue: n(r.revenue), payments: n(r.payments) })), 'revenue'),
-      csv: ['label', 'revenue', 'payments'],
+        (r) => ({
+          student_payments: n(r.student_payments), gateway_fees: n(r.gateway_fees),
+          revenue: n(r.revenue), payments: n(r.payments),
+        })), 'revenue'),
+      csv: ['label', 'student_payments', 'gateway_fees', 'revenue', 'payments'],
       columns: [
         { key: 'label', header: t.reportsUi.university, render: (r) => String(r.label) },
+        { key: 'paid', header: t.reportsUi.studentPayments, numeric: true, render: (r) => <Money value={n(r.student_payments as number)} tone="plain" /> },
+        { key: 'fees', header: t.reportsUi.fees, numeric: true, render: (r) => <Money value={n(r.gateway_fees as number)} tone="danger" /> },
         { key: 'revenue', header: t.reportsUi.revenue, numeric: true, render: (r) => <Money value={n(r.revenue as number)} tone="ok" /> },
         { key: 'payments', header: t.reportsUi.count, numeric: true, render: (r) => formatNumber(n(r.payments as number), locale) },
       ],
@@ -239,14 +261,19 @@ export default function ReportsPage() {
     methods: {
       label: t.reportsUi.tabMethods,
       loading: byMethod.loading, error: byMethod.error,
+      // The whole fee and the real net, not Kashier's `settled` — which is
+      // taken before the flat bank fee and so is never what arrives.
       rows: flat(collapse(byMethod.data ?? [], (r) => r.method,
-        (r) => ({ revenue: n(r.revenue), fees: n(r.fees), settled: n(r.settled), payments: n(r.payments) })), 'revenue'),
-      csv: ['label', 'revenue', 'fees', 'settled', 'payments'],
+        (r) => ({
+          student_payments: n(r.student_payments), fees_total: n(r.fees_total),
+          net_received: n(r.net_received), payments: n(r.payments),
+        })), 'student_payments'),
+      csv: ['label', 'student_payments', 'fees_total', 'net_received', 'payments'],
       columns: [
         { key: 'label', header: t.reportsUi.method, render: (r) => <Badge tone="info">{String(r.label)}</Badge> },
-        { key: 'revenue', header: t.reportsUi.revenue, numeric: true, render: (r) => <Money value={n(r.revenue as number)} tone="ok" /> },
-        { key: 'fees', header: t.reportsUi.fees, numeric: true, render: (r) => <Money value={n(r.fees as number)} tone="danger" /> },
-        { key: 'settled', header: t.reportsUi.settled, numeric: true, render: (r) => <Money value={n(r.settled as number)} tone="plain" /> },
+        { key: 'paid', header: t.reportsUi.studentPayments, numeric: true, render: (r) => <Money value={n(r.student_payments as number)} tone="plain" /> },
+        { key: 'fees', header: t.reportsUi.fees, numeric: true, render: (r) => <Money value={n(r.fees_total as number)} tone="danger" /> },
+        { key: 'net', header: t.reportsUi.revenue, numeric: true, render: (r) => <Money value={n(r.net_received as number)} tone="ok" /> },
         { key: 'payments', header: t.reportsUi.count, numeric: true, render: (r) => formatNumber(n(r.payments as number), locale) },
       ],
     },
@@ -258,7 +285,7 @@ export default function ReportsPage() {
             'fee_rate_pct', 'effective_fee_rate_pct', 'payments'],
       columns: [
         { key: 'month', header: t.reportsUi.month, render: (r) => monthLabel(String(r.month)) },
-        { key: 'gross', header: t.reportsUi.revenue, numeric: true, render: (r) => <Money value={n(r.gross as number)} tone="plain" /> },
+        { key: 'gross', header: t.reportsUi.studentPayments, numeric: true, render: (r) => <Money value={n(r.gross as number)} tone="plain" /> },
         { key: 'fees', header: t.reportsUi.fees, numeric: true, render: (r) => <Money value={n(r.fees as number)} tone="danger" /> },
         { key: 'vat', header: t.reportsUi.vat, numeric: true, render: (r) => <Money value={n(r.vat as number)} tone="plain" /> },
         { key: 'bankFees', header: t.position.bankFees, numeric: true, render: (r) => <Money value={n(r.bank_fees as number)} tone="danger" /> },
@@ -301,6 +328,63 @@ export default function ReportsPage() {
         { key: 'due', header: t.reportsUi.due, numeric: true, render: (r) => <Money value={n(r.total_due as number)} tone="plain" /> },
         { key: 'paid', header: t.reportsUi.paid, numeric: true, render: (r) => <Money value={n(r.total_paid as number)} tone="ok" /> },
         { key: 'remaining', header: t.reportsUi.remaining, numeric: true, render: (r) => <Money value={n(r.remaining as number)} tone={n(r.remaining as number) > 0 ? 'danger' : 'plain'} /> },
+      ],
+    },
+    plans: {
+      label: t.plans.title,
+      loading: plans.loading, error: plans.error,
+      rows: (plans.data ?? []) as unknown as Row[],
+      csv: ['student_name', 'course_name', 'installments_paid', 'installment_count',
+            'total_due', 'total_paid', 'remaining', 'next_installment_amount', 'status'],
+      columns: [
+        {
+          key: 'student', header: t.reportsUi.student,
+          render: (r) => (
+            <div className="min-w-0">
+              <p className="truncate text-ink">{String(r.student_name ?? '—')}</p>
+              {r.course_name
+                ? <p className="truncate text-xs text-ink-faint">{String(r.course_name)}</p>
+                : null}
+            </div>
+          ),
+        },
+        {
+          key: 'progress', header: t.plans.installment,
+          render: (r) => (
+            <InstallmentPips
+              paid={n(r.installments_paid as number)}
+              total={n(r.installment_count as number)}
+            />
+          ),
+        },
+        {
+          key: 'due', header: t.plans.totalDue, numeric: true,
+          // An unset course price is stated, not shown as zero: zero would
+          // read as "nothing owed", which is the opposite of what it means.
+          render: (r) => (r.total_due === null
+            ? <span className="text-xs text-warn">{t.plans.priceUnknown}</span>
+            : <Money value={n(r.total_due as number)} tone="plain" />),
+        },
+        {
+          key: 'paid', header: t.plans.totalPaid, numeric: true,
+          render: (r) => <Money value={n(r.total_paid as number)} tone="ok" />,
+        },
+        {
+          key: 'remaining', header: t.plans.remaining, numeric: true,
+          render: (r) => (r.remaining === null
+            ? <span className="text-ink-faint">—</span>
+            : <Money value={n(r.remaining as number)} tone={n(r.remaining as number) > 0 ? 'danger' : 'plain'} />),
+        },
+        {
+          key: 'next', header: t.plans.nextAmount, numeric: true,
+          render: (r) => (r.next_installment_amount === null
+            ? <span className="text-ink-faint">—</span>
+            : <Money value={n(r.next_installment_amount as number)} tone="plain" />),
+        },
+        {
+          key: 'status', header: t.studentDetail.status,
+          render: (r) => <PlanStatusBadge status={r.status as PlanStatus} />,
+        },
       ],
     },
     payouts: {

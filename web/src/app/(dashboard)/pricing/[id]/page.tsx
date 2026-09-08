@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/primitives';
 import { Money, Mono, PaymentStatusBadge, StatCard } from '@/components/domain';
 import { effectivePrice, PriceSourceBadge } from '@/components/pricing';
+import { LedgerDetailModal } from '@/components/ledger-detail';
 import type {
   LedgerEntry, SubscriptionFinancials, SubscriptionInstallment, WalletBalance,
 } from '@/types/database';
@@ -501,6 +502,7 @@ function PaymentsCard({
   const { t, locale } = useI18n();
   const [recording, setRecording] = useState(false);
   const [voiding, setVoiding] = useState<LedgerEntry | null>(null);
+  const [detail, setDetail] = useState<LedgerEntry | null>(null);
 
   return (
     <Card>
@@ -543,11 +545,24 @@ function PaymentsCard({
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <Money
-                  value={Number(e.amount)}
-                  tone={e.voided_at ? 'plain' : 'ok'}
-                  className={e.voided_at ? 'line-through opacity-60' : 'font-semibold'}
-                />
+                <div className="text-end">
+                  <Money
+                    value={Number(e.amount)}
+                    tone={e.voided_at ? 'plain' : e.entry_type === 'gateway_fee' ? 'danger' : 'ok'}
+                    className={e.voided_at ? 'line-through opacity-60' : 'font-semibold'}
+                  />
+                  {/* The same subtraction as the ledger page: this row is one
+                      of three numbers, and the other two are the reason the
+                      figure above is not what arrived. */}
+                  {e.payment_gross !== null && e.entry_type !== 'gateway_fee' && (
+                    <p className="tnum text-xs text-ink-faint">
+                      {t.finance.youReceived} {formatMoney(Number(e.payment_net ?? 0), locale)}
+                    </p>
+                  )}
+                </div>
+                <Button size="sm" variant="secondary" onClick={() => setDetail(e)}>
+                  {t.ledgerDetail.open}
+                </Button>
                 {!e.voided_at && (
                   <Button size="sm" variant="ghost" onClick={() => setVoiding(e)}>
                     {t.pricing.void}
@@ -571,6 +586,7 @@ function PaymentsCard({
         onClose={() => setVoiding(null)}
         onVoided={onChanged}
       />
+      <LedgerDetailModal entry={detail} onClose={() => setDetail(null)} />
     </Card>
   );
 }
