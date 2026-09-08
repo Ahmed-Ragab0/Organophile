@@ -10,7 +10,7 @@ import type { MoneyPosition } from '@/types/database';
  *
  * The whole point is that these numbers are derived from each other:
  *
- *   collected − refunds − fees = owed to you
+ *   collected − refunds − fees − bank fees = owed to you
  *   owed − transferred − in flight = still at Kashier
  *
  * A grid of four equal cards hides that. Reading it left to right as
@@ -41,7 +41,20 @@ export function MoneyPositionPanel({
   const steps = [
     { key: 'gross', label: t.position.gross, value: n(position?.gross), tone: 'ink' as const, hint: t.position.grossHint },
     { key: 'refunded', label: t.position.refunded, value: -n(position?.refunded), tone: 'sub' as const },
-    { key: 'fees', label: t.position.fees, value: -n(position?.fees), tone: 'sub' as const },
+    { key: 'fees', label: t.position.fees, value: -n(position?.fees), tone: 'sub' as const, hint: t.position.feesHint },
+    // Kept as its own line rather than folded into the Kashier fee above: one
+    // is reported in the payload and checkable against it, the other is ours,
+    // derived from the fee schedule. A single merged figure would reconcile
+    // against nothing.
+    {
+      key: 'bankFees',
+      label: t.position.bankFees,
+      value: -n(position?.bank_fees),
+      tone: 'sub' as const,
+      hint: n(position?.bank_fee_current) > 0
+        ? `${money(position?.bank_fee_current)} ${t.position.perTransaction}`
+        : t.position.bankFeesHint,
+    },
     { key: 'net', label: t.position.netSettled, value: n(position?.net_settled), tone: 'total' as const, hint: t.position.netSettledHint },
     { key: 'transferred', label: t.position.transferred, value: -n(position?.transferred), tone: 'ok' as const },
     { key: 'inflight', label: t.position.inFlight, value: -n(position?.in_flight), tone: 'sub' as const },

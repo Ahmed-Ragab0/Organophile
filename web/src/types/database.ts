@@ -534,6 +534,17 @@ export type KashierRawEvent = {
  * gross is what students paid, fees is Kashier's cut, net_settled is what
  * Kashier owes you, and awaiting_payout is what it has not sent yet.
  */
+export type KashierFeeSchedule = {
+  id: string;
+  mode: 'live' | 'test';
+  effective_from: string;
+  bank_fee_flat: number;
+  bank_fee_vat_rate: number;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type MoneyPosition = {
   mode: KashierMode;
   gross: number;
@@ -550,6 +561,11 @@ export type MoneyPosition = {
   /** What Kashier itself reported at the last sync. Null until one succeeds. */
   kashier_reported_balance: number | null;
   kashier_synced_at: string | null;
+  /** The flat bank fee Kashier takes but does not report in the payload. */
+  bank_fees: number;
+  total_fees: number;
+  /** What one transaction costs today, per the schedule in force. */
+  bank_fee_current: number;
 };
 
 export type GatewayStage = 'not_paid' | 'part_paid' | 'paid';
@@ -593,6 +609,10 @@ export type RevenueByMethod = {
 };
 
 export type FeesMonthly = {
+  bank_fees?: number;
+  total_fees?: number;
+  /** Everything Kashier keeps, over gross — the rate that actually bites. */
+  effective_fee_rate_pct?: number | null;
   month: string;
   payments: number;
   gross: number;

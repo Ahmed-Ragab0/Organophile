@@ -10,6 +10,7 @@ import {
   Badge, Button, Card, CardHeader, Notice, PageHeader,
 } from '@/components/ui/primitives';
 import { IconRefresh } from '@/components/ui/icons';
+import { FeeSchedulePanel } from '@/components/fee-schedule';
 import { DataTable, type Column } from '@/components/ui/table';
 import { ModeBadge, Money, Mono, StatCard, TransferBadge } from '@/components/domain';
 import { MoneyPositionPanel } from '@/components/money-position';
@@ -160,8 +161,12 @@ export default function PayoutsPage() {
         </div>
       )}
 
-      <div className="mb-5">
+      {/* The position and the one number in it that comes from us rather than
+          from Kashier, side by side — so the deduction and its source are
+          read together. */}
+      <div className="mb-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
         <MoneyPositionPanel position={p} loading={position.loading} />
+        <FeeSchedulePanel mode={mode} />
       </div>
 
       <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

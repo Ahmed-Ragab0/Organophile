@@ -246,13 +246,32 @@ export default function ReportsPage() {
       label: t.reportsUi.tabFees,
       loading: fees.loading, error: fees.error,
       rows: [...(fees.data ?? [])].reverse() as unknown as Row[],
-      csv: ['month', 'gross', 'fees', 'vat', 'fee_rate_pct', 'payments'],
+      csv: ['month', 'gross', 'fees', 'vat', 'bank_fees', 'total_fees',
+            'fee_rate_pct', 'effective_fee_rate_pct', 'payments'],
       columns: [
         { key: 'month', header: t.reportsUi.month, render: (r) => monthLabel(String(r.month)) },
         { key: 'gross', header: t.reportsUi.revenue, numeric: true, render: (r) => <Money value={n(r.gross as number)} tone="plain" /> },
         { key: 'fees', header: t.reportsUi.fees, numeric: true, render: (r) => <Money value={n(r.fees as number)} tone="danger" /> },
         { key: 'vat', header: t.reportsUi.vat, numeric: true, render: (r) => <Money value={n(r.vat as number)} tone="plain" /> },
-        { key: 'rate', header: t.reportsUi.feeRate, numeric: true, render: (r) => <span className="tnum">{n(r.fee_rate_pct as number).toFixed(2)}%</span> },
+        { key: 'bankFees', header: t.position.bankFees, numeric: true, render: (r) => <Money value={n(r.bank_fees as number)} tone="danger" /> },
+        { key: 'totalFees', header: t.reportsUi.totalFees, numeric: true, render: (r) => <Money value={n(r.total_fees as number)} tone="danger" /> },
+        { key: 'rate', header: t.reportsUi.feeRate, numeric: true, render: (r) => <span className="tnum text-ink-muted">{n(r.fee_rate_pct as number).toFixed(2)}%</span> },
+        // The rate that actually bites. A flat fee pushes this well above the
+        // headline percentage on small payments, and that gap is the point.
+        {
+          key: 'effectiveRate',
+          header: t.reportsUi.effectiveFeeRate,
+          numeric: true,
+          render: (r) => {
+            const eff = n(r.effective_fee_rate_pct as number);
+            const base = n(r.fee_rate_pct as number);
+            return (
+              <span className={cx('tnum font-medium', eff - base > 1 ? 'text-danger' : 'text-ink')}>
+                {eff.toFixed(2)}%
+              </span>
+            );
+          },
+        },
         { key: 'payments', header: t.reportsUi.count, numeric: true, render: (r) => formatNumber(n(r.payments as number), locale) },
       ],
     },

@@ -157,9 +157,14 @@ Reads `v_expenses_by_category` and `v_ledger`.
 Two kinds of question, deliberately kept apart:
 
 **BALANCE — "where is my money right now"**, which has no period. The money
-position chain (collected → minus refunds → minus Kashier fees → net owed to
-you → minus transferred → minus in flight → **still at Kashier**), Kashier's
-own reported balance beside it, and the difference. A gap is the first sign a
+position chain (collected → minus refunds → minus Kashier fees → **minus bank
+fees** → net owed to you → minus transferred → minus in flight → **still at
+Kashier**), Kashier's own reported balance beside it, and the difference.
+
+The bank fee is a separate line from the Kashier fee on purpose: Kashier's own
+fee arrives inside every payload and can be checked against it, while the bank
+fee arrives nowhere and is applied from `kashier_fee_schedule`. Merging them
+would produce a figure that reconciles against nothing. A gap is the first sign a
 transaction or transfer was missed. Plus wallet balances.
 
 **PERIOD — "what happened between these two months"**, over a month range with
@@ -186,7 +191,7 @@ which reads as broken:
 | الجامعات | `v_revenue_by_university` |
 | المصروفات | `v_expenses_by_category` |
 | وسيلة الدفع | `v_revenue_by_method` |
-| رسوم كاشير | `v_fees_monthly` — with the effective rate, so a change in Kashier's schedule is visible |
+| رسوم كاشير | `v_fees_monthly` — Kashier's reported fee and the unreported flat bank fee as separate columns, with both the headline and the effective rate |
 | تحصيل الطلاب | `v_student_financials`, ranked by what is still owed |
 | التحويلات | `v_payouts_monthly` |
 
@@ -316,7 +321,19 @@ The **تحديث من كاشير** button calls `kashier-sync-payouts`, which pu
 See [`kashier-payouts.md`](kashier-payouts.md) for the whole model and how to
 test it.
 
-Reads `v_money_position` and `payouts`, both scoped to the current mode.
+**Bank fee** is set here, beside the position it feeds. Kashier takes a flat
+amount per transaction that it does not report in the payload, so this is the
+one number in the accounts that comes from a person rather than the gateway,
+and the panel says so.
+
+The schedule is effective-dated: each payment is charged the rate in force on
+its own transaction date, so correcting the fee today cannot restate a month
+already reconciled. The effective-from date is editable and usually needs to
+be — the schedule is seeded from the moment it was created, which is rarely
+the moment the fee actually started.
+
+Reads `v_money_position`, `payouts` and `kashier_fee_schedule`, all scoped to
+the current mode.
 
 ### المطابقة · Reconciliation — `/reconciliation`
 
