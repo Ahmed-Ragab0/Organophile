@@ -4,11 +4,12 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
-import { downloadCsv, formatDate, formatMoney, toCsv } from '@/lib/format';
+import { downloadCsv, formatDate, formatMoney, formatNumber, toCsv } from '@/lib/format';
 import {
   ActiveFilters, Button, Card, CardHeader, Field, Input, PageHeader, Select,
 } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
+import { InstallmentPips, PackageKindBadge } from '@/components/domain';
 import { Money, Mono, PaymentStatusBadge, StatCard } from '@/components/domain';
 import { PriceSourceBadge } from '@/components/pricing';
 import type {
@@ -186,8 +187,47 @@ export default function SubscriptionsPage() {
         <div className="min-w-0">
           <p className="truncate text-ink">{r.course_name ?? '—'}</p>
           {r.package_name && <p className="truncate text-xs text-ink-faint">{r.package_name}</p>}
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <PackageKindBadge kind={r.package_kind} />
+            {r.level !== null && (
+              <span className="text-xs text-ink-faint">
+                {t.courseInfo.level} {formatNumber(r.level, locale)}
+              </span>
+            )}
+            {r.track && <span className="text-xs text-ink-faint">{r.track}</span>}
+            {r.class_year !== null && (
+              <span className="text-xs text-ink-faint tnum">{r.class_year}</span>
+            )}
+          </div>
         </div>
       ),
+    },
+    {
+      key: 'plan',
+      header: t.plans.plan,
+      // Only an instalment purchase has a plan, and only the plan knows what is
+      // still owed. A full-course purchase shows nothing rather than a zero
+      // that would read as "nothing left to pay".
+      render: (r) =>
+        r.plan_id
+          ? (
+            <div className="min-w-0 space-y-1">
+              <InstallmentPips
+                paid={Number(r.installments_paid ?? 0)}
+                total={Number(r.plan_installment_count ?? 0)}
+              />
+              {r.plan_remaining === null
+                ? <p className="text-xs text-warn">{t.plans.priceUnknown}</p>
+                : (
+                  <p className="text-xs text-ink-muted">
+                    {t.plans.remaining}: <span className="tnum">
+                      {formatMoney(Number(r.plan_remaining), locale)}
+                    </span>
+                  </p>
+                )}
+            </div>
+          )
+          : <span className="text-ink-faint">—</span>,
     },
     {
       key: 'source',
@@ -272,15 +312,28 @@ export default function SubscriptionsPage() {
                       total_paid: r.total_paid,
                       remaining: r.remaining,
                       payment_status: r.payment_status ?? '',
+                      package_kind: r.package_kind ?? '',
+                      university: r.university_label ?? '',
+                      level: r.level ?? '',
+                      section: r.section ?? '',
+                      class_year: r.class_year ?? '',
+                      track: r.track ?? '',
+                      plan_installments_paid: r.installments_paid ?? '',
+                      plan_installment_count: r.plan_installment_count ?? '',
+                      plan_remaining: r.plan_remaining ?? '',
+                      ukkera_transfer_id: r.ukkera_transfer_id ?? '',
                       installments: r.installment_count,
                       payment_date: r.payment_date ?? '',
                       enrolled_at: r.enrolled_at,
                       source: r.source,
                     })),
                     [
-                      'order_id', 'student', 'phone', 'course', 'package', 'price_source',
-                      'total_due', 'total_paid', 'remaining', 'payment_status',
+                      'order_id', 'student', 'phone', 'course', 'package', 'package_kind',
+                      'university', 'level', 'section', 'class_year', 'track',
+                      'price_source', 'total_due', 'total_paid', 'remaining', 'payment_status',
+                      'plan_installments_paid', 'plan_installment_count', 'plan_remaining',
                       'installments', 'payment_date', 'enrolled_at', 'source',
+                      'ukkera_transfer_id',
                     ],
                   ),
                 )}

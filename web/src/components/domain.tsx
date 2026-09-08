@@ -5,7 +5,7 @@ import { Badge, Card, cx, FillBar } from './ui/primitives';
 import { useI18n } from '@/lib/i18n/context';
 import { formatMoney } from '@/lib/format';
 import type {
-  KashierTransferEvent, KashierTxnEvent, LedgerEntryType,
+  KashierTransferEvent, KashierTxnEvent, LedgerEntryType, PackageKind, PlanStatus,
   PaymentStatus, TxnStatus, WalletBalance,
 } from '@/types/database';
 
@@ -77,6 +77,8 @@ export function LedgerTypeBadge({ type }: { type: LedgerEntryType }) {
   const { t } = useI18n();
   const tone = {
     revenue: 'ok', expense: 'danger',
+    // Amber, not red: a fee is withheld from the payment, not spent.
+    gateway_fee: 'warn',
     transfer_in: 'info', transfer_out: 'info',
     refund: 'warn', reversal: 'warn',
     adjustment_in: 'neutral', adjustment_out: 'neutral',
@@ -214,5 +216,49 @@ export function WalletStrip({ wallets }: { wallets: WalletBalance[] }) {
         );
       })}
     </div>
+  );
+}
+
+/** Where an instalment plan has got to. */
+export function PlanStatusBadge({ status }: { status: PlanStatus }) {
+  const { t } = useI18n();
+  const tone = {
+    paid: 'ok', partial: 'info', unpaid: 'warn', unknown: 'neutral', closed: 'neutral',
+  }[status] as 'ok' | 'info' | 'warn' | 'neutral';
+  return <Badge tone={tone}>{t.plans.statuses[status]}</Badge>;
+}
+
+/** What the student bought: the whole course, a chapter, or an instalment. */
+export function PackageKindBadge({ kind }: { kind: PackageKind | null | undefined }) {
+  const { t } = useI18n();
+  if (!kind || kind === 'other') return null;
+  const tone = { full: 'ok', chapter: 'info', installment: 'warn' }[kind] as
+    'ok' | 'info' | 'warn';
+  return <Badge tone={tone}>{t.plans.kinds[kind]}</Badge>;
+}
+
+/**
+ * Instalments as a row of pips: filled for paid, hollow for still to come.
+ * "2 of 3" is countable at a glance in a way a fraction is not, and the count
+ * is small enough that drawing it beats reading it.
+ */
+export function InstallmentPips({ paid, total }: { paid: number; total: number }) {
+  const { t } = useI18n();
+  const n = Math.max(total, paid, 1);
+  return (
+    <span className="inline-flex items-center gap-1.5" aria-label={`${paid} ${t.plans.ofCount} ${n}`}>
+      <span className="flex gap-1" aria-hidden>
+        {Array.from({ length: Math.min(n, 12) }, (_, i) => (
+          <span
+            key={i}
+            className={cx(
+              'h-2 w-2 rounded-full',
+              i < paid ? 'bg-ok' : 'bg-surface-3 ring-1 ring-inset ring-border',
+            )}
+          />
+        ))}
+      </span>
+      <span className="text-xs text-ink-muted tnum">{paid}/{n}</span>
+    </span>
   );
 }

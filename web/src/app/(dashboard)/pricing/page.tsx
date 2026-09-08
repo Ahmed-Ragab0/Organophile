@@ -10,7 +10,7 @@ import {
   ActiveFilters, Badge, Card, CardHeader, Checkbox, Field, Input, PageHeader,
 } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
-import { Money, Mono, PaymentStatusBadge, StatCard } from '@/components/domain';
+import { Money, Mono, PackageKindBadge, PaymentStatusBadge, StatCard } from '@/components/domain';
 import { effectivePrice, PriceRules, PriceSourceBadge } from '@/components/pricing';
 import type { Package, SubscriptionFinancials } from '@/types/database';
 
@@ -196,6 +196,21 @@ export default function PricingPage() {
     return null;
   }
 
+  /**
+   * The full course price behind an instalment package.
+   *
+   * `price` is one instalment — that is what ukkera charges and what arrives as
+   * a payment. Without this figure a student who has paid the first of three
+   * reads as settled, because the only number on file was the one they just
+   * paid. This is the number that makes "still owes" answerable.
+   */
+  async function savePackageTotal(id: string, total_price: number | null): Promise<string | null> {
+    const { error } = await createClient().from('packages').update({ total_price }).eq('id', id);
+    if (error) return error.message;
+    reload();
+    return null;
+  }
+
   async function saveSubscriptionPrice(id: string, total_due: number | null): Promise<string | null> {
     const { error } = await createClient().from('subscriptions').update({ total_due }).eq('id', id);
     if (error) return error.message;
@@ -219,12 +234,21 @@ export default function PricingPage() {
         p.courses?.name ?? <span className="text-ink-faint">—</span>,
     },
     {
+      key: 'kind',
+      header: t.pricing.packageKind,
+      render: (p) => <PackageKindBadge kind={p.kind} />,
+    },
+    {
       key: 'status',
       header: t.studentDetail.status,
+      // An instalment package is only fully priced once the course total is
+      // known too; the instalment amount alone cannot answer "what is left".
       render: (p) =>
         p.price === null
           ? <Badge tone="danger">{t.pricing.sourceNone}</Badge>
-          : <Badge tone="ok">{t.pricing.priced}</Badge>,
+          : p.kind === 'installment' && p.total_price === null
+            ? <Badge tone="warn">{t.plans.priceUnknown}</Badge>
+            : <Badge tone="ok">{t.pricing.priced}</Badge>,
     },
     {
       key: 'uses',
@@ -244,6 +268,25 @@ export default function PricingPage() {
       render: (p) => (
         <PriceCell value={p.price} onSave={(next) => savePackagePrice(p.id, next)} />
       ),
+    },
+    {
+      key: 'total',
+      header: t.plans.totalDue,
+      numeric: true,
+      // Only meaningful for an instalment package. Everywhere else the price
+      // IS the total, and an editable box would invite a second, conflicting
+      // answer to a question that already has one.
+      render: (p) =>
+        p.kind === 'installment'
+          ? (
+            <div className="space-y-1">
+              <PriceCell value={p.total_price} onSave={(next) => savePackageTotal(p.id, next)} />
+              <p className="text-xs text-ink-faint">
+                {formatNumber(p.installment_count, locale)} × {t.plans.installment}
+              </p>
+            </div>
+          )
+          : <span className="text-ink-faint">—</span>,
     },
   ];
 

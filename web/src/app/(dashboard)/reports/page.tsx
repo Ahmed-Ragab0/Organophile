@@ -13,7 +13,7 @@ import { Money, StatCard, WalletStrip } from '@/components/domain';
 import { MoneyModeNotice } from '@/components/money-mode-notice';
 import { MoneyPositionPanel } from '@/components/money-position';
 import type {
-  ExpenseByCategory, FeesMonthly, MoneyPosition, MonthlyReport, PayoutsMonthly,
+  ExpenseByCategory, FeesMonthly, FinanceDaily, MoneyPosition, MonthlyReport, PayoutsMonthly,
   RevenueByCourse, RevenueByMethod, RevenueByUniversity, StudentFinancials, WalletBalance,
 } from '@/types/database';
 
@@ -87,7 +87,7 @@ export default function ReportsPage() {
   const fees = useRangeQuery<FeesMonthly>('v_fees_monthly', 'month');
   const payouts = useRangeQuery<PayoutsMonthly>('v_payouts_monthly', 'month');
 
-  const daily = useSupabaseQuery<Array<{ day: string; revenue: number; expenses: number; net_profit: number }>>(
+  const daily = useSupabaseQuery<FinanceDaily[]>(
     (sb) =>
       sb.from('v_finance_daily').select('*')
         .gte('day', from)
@@ -118,23 +118,22 @@ export default function ReportsPage() {
   const monthRows = months.data ?? [];
   const n = (v: number | null | undefined) => Number(v ?? 0);
 
+  // `m.revenue` is already net of the gateway's cut, everywhere. What students
+  // were charged is `student_payments`, and the gap between them is the fee.
   const totals = monthRows.reduce(
     (a, m) => ({
+      paid: a.paid + n(m.student_payments),
+      fees: a.fees + n(m.gateway_fees),
       revenue: a.revenue + n(m.revenue),
       expenses: a.expenses + n(m.expenses),
       net: a.net + n(m.net_profit),
       payments: a.payments + n(m.payments_count),
     }),
-    { revenue: 0, expenses: 0, net: 0, payments: 0 },
+    { paid: 0, fees: 0, revenue: 0, expenses: 0, net: 0, payments: 0 },
   );
 
-  // Everything Kashier keeps over the range: its fee, the VAT charged on that
-  // fee, and the flat bank fee it does not report on the transaction.
-  const feesTotal = (fees.data ?? []).reduce(
-    (a, f) => a + n(f.fees) + n(f.vat) + n(f.bank_fees), 0);
-  // Revenue as it survives the gateway. `totals.revenue` is what students were
-  // charged; this is what is left of it.
-  const netRevenue = totals.revenue - feesTotal;
+  const feesTotal = totals.fees;
+  const netRevenue = totals.revenue;
   const outstanding = (students.data ?? []).reduce((a, s) => a + n(s.remaining), 0);
 
   /** Aggregate a month-keyed breakdown down to one row per label. */
@@ -177,9 +176,11 @@ export default function ReportsPage() {
       label: t.reportsUi.tabMonths,
       loading: months.loading, error: months.error,
       rows: [...monthRows].reverse() as unknown as Row[],
-      csv: ['month', 'revenue', 'expenses', 'net_profit', 'payments_count'],
+      csv: ['month', 'student_payments', 'gateway_fees', 'revenue', 'expenses', 'net_profit', 'payments_count'],
       columns: [
         { key: 'month', header: t.reportsUi.month, render: (r) => monthLabel(String(r.month)) },
+        { key: 'paid', header: t.reportsUi.studentPayments, numeric: true, render: (r) => <Money value={n(r.student_payments as number)} tone="plain" /> },
+        { key: 'fees', header: t.reportsUi.fees, numeric: true, render: (r) => <Money value={n(r.gateway_fees as number)} tone="danger" /> },
         { key: 'revenue', header: t.reportsUi.revenue, numeric: true, render: (r) => <Money value={n(r.revenue as number)} tone="ok" /> },
         { key: 'expenses', header: t.reportsUi.expenses, numeric: true, render: (r) => <Money value={n(r.expenses as number)} tone="danger" /> },
         { key: 'net', header: t.reportsUi.net, numeric: true, render: (r) => <Money value={n(r.net_profit as number)} tone={n(r.net_profit as number) < 0 ? 'danger' : 'plain'} /> },
@@ -190,9 +191,10 @@ export default function ReportsPage() {
       label: t.reportsUi.tabDaily,
       loading: daily.loading, error: daily.error,
       rows: (daily.data ?? []) as unknown as Row[],
-      csv: ['day', 'revenue', 'expenses', 'net_profit'],
+      csv: ['day', 'student_payments', 'gateway_fees', 'revenue', 'expenses', 'net_profit'],
       columns: [
         { key: 'day', header: t.reportsUi.day, render: (r) => dayLabel(String(r.day)) },
+        { key: 'paid', header: t.reportsUi.studentPayments, numeric: true, render: (r) => <Money value={n(r.student_payments as number)} tone="plain" /> },
         { key: 'revenue', header: t.reportsUi.revenue, numeric: true, render: (r) => <Money value={n(r.revenue as number)} tone="ok" /> },
         { key: 'expenses', header: t.reportsUi.expenses, numeric: true, render: (r) => <Money value={n(r.expenses as number)} tone="danger" /> },
         { key: 'net', header: t.reportsUi.net, numeric: true, render: (r) => <Money value={n(r.net_profit as number)} tone={n(r.net_profit as number) < 0 ? 'danger' : 'plain'} /> },
@@ -485,25 +487,31 @@ export default function ReportsPage() {
 
       {/* ── the period totals ────────────────────────────────────────────── */}
       <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <StatCard label={t.reportsUi.revenue} value={formatMoney(totals.revenue, locale)} tone="ok" />
-        <StatCard label={t.reportsUi.expenses} value={formatMoney(totals.expenses, locale)} tone="danger" />
+        {/* Left to right, this is the subtraction: charged, withheld, arrived,
+            spent, kept. Reading them in that order is the whole story. */}
         <StatCard
-          label={t.reportsUi.net}
-          value={formatMoney(totals.net, locale)}
-          tone={totals.net < 0 ? 'danger' : 'ok'}
-          emphasis
+          label={t.reportsUi.studentPayments}
+          value={formatMoney(totals.paid, locale)}
+          hint={t.finance.studentPaymentsHint}
         />
         <StatCard
           label={t.reportsUi.fees}
           value={formatMoney(feesTotal, locale)}
           hint={t.reportsUi.feesHint}
-          tone="danger"
+          tone="warn"
         />
         <StatCard
-          label={t.position.netRevenue}
+          label={t.reportsUi.revenue}
           value={formatMoney(netRevenue, locale)}
           hint={t.position.netRevenueHint}
           tone={netRevenue < 0 ? 'danger' : 'ok'}
+          emphasis
+        />
+        <StatCard label={t.reportsUi.expenses} value={formatMoney(totals.expenses, locale)} tone="danger" />
+        <StatCard
+          label={t.reportsUi.net}
+          value={formatMoney(totals.net, locale)}
+          tone={totals.net < 0 ? 'danger' : 'ok'}
           emphasis
         />
         <StatCard

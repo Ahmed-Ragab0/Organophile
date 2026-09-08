@@ -214,22 +214,60 @@ Sends different field names from the project brief:
 |---|---|
 | `phone` | `student_phone` |
 | `payment_date` | `date` |
-| `course` | absent — **`package_name`** instead |
+| `course` | `course_name` **and** `course_id` (added by ukkera Sept 2026) |
 | `order_id` | absent — `transfer_id` instead |
 
-Contrary to what ukkera support said, **package data does arrive by webhook**.
 The projection accepts both spellings of every field, and a payload with
 `event: "test"` is acknowledged and ignored rather than inventing a student.
 
 The header must be named exactly **`Authorization`** with value `Bearer <token>`.
+
+**ukkera's `transfer_id` is unique per purchase** (846, 847, 839…). This is a
+different field from the `transfer_id` inside Kashier's base64 `metaData`, which
+is the payment LINK id and is the same for every buyer. Two fields, one name,
+opposite cardinality — see open issue 1.
+
+#### What a course title carries
+
+Titles arrive as one string in a fixed vocabulary:
+
+    ORGANIC 1 - Azhar Cairo - Girls - 2027 - Clinical
+    └ subject+level └ university └ section └ class year └ track
+
+`app.parse_course_name` classifies each token **by shape, not by position** —
+not every title carries all five parts, and a positional parser turns a missing
+section into a university called "2027". Anything left over is the university,
+which is the only part with no fixed vocabulary; a title where nothing else was
+recognised yields nothing rather than inventing one. `public.university_aliases`
+binds spellings to names so "Azhar Cairo" and "الأزهر – القاهرة" do not become
+two reporting groups.
+
+#### Packages and instalments
+
+`app.parse_package_name` classifies a package as `full`, `chapter`,
+`installment` or `other`. Instalment is checked first: "الكورس كامل بالقسط" is
+an instalment package that also says "full", and how it is *paid* is the fact
+that decides what the student still owes.
+
+A three-instalment enrolment arrives as three separate purchases months apart,
+with nothing in either feed linking them. Each stays its own subscription — that
+is what the money plumbing matches on — and `public.installment_plans` sits above
+them holding the course price. `packages.price` is one instalment;
+`packages.total_price` is the course. Without the latter, a student who has paid
+one of three reads as settled.
 
 ---
 
 ## 7. Open issues
 
 1. **What identifies a purchase? — settled, after getting it wrong once.**
-   The join key is Kashier's `merchantOrderId`, which ukkera builds as
-   `transfer-<payer phone>-<epoch ms>` and which is unique per purchase.
+   Each side has its own key and neither carries the other's, so a subscription
+   holds **both**: `merchant_order_key` (Kashier's `merchantOrderId`, built as
+   `transfer-<payer phone>-<epoch ms>`) and `ukkera_transfer_id` (ukkera's own
+   transfer id). Whichever side arrives second **adopts** the row the first one
+   made, bridged on same student + same amount to the piastre + within four
+   hours of the payment's transaction date. Before this, each side wrote its own
+   row and two purchases produced four subscriptions.
 
    The first real payment suggested otherwise. Its base64 `metaData` carried
    `transfer_id: 459`, `project_ukkera_event` already read `transfer_id` as an
@@ -244,6 +282,16 @@ The header must be named exactly **`Authorization`** with value `Bearer <token>`
    The lesson is in the schema comment now: `payments.ukkera_transfer_id` says
    never to join on it. A conclusion drawn from one observation of an external
    system is a hypothesis, and the second observation is what tests it.
+
+   Confirmed by the live data: both payments carry link id `459`, while ukkera's
+   own transfer ids for the same two purchases are `846` and `847`.
+
+1b. **Gateway fees are not expenses, and gross payments are not revenue.**
+   Settled in 0026–0028. The ledger records a student's payment as `revenue`
+   and Kashier's cut as its own entry type `gateway_fee`; `app.pnl_expense`
+   excludes it, `app.pnl_fee` counts it, and every view reports
+   `student_payments − gateway_fees = revenue`. Net profit is unchanged by the
+   reclassification, which is the proof it was only ever a naming error.
 
 2. **Transfer webhooks arrive unsigned.** Kashier sends no
    `x-kashier-signature` header at all for this account, so they are correctly

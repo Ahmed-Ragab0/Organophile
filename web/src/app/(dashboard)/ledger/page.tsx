@@ -6,18 +6,19 @@ import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { useMode } from '@/lib/mode/context';
 import { createClient } from '@/lib/supabase/client';
-import { downloadCsv, formatDateTime, toCsv } from '@/lib/format';
+import { downloadCsv, formatDateTime, formatMoney, toCsv } from '@/lib/format';
 import {
   Badge, Button, Card, CardHeader, Field, Input, PageHeader, Select,
 } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
 import { LedgerTypeBadge, Mono, SignedMoney } from '@/components/domain';
+import { LedgerDetailModal } from '@/components/ledger-detail';
 import type { LedgerEntry, LedgerEntryType, WalletBalance } from '@/types/database';
 
 const PAGE_SIZE = 100;
 
 const TYPES: LedgerEntryType[] = [
-  'revenue', 'expense', 'transfer_in', 'transfer_out',
+  'revenue', 'gateway_fee', 'expense', 'transfer_in', 'transfer_out',
   'refund', 'reversal', 'adjustment_in', 'adjustment_out',
 ];
 
@@ -32,6 +33,17 @@ export default function LedgerPage() {
   const [search, setSearch] = useState('');
   const [includeVoided, setIncludeVoided] = useState(false);
   const [page, setPage] = useState(0);
+  const [detail, setDetail] = useState<LedgerEntry | null>(null);
+  /**
+   * One row per transaction, with the fee folded into it.
+   *
+   * A Kashier payment posts two entries — the payment and the fee withheld from
+   * it — and showing both made every purchase read as two events. With this on,
+   * the fee entry is hidden and the payment row reports the net effect on the
+   * wallet, so the column still adds up to the balance. Turning it off shows
+   * the raw entries, which is what the accounting actually consists of.
+   */
+  const [combineFees, setCombineFees] = useState(true);
 
   const wallets = useSupabaseQuery<WalletBalance[]>(
     (sb) => sb.from('v_wallet_balances').select('*').order('sort_order'),
@@ -48,6 +60,9 @@ export default function LedgerPage() {
         .eq('is_test', isTest);
 
       if (type) q = q.eq('entry_type', type);
+      // Asking for fees explicitly beats the combining preference; otherwise
+      // the filter would return nothing and look broken.
+      else if (combineFees) q = q.neq('entry_type', 'gateway_fee');
       if (walletId) q = q.eq('wallet_id', walletId);
       if (from) q = q.gte('occurred_at', `${from}T00:00:00Z`);
       if (to) q = q.lte('occurred_at', `${to}T23:59:59Z`);
@@ -58,7 +73,7 @@ export default function LedgerPage() {
       }
       return q;
     },
-    [type, walletId, from, to, search, includeVoided, page, isTest],
+    [type, walletId, from, to, search, includeVoided, page, isTest, combineFees],
   );
 
   const rows = data ?? [];
@@ -120,21 +135,59 @@ export default function LedgerPage() {
       header: t.ledger.effect,
       numeric: true,
       // The wallet delta, not the raw amount: a transfer out of a wallet reads
-      // as negative even though the stored amount is positive.
-      render: (r) => <SignedMoney value={Number(r.wallet_delta ?? 0)} />,
+      // as negative even though the stored amount is positive. When the fee row
+      // is folded away its effect has to come with it, or the column stops
+      // summing to the wallet balance.
+      render: (r) => (
+        <SignedMoney
+          value={combineFees && r.payment_net !== null
+            ? Number(r.payment_net)
+            : Number(r.wallet_delta ?? 0)}
+        />
+      ),
+    },
+    {
+      key: 'breakdown',
+      header: t.finance.youReceived,
+      numeric: true,
+      // A Kashier line is three facts, and showing only one of them is what
+      // made the gross figure read as income. The net is the answer, so it is
+      // the big number; the arithmetic that produced it sits under it rather
+      // than in a tooltip nobody opens.
+      render: (r) =>
+        r.payment_gross === null || r.payment_gross === undefined
+          ? <span className="text-ink-faint">—</span>
+          : (
+            <div className="whitespace-nowrap">
+              <p className="tnum font-medium text-ink">
+                {formatMoney(Number(r.payment_net ?? 0), locale)}
+              </p>
+              <p className="tnum text-xs text-ink-faint">
+                {formatMoney(Number(r.payment_gross), locale)}
+                {' − '}
+                {formatMoney(Number(r.payment_fees ?? 0), locale)}
+              </p>
+            </div>
+          ),
     },
     { key: 'reference', header: t.ledger.reference, render: (r) => <Mono value={r.reference} /> },
     {
       key: 'actions',
       header: '',
-      render: (r) =>
-        r.voided_at
-          ? <span className="text-xs text-ink-faint">{t.ledger.voided}</span>
-          : (
-            <Button size="sm" variant="danger" onClick={() => voidEntry(r.id)}>
-              {t.ledger.voidAction}
-            </Button>
-          ),
+      render: (r) => (
+        <div className="flex items-center justify-end gap-2">
+          <Button size="sm" variant="secondary" onClick={() => setDetail(r)}>
+            {t.ledgerDetail.open}
+          </Button>
+          {r.voided_at
+            ? <span className="text-xs text-ink-faint">{t.ledger.voided}</span>
+            : (
+              <Button size="sm" variant="danger" onClick={() => voidEntry(r.id)}>
+                {t.ledger.voidAction}
+              </Button>
+            )}
+        </div>
+      ),
     },
   ];
 
@@ -157,6 +210,7 @@ export default function LedgerPage() {
                 toCsv(rows as unknown as Array<Record<string, unknown>>, [
                   'occurred_at', 'entry_type', 'amount', 'wallet_delta', 'wallet_name',
                   'description', 'category', 'student_name', 'course_name',
+                  'payment_gross', 'payment_fees', 'payment_net',
                   'reference', 'is_test', 'voided_at',
                 ]),
               )}
@@ -192,15 +246,29 @@ export default function LedgerPage() {
             <Input type="date" value={to} onChange={(e) => resetPageAnd(setTo)(e.target.value)} />
           </Field>
         </div>
-        <label className="mt-3 flex items-center gap-2 text-xs text-ink-muted">
-          <input
-            type="checkbox"
-            checked={includeVoided}
-            onChange={(e) => { setPage(0); setIncludeVoided(e.target.checked); }}
-            className="accent-[var(--color-accent)]"
-          />
-          {t.ledger.voided}
-        </label>
+        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+          <label className="flex items-center gap-2 text-xs text-ink-muted">
+            <input
+              type="checkbox"
+              checked={includeVoided}
+              onChange={(e) => { setPage(0); setIncludeVoided(e.target.checked); }}
+              className="accent-[var(--color-accent)]"
+            />
+            {t.ledger.voided}
+          </label>
+          <label
+            className="flex items-center gap-2 text-xs text-ink-muted"
+            title={t.ledgerDetail.combineFeesHint}
+          >
+            <input
+              type="checkbox"
+              checked={combineFees}
+              onChange={(e) => { setPage(0); setCombineFees(e.target.checked); }}
+              className="accent-[var(--color-accent)]"
+            />
+            {t.ledgerDetail.combineFees}
+          </label>
+        </div>
       </Card>
 
       <Card>
@@ -234,6 +302,8 @@ export default function LedgerPage() {
           errorMessage={t.common.error}
         />
       </Card>
+
+      <LedgerDetailModal entry={detail} onClose={() => setDetail(null)} />
     </>
   );
 }

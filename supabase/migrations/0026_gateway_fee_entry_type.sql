@@ -1,0 +1,11 @@
+-- A gateway fee is not an operating expense. It is money Kashier keeps out of
+-- what the student paid, before anything reaches us — a deduction from the
+-- payment, not something the business chose to spend.
+--
+-- It gets its own entry type rather than a category string so the classifier
+-- functions can tell it apart structurally. Reading `entry_type` now tells you
+-- what a row IS; a renamed Arabic category label can no longer move the P&L.
+--
+-- Its own migration because Postgres refuses to use an enum value in the same
+-- transaction that adds it.
+alter type public.ledger_entry_type add value if not exists 'gateway_fee' after 'expense';

@@ -34,13 +34,22 @@ export type WalletType = 'bank' | 'cash' | 'digital';
 
 export type LedgerEntryType =
   | 'revenue'
+  /** What the business chose to spend. Gateway fees are NOT this. */
   | 'expense'
+  /** Kashier's cut + VAT + bank fee: withheld from the payment, never an expense. */
+  | 'gateway_fee'
   | 'transfer_in'
   | 'transfer_out'
   | 'refund'
   | 'reversal'
   | 'adjustment_in'
   | 'adjustment_out';
+
+/** What an ukkera package sells: the whole course, one chapter, or one instalment. */
+export type PackageKind = 'full' | 'chapter' | 'installment' | 'other';
+
+/** A plan's progress. `unknown` means the course price has never been set. */
+export type PlanStatus = 'closed' | 'unknown' | 'paid' | 'unpaid' | 'partial';
 
 /** Derived on v_student_financials / v_subscription_financials. */
 export type PaymentStatus = 'paid' | 'partial' | 'unpaid' | 'overdue' | 'unknown';
@@ -91,8 +100,11 @@ export type LedgerEntry = {
   void_reason: string | null;
   created_at: string;
   wallet_delta: number;
+  /** Gross student payment. */
   revenue_effect: number;
   expense_effect: number;
+  /** What the gateway withheld. Deducted from revenue_effect, not added to expenses. */
+  fee_effect: number;
   wallet_id: string;
   wallet_name: string;
   wallet_type: WalletType;
@@ -107,6 +119,27 @@ export type LedgerEntry = {
   kashier_transaction_id: string | null;
   payment_method: string | null;
   payment_status: TxnStatus | null;
+  /** Charged / withheld / received, for the payment behind this entry. */
+  payment_gross: number | null;
+  payment_fees: number | null;
+  payment_net: number | null;
+  /** The fee itemised: Kashier's commission, the VAT on it, the bank's flat cut. */
+  payment_fee_gateway: number | null;
+  payment_fee_vat: number | null;
+  payment_fee_bank: number | null;
+  payment_settled_amount: number | null;
+  payment_merchant_order_id: string | null;
+  /** ukkera's payment-link id from Kashier metaData — shared by every buyer. */
+  payment_link_id: string | null;
+  payment_card_brand: string | null;
+  payment_masked_card: string | null;
+  payment_channel: string | null;
+  payment_date: string | null;
+  payment_mode: KashierMode | null;
+  /** ukkera's transfer id for this purchase — unique, unlike payment_link_id. */
+  subscription_transfer_id: string | null;
+  package_name: string | null;
+  university_name: string | null;
 };
 
 export type Student = {
@@ -143,6 +176,9 @@ export type StudentFinancials = {
   last_payment_at: string | null;
   courses: string | null;
   payment_status: PaymentStatus;
+  /** Open instalment plans, and what is still to collect on them. */
+  installment_plans: number;
+  installment_remaining: number;
 };
 
 /** `v_subscriptions_list` — the subscriptions list, flattened for search. */
@@ -172,6 +208,28 @@ export type SubscriptionListRow = {
   payments_count: number;
   last_payment_at: string | null;
   price_source: 'override' | 'package' | 'order' | 'none';
+  plan_kind: PackageKind;
+  /** Set when this purchase is one instalment of a larger enrolment. */
+  plan_id: string | null;
+  /** ukkera's own transfer id. NOT the transfer_id inside Kashier metaData. */
+  ukkera_transfer_id: string | null;
+  merchant_order_key: string | null;
+  plan_total_due: number | null;
+  plan_total_paid: number | null;
+  plan_remaining: number | null;
+  installments_paid: number | null;
+  plan_installment_count: number | null;
+  next_installment_amount: number | null;
+  plan_status: PlanStatus | null;
+  university_id: string | null;
+  university_label: string | null;
+  level: number | null;
+  section: string | null;
+  class_year: number | null;
+  track: string | null;
+  package_kind: PackageKind | null;
+  installment_seq: number | null;
+  chapter_name: string | null;
 };
 
 /** `v_payment_match_health` — how often the order-id hypothesis holds. */
@@ -202,6 +260,10 @@ export type SubscriptionFinancials = {
   last_payment_at: string | null;
   payments_count: number | null;
   payment_status: PaymentStatus;
+  plan_id: string | null;
+  plan_kind: PackageKind;
+  ukkera_transfer_id: string | null;
+  merchant_order_key: string | null;
 };
 
 export type University = {
@@ -213,6 +275,12 @@ export type University = {
   updated_at: string;
 };
 
+/**
+ * Course titles arrive from ukkera as one string —
+ * "ORGANIC 1 - Azhar Cairo - Girls - 2027 - Clinical" — and are taken apart
+ * into these columns on write. A null means that part was not recognised, not
+ * that it is absent.
+ */
 export type Course = {
   id: string;
   name: string;
@@ -221,6 +289,14 @@ export type Course = {
   university_id: string | null;
   created_at: string;
   updated_at: string;
+  subject: string | null;
+  level: number | null;
+  section: string | null;
+  class_year: number | null;
+  track: string | null;
+  /** The university as ukkera spelled it, before alias resolution. */
+  university_label: string | null;
+  ukkera_course_id: string | null;
 };
 
 export type CourseCatalogueRow = {
@@ -240,9 +316,17 @@ export type Package = {
   course_id: string | null;
   name: string;
   name_key: string | null;
+  /** What this package charges. For an instalment package: one instalment. */
   price: number | null;
   created_at: string;
   updated_at: string;
+  kind: PackageKind;
+  installment_count: number;
+  /** Which instalment of the plan this package is, when the title says. */
+  installment_seq: number | null;
+  /** What the whole course costs through this package. */
+  total_price: number | null;
+  chapter_name: string | null;
 };
 
 export type Subscription = {
@@ -262,6 +346,43 @@ export type Subscription = {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  merchant_order_key: string | null;
+  ukkera_transfer_id: string | null;
+  ukkera_transfer_at: string | null;
+  plan_id: string | null;
+  plan_kind: PackageKind;
+};
+
+/**
+ * `v_installment_plans` — one enrolment paid over several purchases.
+ *
+ * Each instalment arrives as its own ukkera transfer and its own Kashier
+ * payment, so each is its own subscription. This is the thing above them that
+ * knows the course price, and therefore the only place that can say what is
+ * still owed once the first instalment is settled.
+ */
+export type InstallmentPlan = {
+  plan_id: string;
+  student_id: string;
+  student_name: string | null;
+  student_phone: string | null;
+  course_id: string | null;
+  course_name: string | null;
+  package_id: string | null;
+  package_name: string | null;
+  installment_count: number;
+  /** null when the course price has never been set — unknown, not zero. */
+  total_due: number | null;
+  total_paid: number;
+  remaining: number | null;
+  installments_paid: number;
+  installments_remaining: number;
+  next_installment_amount: number | null;
+  last_payment_at: string | null;
+  started_at: string;
+  closed_at: string | null;
+  notes: string | null;
+  status: PlanStatus;
 };
 
 /**
@@ -404,39 +525,49 @@ export type KashierAccount = {
   synced_at: string;
 };
 
+/**
+ * The five figures of the P&L, named for what they are:
+ *
+ *   student_payments - gateway_fees = net_revenue
+ *   net_revenue      - expenses     = net_profit
+ *
+ * There is deliberately no `total_revenue`. It used to mean the gross figure
+ * while `net_revenue` meant the real one, and two names for two different
+ * numbers is how the gross figure ended up being read as income.
+ */
 export type DashboardKpis = {
-  total_revenue: number;
-  total_expenses: number;
+  current_month: string;
+  /** What students were charged, before Kashier took its cut. Not income. */
+  student_payments: number;
+  /** Kashier fee + 14% VAT on it + the flat bank fee. */
+  gateway_fees: number;
+  /** Income: what actually arrives. */
+  net_revenue: number;
+  /** What the business chose to spend. Excludes gateway fees. */
+  expenses: number;
   net_profit: number;
-  outstanding_amount: number;
-  month_revenue: number;
+  month_student_payments: number;
+  month_gateway_fees: number;
+  month_net_revenue: number;
   month_expenses: number;
   month_net_profit: number;
-  current_month: string;
+  outstanding_amount: number;
   students_active: number;
   students_total: number;
   subscriptions_total: number;
-  wallets_total: number;
+  /** Money in your own accounts, kept apart from what Kashier still holds. */
+  in_own_wallets: number;
+  at_kashier_wallet: number;
+  payouts_received: number;
+  payouts_in_flight: number;
   unmatched_payments: number;
   unpaid_subscriptions: number;
   failed_ingest_events: number;
-  payouts_received: number;
-  payouts_in_flight: number;
-  /** Kashier fee + VAT + flat bank fee, live only. */
-  gateway_fees: number;
-  month_gateway_fees: number;
-  /** Ledger revenue minus everything Kashier keeps — what actually arrives. */
-  net_revenue: number;
-  month_net_revenue: number;
-  net_after_everything: number;
-  /** Expenses excluding gateway fees, so the two never show as one bar twice. */
-  other_expenses: number;
-  month_other_expenses: number;
-  /** Still at Kashier versus actually in your own accounts. */
-  at_kashier_wallet: number;
-  in_own_wallets: number;
+  /** Enrolments with instalments still to collect. */
+  open_installment_plans: number;
 };
 
+/** `revenue` is NET of gateway fees here and everywhere else. */
 export type FinanceDaily = {
   day: string;
   revenue: number;
@@ -445,6 +576,9 @@ export type FinanceDaily = {
   revenue_entries: number;
   expense_entries: number;
   refund_entries: number;
+  student_payments: number;
+  gateway_fees: number;
+  fee_entries: number;
 };
 
 export type FinanceMonthly = {
@@ -454,6 +588,8 @@ export type FinanceMonthly = {
   net_profit: number;
   revenue_entries: number;
   expense_entries: number;
+  student_payments: number;
+  gateway_fees: number;
 };
 
 export type MonthlyReport = FinanceMonthly & {
@@ -475,6 +611,8 @@ export type RevenueByCourse = {
   course_name: string;
   revenue: number;
   payments: number;
+  student_payments: number;
+  gateway_fees: number;
 };
 
 export type RevenueByUniversity = {
@@ -483,6 +621,8 @@ export type RevenueByUniversity = {
   university_name: string;
   revenue: number;
   payments: number;
+  student_payments: number;
+  gateway_fees: number;
 };
 
 export type UnpaidSubscription = {

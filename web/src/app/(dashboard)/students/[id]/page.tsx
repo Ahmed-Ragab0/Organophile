@@ -5,15 +5,18 @@ import { useParams } from 'next/navigation';
 import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { formatDate, formatDateTime, formatMoney } from '@/lib/format';
+import { useState } from 'react';
 import {
-  Card, CardHeader, ErrorState, PageHeader, PageSkeleton,
+  Button, Card, CardHeader, ErrorState, PageHeader, PageSkeleton,
 } from '@/components/ui/primitives';
+import { LedgerDetailModal } from '@/components/ledger-detail';
 import { DataTable, type Column } from '@/components/ui/table';
 import {
-  LedgerTypeBadge, Money, Mono, PaymentStatusBadge, SignedMoney, StatCard,
+  InstallmentPips, LedgerTypeBadge, Money, Mono, PaymentStatusBadge, PlanStatusBadge,
+  SignedMoney, StatCard,
 } from '@/components/domain';
 import type {
-  LedgerEntry, StudentFinancials, SubscriptionFinancials,
+  InstallmentPlan, LedgerEntry, StudentFinancials, SubscriptionFinancials,
 } from '@/types/database';
 
 type SubscriptionRow = SubscriptionFinancials & {
@@ -25,6 +28,7 @@ export default function StudentDetailPage() {
   const { t, locale } = useI18n();
   const params = useParams<{ id: string }>();
   const id = params?.id;
+  const [detail, setDetail] = useState<LedgerEntry | null>(null);
 
   const student = useSupabaseQuery<StudentFinancials>(
     (sb) => sb.from('v_student_financials').select('*').eq('student_id', id).single(),
@@ -36,6 +40,14 @@ export default function StudentDetailPage() {
       sb.from('v_subscription_financials').select('*')
         .eq('student_id', id)
         .order('enrolled_at', { ascending: false }),
+    [id],
+  );
+
+  const plans = useSupabaseQuery<InstallmentPlan[]>(
+    (sb) =>
+      sb.from('v_installment_plans').select('*')
+        .eq('student_id', id)
+        .order('started_at', { ascending: false }),
     [id],
   );
 
@@ -108,6 +120,14 @@ export default function StudentDetailPage() {
       key: 'effect', header: t.ledger.effect, numeric: true,
       render: (r) => <SignedMoney value={n(r.wallet_delta)} />,
     },
+    {
+      key: 'detail', header: '',
+      render: (r) => (
+        <Button size="sm" variant="secondary" onClick={() => setDetail(r)}>
+          {t.ledgerDetail.open}
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -147,6 +167,73 @@ export default function StudentDetailPage() {
         />
       </section>
 
+      {/*
+        The instalment plans, above the subscription list rather than inside it.
+        Each instalment is its own subscription row and each is settled by its
+        own payment; the debt that survives them all lives here, and putting it
+        below rows that all read "paid" would bury the only figure that answers
+        what this student still owes.
+      */}
+      {(plans.data ?? []).length > 0 && (
+        <section className="mt-4">
+          <Card>
+            <CardHeader title={t.plans.title} hint={t.plans.subtitle} />
+            <div className="divide-y divide-border">
+              {(plans.data ?? []).map((pl) => (
+                <div key={pl.plan_id} className="p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-ink">
+                        {pl.course_name ?? pl.package_name ?? t.common.empty}
+                      </p>
+                      <div className="mt-1.5">
+                        <InstallmentPips
+                          paid={pl.installments_paid}
+                          total={pl.installment_count}
+                        />
+                      </div>
+                    </div>
+                    <PlanStatusBadge status={pl.status} />
+                  </div>
+
+                  <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                    <div>
+                      <p className="text-xs text-ink-muted">{t.plans.totalDue}</p>
+                      <p className="mt-0.5 font-display text-lg font-semibold text-ink tnum">
+                        {pl.total_due === null
+                          ? <span className="text-sm font-normal text-warn">{t.plans.priceUnknown}</span>
+                          : formatMoney(Number(pl.total_due), locale)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-ink-muted">{t.plans.totalPaid}</p>
+                      <p className="mt-0.5 font-display text-lg font-semibold text-ok tnum">
+                        {formatMoney(Number(pl.total_paid), locale)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-ink-muted">{t.plans.remaining}</p>
+                      <p className="mt-0.5 font-display text-lg font-semibold text-warn tnum">
+                        {pl.remaining === null ? '—' : formatMoney(Number(pl.remaining), locale)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="mt-3 text-xs text-ink-faint">
+                    {pl.total_due === null
+                      ? t.plans.priceUnknownHint
+                      : pl.next_installment_amount === null
+                        ? t.plans.statuses[pl.status]
+                        : `${t.plans.nextAmount}: ${formatMoney(Number(pl.next_installment_amount), locale)}`
+                          + ` · ${pl.installments_remaining} ${t.plans.remainingCount}`}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </section>
+      )}
+
       <section className="mt-4">
         <Card>
           <CardHeader
@@ -181,6 +268,8 @@ export default function StudentDetailPage() {
           />
         </Card>
       </section>
+
+      <LedgerDetailModal entry={detail} onClose={() => setDetail(null)} />
     </>
   );
 }

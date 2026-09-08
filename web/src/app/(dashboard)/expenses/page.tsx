@@ -5,13 +5,17 @@ import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { createClient } from '@/lib/supabase/client';
 import { downloadCsv, formatDate, formatMoney, toCsv } from '@/lib/format';
+import Link from 'next/link';
 import {
-  Badge, Button, Card, CardHeader, Field, Input, PageHeader, Select,
+  Badge, Button, Card, CardHeader, Field, Input, Notice, PageHeader, Select,
 } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
 import { Money, StatCard } from '@/components/domain';
 import { AddExpenseModal } from '@/components/financial-actions';
-import { EXPENSE_CATEGORIES, type ExpenseByCategory, type LedgerEntry, type WalletBalance } from '@/types/database';
+import {
+  EXPENSE_CATEGORIES,
+  type DashboardKpis, type ExpenseByCategory, type LedgerEntry, type WalletBalance,
+} from '@/types/database';
 
 export default function ExpensesPage() {
   const { t, locale } = useI18n();
@@ -45,6 +49,15 @@ export default function ExpensesPage() {
       return q;
     },
     [category, walletId, from, to],
+  );
+
+  // Gateway fees are no longer expenses, but they are still money out of the
+  // business and the page that answers "what is this costing me" should not
+  // pretend they vanished. Shown here as a figure with a pointer, never as a
+  // row in the total.
+  const kpis = useSupabaseQuery<DashboardKpis>(
+    (sb) => sb.from('v_dashboard_kpis').select('*').single(),
+    [],
   );
 
   const byCategory = useSupabaseQuery<ExpenseByCategory[]>(
@@ -139,6 +152,20 @@ export default function ExpensesPage() {
           </div>
         }
       />
+
+      {Number(kpis.data?.gateway_fees ?? 0) > 0 && (
+        <div className="mb-4">
+          <Notice tone="info">
+            {t.finance.gatewayFees}: <strong className="tnum">
+              {formatMoney(Number(kpis.data?.gateway_fees ?? 0), locale)}
+            </strong>
+            {' — '}{t.finance.feesNotExpense}{'. '}
+            <Link href="/payouts" className="font-medium text-accent-strong hover:underline">
+              {t.common.view} →
+            </Link>
+          </Notice>
+        </div>
+      )}
 
       <section className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label={t.common.total} value={formatMoney(total, locale)} tone="danger" emphasis />

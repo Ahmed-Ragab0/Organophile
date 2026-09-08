@@ -15,29 +15,52 @@ import type {
 } from '@/types/database';
 
 /**
- * The hero shows the subtraction, not three unrelated numbers: revenue and
- * expenses as opposing bars either side of the net figure, so the shape of the
- * month is readable before any digit is.
+ * The hero shows the subtraction, not three unrelated numbers.
+ *
+ * Two of those numbers used to be wrong about themselves. The top line was the
+ * gross figure labelled "revenue", when a fifth of it never arrives; and the
+ * gateway's cut sat in the expense bar beside rent, as if it were something
+ * bought. So the hero now reads down the actual chain:
+ *
+ *   students paid  ->  Kashier withheld  ->  reached you  ->  you spent
+ *
+ * Each row is a step, and the bar under it is that step's share of what the
+ * students paid — which is the only figure the others can be a share of.
  */
 function ProfitHero({
-  revenue, fees, expenses, net,
-}: { revenue: number; fees: number; expenses: number; net: number }) {
+  paid, fees, expenses, net, profit,
+}: {
+  paid: number; fees: number; expenses: number; net: number; profit: number;
+}) {
   const { t, locale } = useI18n();
-  const scale = Math.max(revenue, 1);
+  const scale = Math.max(paid, 1);
+  const pct = (v: number) => `${Math.min(100, Math.max(0, (v / scale) * 100))}%`;
 
-  /*
-   * One hero, showing the subtraction that produces the only figure that
-   * matters: what reaches the account.
-   *
-   * This page previously led with net profit and repeated revenue, expenses
-   * and the net-after-Kashier figure across the tiles below — the same five
-   * numbers, three times over. A number shown twice is not reassurance, it is
-   * a second thing to reconcile.
-   */
-  const parts = [
-    { key: 'revenue', label: t.finance.totalRevenue, value: revenue, bar: 'bg-ok', tone: 'ok' as const },
-    { key: 'fees', label: t.reportsUi.fees, value: fees, bar: 'bg-warn', tone: 'danger' as const },
-    { key: 'expenses', label: t.finance.totalExpenses, value: expenses, bar: 'bg-danger', tone: 'danger' as const },
+  const steps = [
+    {
+      key: 'paid',
+      label: t.finance.studentPayments,
+      hint: t.finance.studentPaymentsHint,
+      value: paid,
+      bar: 'bg-accent',
+      tone: 'plain' as const,
+    },
+    {
+      key: 'fees',
+      label: t.finance.gatewayFees,
+      hint: t.finance.feesNotExpense,
+      value: -fees,
+      bar: 'bg-warn',
+      tone: 'danger' as const,
+    },
+    {
+      key: 'expenses',
+      label: t.finance.totalExpenses,
+      hint: t.finance.expensesHint,
+      value: -expenses,
+      bar: 'bg-danger',
+      tone: 'danger' as const,
+    },
   ];
 
   return (
@@ -50,21 +73,31 @@ function ProfitHero({
         <p className="mt-1 text-xs text-white/70">{t.finance.netRevenueHint}</p>
       </div>
 
-      <div className="grid gap-4 p-5 sm:grid-cols-3">
-        {parts.map((p) => (
-          <div key={p.key}>
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-xs font-medium text-ink-muted">{p.label}</span>
-              <Money value={p.value} tone={p.tone} className="text-sm font-semibold" />
+      <div className="divide-y divide-border">
+        {steps.map((row) => (
+          <div key={row.key} className="px-5 py-3.5">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-sm font-medium text-ink">{row.label}</span>
+              <Money value={row.value} tone={row.tone} className="text-sm font-semibold" />
             </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-3">
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-3">
               <div
-                className={`h-full rounded-full transition-[width] ${p.bar}`}
-                style={{ width: `${Math.min(100, (p.value / scale) * 100)}%` }}
+                className={`h-full rounded-full transition-[width] ${row.bar}`}
+                style={{ width: pct(Math.abs(row.value)) }}
               />
             </div>
+            <p className="mt-1.5 text-xs text-ink-faint">{row.hint}</p>
           </div>
         ))}
+
+        <div className="flex items-baseline justify-between gap-3 bg-surface-2 px-5 py-3.5">
+          <span className="text-sm font-semibold text-ink">{t.finance.netProfit}</span>
+          <Money
+            value={profit}
+            tone={profit < 0 ? 'danger' : 'ok'}
+            className="font-display text-lg font-semibold"
+          />
+        </div>
       </div>
     </Card>
   );
@@ -118,10 +151,11 @@ export default function OverviewPage() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <ProfitHero
-          revenue={n(k?.total_revenue)}
+          paid={n(k?.student_payments)}
           fees={n(k?.gateway_fees)}
-          expenses={n(k?.other_expenses)}
-          net={n(k?.net_after_everything)}
+          expenses={n(k?.expenses)}
+          net={n(k?.net_revenue)}
+          profit={n(k?.net_profit)}
         />
 
         {/*
@@ -134,7 +168,7 @@ export default function OverviewPage() {
             <StatCard
               label={t.finance.monthNetRevenue}
               value={formatMoney(n(k?.month_net_revenue), locale)}
-              hint={`${monthLabel} · ${t.finance.afterFees} ${formatMoney(n(k?.month_gateway_fees), locale)}`}
+              hint={`${monthLabel} · ${t.finance.studentPayments} ${formatMoney(n(k?.month_student_payments), locale)} · ${t.finance.afterFees} ${formatMoney(n(k?.month_gateway_fees), locale)}`}
               tone={n(k?.month_net_revenue) < 0 ? 'danger' : 'ok'}
               emphasis
             />
@@ -142,6 +176,9 @@ export default function OverviewPage() {
           <StatCard
             label={t.finance.outstanding}
             value={formatMoney(n(k?.outstanding_amount), locale)}
+            hint={n(k?.open_installment_plans) > 0
+              ? `${formatNumber(n(k?.open_installment_plans), locale)} ${t.finance.openPlans}`
+              : undefined}
             tone={n(k?.outstanding_amount) > 0 ? 'warn' : 'neutral'}
           />
           {/*
