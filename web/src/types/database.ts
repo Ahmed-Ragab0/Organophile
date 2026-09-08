@@ -429,6 +429,12 @@ export type DashboardKpis = {
   net_revenue: number;
   month_net_revenue: number;
   net_after_everything: number;
+  /** Expenses excluding gateway fees, so the two never show as one bar twice. */
+  other_expenses: number;
+  month_other_expenses: number;
+  /** Still at Kashier versus actually in your own accounts. */
+  at_kashier_wallet: number;
+  in_own_wallets: number;
 };
 
 export type FinanceDaily = {

@@ -120,7 +120,7 @@ export default function OverviewPage() {
         <ProfitHero
           revenue={n(k?.total_revenue)}
           fees={n(k?.gateway_fees)}
-          expenses={n(k?.total_expenses)}
+          expenses={n(k?.other_expenses)}
           net={n(k?.net_after_everything)}
         />
 
@@ -144,10 +144,19 @@ export default function OverviewPage() {
             value={formatMoney(n(k?.outstanding_amount), locale)}
             tone={n(k?.outstanding_amount) > 0 ? 'warn' : 'neutral'}
           />
+          {/*
+            What is actually in your own accounts, kept apart from what Kashier
+            is still holding. A single "total balances" figure counted money
+            that has not left the gateway yet, which is what made the bank
+            account read as if a payment had already landed in it.
+          */}
           <StatCard
-            label={t.finance.walletsTotal}
-            value={formatMoney(n(k?.wallets_total), locale)}
-            tone={n(k?.wallets_total) < 0 ? 'danger' : 'neutral'}
+            label={t.finance.inOwnWallets}
+            value={formatMoney(n(k?.in_own_wallets), locale)}
+            hint={n(k?.at_kashier_wallet) > 0
+              ? `${t.finance.plusAtKashier} ${formatMoney(n(k?.at_kashier_wallet), locale)}`
+              : undefined}
+            tone={n(k?.in_own_wallets) < 0 ? 'danger' : 'neutral'}
           />
           <StatCard
             label={t.finance.studentsActive}
