@@ -97,6 +97,16 @@ Deno.serve(async (req) => {
   return withCors(req, await handle(req));
 });
 
+/** Only the fields the account choice depends on; the rest travels as-is. */
+type AccountRow = {
+  isPrimary?: boolean;
+  accountId?: string;
+  type?: string;
+  totalBalance?: number | string;
+  availableBalance?: number | string;
+  onHoldBalance?: number | string;
+};
+
 async function handle(req: Request): Promise<Response> {
   if (req.method !== 'POST') return methodNotAllowed();
 
@@ -117,22 +127,51 @@ async function handle(req: Request): Promise<Response> {
   }
 
   const client = serviceClient();
-  const summary = { mode, account: false, fetched: 0, ingested: 0, duplicates: 0, failed: 0 };
+  const summary = {
+    mode, account: false, accountsReturned: 0,
+    fetched: 0, ingested: 0, duplicates: 0, failed: 0,
+  };
 
   try {
     // --- balance -------------------------------------------------------------
     const account = await kashierGet(mode, '/v2/account', secret);
     if (account.status === 200) {
       const rows = (account.body as { data?: unknown[] })?.data ?? [];
-      const first = Array.isArray(rows) ? rows[0] : null;
-      if (first) {
+      const list = Array.isArray(rows) ? (rows as AccountRow[]) : [];
+
+      // Taking rows[0] was a guess. Kashier can return several accounts for
+      // one merchant — the stored one came back with isPrimary false and a
+      // zero balance while real money had been collected, which is exactly
+      // what reading the wrong row looks like. Prefer the primary, then any
+      // account actually holding a balance, and only then fall back to first.
+      const chosen =
+        list.find((a) => a?.isPrimary === true)
+        ?? list.find((a) => Number(a?.totalBalance ?? 0) !== 0
+                         || Number(a?.availableBalance ?? 0) !== 0
+                         || Number(a?.onHoldBalance ?? 0) !== 0)
+        ?? list[0]
+        ?? null;
+
+      if (chosen) {
         const { error } = await client.rpc('upsert_kashier_account', {
           p_mode: mode,
-          p_payload: first,
+          // The whole list travels with it. When a balance looks wrong, the
+          // first question is "which account is this", and that is only
+          // answerable if the alternatives were kept.
+          p_payload: { ...chosen, _accountsReturned: list.length, _allAccounts: list },
         });
         if (error) throw new Error(`account upsert: ${error.message}`);
         summary.account = true;
+        summary.accountsReturned = list.length;
       }
+
+      log('info', 'account_selected', {
+        mode,
+        returned: list.length,
+        isPrimary: chosen?.isPrimary ?? null,
+        accountId: chosen?.accountId ?? null,
+        type: chosen?.type ?? null,
+      });
     } else {
       log('warn', 'account_fetch_failed', { mode, status: account.status });
     }

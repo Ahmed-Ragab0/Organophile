@@ -422,6 +422,13 @@ export type DashboardKpis = {
   failed_ingest_events: number;
   payouts_received: number;
   payouts_in_flight: number;
+  /** Kashier fee + VAT + flat bank fee, live only. */
+  gateway_fees: number;
+  month_gateway_fees: number;
+  /** Ledger revenue minus everything Kashier keeps — what actually arrives. */
+  net_revenue: number;
+  month_net_revenue: number;
+  net_after_everything: number;
 };
 
 export type FinanceDaily = {

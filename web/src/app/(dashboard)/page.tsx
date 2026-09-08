@@ -119,6 +119,21 @@ export default function OverviewPage() {
         />
 
         <div className="grid grid-cols-2 gap-3 content-start">
+          {/*
+            The figure the whole gateway chain exists to produce: what is left
+            after Kashier's fee, the VAT on it and the flat bank fee. Given the
+            full width because "charged" and "received" are different numbers
+            and this is the one that pays costs.
+          */}
+          <div className="col-span-2">
+            <StatCard
+              label={t.finance.netRevenue}
+              value={formatMoney(n(k?.net_revenue), locale)}
+              hint={`${t.finance.afterFees} ${formatMoney(n(k?.gateway_fees), locale)}`}
+              tone={n(k?.net_revenue) < 0 ? 'danger' : 'ok'}
+              emphasis
+            />
+          </div>
           <StatCard
             label={t.finance.outstanding}
             value={formatMoney(n(k?.outstanding_amount), locale)}
@@ -140,7 +155,7 @@ export default function OverviewPage() {
         </div>
       </div>
 
-      <section className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <section className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label={t.finance.monthRevenue}
           value={formatMoney(n(k?.month_revenue), locale)}
@@ -158,6 +173,12 @@ export default function OverviewPage() {
           value={formatMoney(n(k?.month_net_profit), locale)}
           hint={monthLabel}
           tone={n(k?.month_net_profit) < 0 ? 'danger' : 'ok'}
+        />
+        <StatCard
+          label={t.finance.monthNetRevenue}
+          value={formatMoney(n(k?.month_net_revenue), locale)}
+          hint={`${monthLabel} · ${t.finance.afterFees} ${formatMoney(n(k?.month_gateway_fees), locale)}`}
+          tone={n(k?.month_net_revenue) < 0 ? 'danger' : 'ok'}
           emphasis
         />
       </section>
