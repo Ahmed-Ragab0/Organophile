@@ -227,31 +227,23 @@ The header must be named exactly **`Authorization`** with value `Bearer <token>`
 
 ## 7. Open issues
 
-1. **`transfer_id` (ukkera) == `merchantOrderId` (Kashier)? — SETTLED, and the
-   answer was no.** The first real payment (TX-4809032148, 8 Sep 2026) came
-   through ukkera carrying:
+1. **What identifies a purchase? — settled, after getting it wrong once.**
+   The join key is Kashier's `merchantOrderId`, which ukkera builds as
+   `transfer-<payer phone>-<epoch ms>` and which is unique per purchase.
 
-   ```
-   merchantOrderId : "transfer-+201117428440-1788870390057"
-   metaData.key    : "INSTRUCTOR_TRANSFER"
-   metaData.data   : <base64> -> {"transfer_id": 459,
-                                  "account": {name, email, phone}}
-   referral url    : "https://organophile.ukkera.net/"
-   ```
+   The first real payment suggested otherwise. Its base64 `metaData` carried
+   `transfer_id: 459`, `project_ukkera_event` already read `transfer_id` as an
+   order-id candidate, and 0020 concluded that was the shared key. **It was
+   not.** The second real payment carried the same `transfer_id: 459` for a
+   different buyer, a different phone and a different transaction — because
+   `transfer_id` identifies the ukkera payment LINK (package + instructor,
+   alongside `custom_gateway_instructor_id`), so every buyer through that link
+   shares it. Keying on it merged two students onto one order and attributed
+   one person's money to another. Corrected in 0025.
 
-   `merchantOrderId` is a display string ukkera builds as
-   `transfer-<payer phone>-<epoch ms>` — not an order id, and containing the
-   payer's phone, which makes it unusable as a key. ukkera's real identifier,
-   `transfer_id`, sits inside the base64 `metaData`, which is also where the
-   payer's name, email and phone are.
-
-   `app.ukkera_meta()` decodes it, `payments.ukkera_transfer_id` stores it, and
-   `v_payment_matches` joins on it as `auto_ukkera_transfer`. The old
-   merchantOrderId join is kept as a fallback — nothing proves ukkera uses this
-   shape for every product. Match rate on the one live payment: **100%**.
-
-   The soft-join-plus-override design is what made this survivable: a foreign
-   key on the wrong column would have rejected the payment at ingest.
+   The lesson is in the schema comment now: `payments.ukkera_transfer_id` says
+   never to join on it. A conclusion drawn from one observation of an external
+   system is a hypothesis, and the second observation is what tests it.
 
 2. **Transfer webhooks arrive unsigned.** Kashier sends no
    `x-kashier-signature` header at all for this account, so they are correctly

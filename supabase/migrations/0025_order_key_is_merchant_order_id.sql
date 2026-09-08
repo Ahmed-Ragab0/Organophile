@@ -1,0 +1,48 @@
+-- 0025_order_key_is_merchant_order_id.sql
+--
+-- Corrects 0020. `transfer_id` is NOT a per-purchase identifier.
+--
+-- The second real payment proved it. Two different people, two different
+-- phones, two different transactions — the same transfer_id:
+--
+--   TX-4809032148  مريم نادر   +201117428440  transfer_id 459
+--   TX-4809032150  احمد سامي   +201010731171  transfer_id 459
+--
+-- Both also carry custom_gateway_instructor_id 175. So transfer_id identifies
+-- the ukkera payment LINK — which package, from which instructor — and every
+-- buyer through that link shares it.
+--
+-- 0020 read it as an order id from a single observation. The consequence was
+-- not cosmetic: the second payment matched the first buyer's order, so
+-- احمد سامي's 100 EGP was attributed to مريم's student record and her order,
+-- and derive_order_from_payment saw an existing order and created neither a
+-- student nor a subscription for him.
+--
+-- merchantOrderId is the unique one after all: `transfer-<payer phone>-<epoch
+-- ms>` differs per purchase. 0020 dismissed it as "a display string" because
+-- it is not a tidy id — but a join key needs to be unique, not tidy.
+--
+-- ukkera_transfer_id stays stored, because knowing which package link a
+-- payment came through is useful. Its column comment now says never to join
+-- on it.
+--
+-- Changed back to merchant_order_key: v_payment_matches,
+-- app.attach_subscription_to_ledger, v_unpaid_subscriptions,
+-- reconcile_transactions, app.sync_payment_to_ledger,
+-- app.derive_order_from_payment. See the applied migrations
+-- `order_key_is_merchant_order_id_not_transfer_id` and
+-- `derive_and_sync_use_merchant_order_id`.
+--
+-- sync_payment_to_ledger's ON CONFLICT now OVERWRITES student_id, course_id
+-- and subscription_id rather than coalescing them. Coalesce preserved the
+-- first value written, which meant a wrong attribution could never be
+-- corrected by re-running the projection — exactly what was needed here.
+
+comment on column public.payments.ukkera_transfer_id is
+  'ukkera''s transfer_id from the base64 metaData. Identifies the payment LINK (package + instructor), NOT the purchase — every buyer through the same link shares it. Never join on this.';
+
+-- Repair applied to the existing rows: the order created under '459' was
+-- re-keyed onto its payment's merchantOrderId, then derive + sync were re-run
+-- for every payment. Result: 2 students, 2 subscriptions, 4 ledger entries all
+-- attributed to the person who actually paid, match rate 100%, revenue 200.00,
+-- fees 18.49, net 181.51, all of it still at Kashier.
