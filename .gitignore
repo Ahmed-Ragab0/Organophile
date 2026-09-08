@@ -28,3 +28,6 @@ supabase/functions/.temp
 
 # generated secrets — never commit
 .secrets/
+
+# local data snapshots — never commit
+.backups/
