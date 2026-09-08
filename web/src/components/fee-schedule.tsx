@@ -26,7 +26,13 @@ import type { Mode } from '@/lib/mode/mode';
  * to need adjusting — the schedule is seeded from the moment it was created,
  * which is rarely the moment the fee actually started.
  */
-export function FeeSchedulePanel({ mode }: { mode: Mode }) {
+export function FeeSchedulePanel({
+  mode, kashierReports,
+}: {
+  mode: Mode;
+  /** What Kashier reports as `payoutFees` on its account endpoint. */
+  kashierReports?: number | null;
+}) {
   const { t, locale } = useI18n();
   const [nonce, setNonce] = useState(0);
   const [editing, setEditing] = useState(false);
@@ -111,6 +117,28 @@ export function FeeSchedulePanel({ mode }: { mode: Mode }) {
                 </span>
               </span>
             </div>
+
+            {/*
+              Kashier reports this same figure on its account endpoint, under
+              `payoutFees`. Showing it beside ours turns a hand-entered number
+              into a checkable one — and the name is worth noticing: "payout"
+              fees may mean per transfer rather than per transaction, which is
+              a question for Kashier, not something to silently assume either
+              way.
+            */}
+            {kashierReports !== null && kashierReports !== undefined && (
+              <div className="flex flex-wrap items-baseline justify-between gap-2 rounded-tile bg-surface-2 px-3 py-2">
+                <span className="text-xs text-ink-muted">{t.feeSchedule.kashierReports}</span>
+                <span className="flex items-center gap-2">
+                  <span className="tnum text-sm font-medium text-ink">
+                    {formatMoney(Number(kashierReports), locale)}
+                  </span>
+                  {Math.abs(Number(kashierReports) - Number(current.bank_fee_flat)) < 0.005
+                    ? <Badge tone="ok">{t.feeSchedule.matches}</Badge>
+                    : <Badge tone="warn">{t.feeSchedule.differs}</Badge>}
+                </span>
+              </div>
+            )}
 
             <Notice tone="info">{t.feeSchedule.datedNote}</Notice>
 

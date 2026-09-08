@@ -128,7 +128,13 @@ export default function ReportsPage() {
     { revenue: 0, expenses: 0, net: 0, payments: 0 },
   );
 
-  const feesTotal = (fees.data ?? []).reduce((a, f) => a + n(f.fees), 0);
+  // Everything Kashier keeps over the range: its fee, the VAT charged on that
+  // fee, and the flat bank fee it does not report on the transaction.
+  const feesTotal = (fees.data ?? []).reduce(
+    (a, f) => a + n(f.fees) + n(f.vat) + n(f.bank_fees), 0);
+  // Revenue as it survives the gateway. `totals.revenue` is what students were
+  // charged; this is what is left of it.
+  const netRevenue = totals.revenue - feesTotal;
   const outstanding = (students.data ?? []).reduce((a, s) => a + n(s.remaining), 0);
 
   /** Aggregate a month-keyed breakdown down to one row per label. */
@@ -478,7 +484,7 @@ export default function ReportsPage() {
       </Card>
 
       {/* ── the period totals ────────────────────────────────────────────── */}
-      <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard label={t.reportsUi.revenue} value={formatMoney(totals.revenue, locale)} tone="ok" />
         <StatCard label={t.reportsUi.expenses} value={formatMoney(totals.expenses, locale)} tone="danger" />
         <StatCard
@@ -487,7 +493,19 @@ export default function ReportsPage() {
           tone={totals.net < 0 ? 'danger' : 'ok'}
           emphasis
         />
-        <StatCard label={t.reportsUi.fees} value={formatMoney(feesTotal, locale)} hint={t.position.fees} />
+        <StatCard
+          label={t.reportsUi.fees}
+          value={formatMoney(feesTotal, locale)}
+          hint={t.reportsUi.feesHint}
+          tone="danger"
+        />
+        <StatCard
+          label={t.position.netRevenue}
+          value={formatMoney(netRevenue, locale)}
+          hint={t.position.netRevenueHint}
+          tone={netRevenue < 0 ? 'danger' : 'ok'}
+          emphasis
+        />
         <StatCard
           label={t.reportsUi.outstanding}
           value={formatMoney(outstanding, locale)}

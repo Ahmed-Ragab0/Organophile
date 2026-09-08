@@ -161,10 +161,23 @@ position chain (collected → minus refunds → minus Kashier fees → **minus b
 fees** → net owed to you → minus transferred → minus in flight → **still at
 Kashier**), Kashier's own reported balance beside it, and the difference.
 
-The bank fee is a separate line from the Kashier fee on purpose: Kashier's own
-fee arrives inside every payload and can be checked against it, while the bank
-fee arrives nowhere and is applied from `kashier_fee_schedule`. Merging them
-would produce a figure that reconciles against nothing. A gap is the first sign a
+The chain is now: collected → minus refunds → minus Kashier's fee → minus the
+14% VAT on that fee → minus the flat bank fee → **net revenue**.
+
+Each deduction is its own line because each has a different source. Kashier's
+fee and its VAT arrive inside every payload and can be checked against the
+transaction on Kashier's dashboard; the bank fee arrives on the *account*
+endpoint as `payoutFees` and never on the transaction, so it is applied from
+`kashier_fee_schedule`. Merging them would produce a figure that reconciles
+against nothing.
+
+Below the chain, Kashier's own answer is split into **available now** and
+**held for settlement**. Reading `availableBalance` alone reports every recent
+payment as a shortfall, because money inside the settlement window sits in
+`onHoldBalance`. The notice distinguishes four cases: payments newer than the
+snapshot (re-sync), the settlement window (normal), money missing for over
+three days (investigate), and Kashier holding more than was ever recorded
+(transactions that never reached the system). A gap is the first sign a
 transaction or transfer was missed. Plus wallet balances.
 
 **PERIOD — "what happened between these two months"**, over a month range with

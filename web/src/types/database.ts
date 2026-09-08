@@ -561,11 +561,25 @@ export type MoneyPosition = {
   /** What Kashier itself reported at the last sync. Null until one succeeds. */
   kashier_reported_balance: number | null;
   kashier_synced_at: string | null;
-  /** The flat bank fee Kashier takes but does not report in the payload. */
+  /** The flat bank fee Kashier takes but does not report on the transaction. */
   bank_fees: number;
+  vat: number;
+  /** fees + VAT + bank fee — everything Kashier keeps. */
   total_fees: number;
+  /** Gross minus refunds and every Kashier deduction. Agrees with net_settled. */
+  net_revenue: number;
   /** What one transaction costs today, per the schedule in force. */
   bank_fee_current: number;
+  latest_payment_at: string | null;
+  /** Collected but inside Kashier's settlement window — not yet withdrawable. */
+  kashier_on_hold: number | null;
+  kashier_total_balance: number | null;
+  /** The flat fee Kashier itself reports on the account endpoint. */
+  kashier_payout_fees: number | null;
+  /** Collected after the balance snapshot, so definitionally absent from it. */
+  collected_since_sync: number;
+  /** Server-computed, so the diagnosis never depends on the viewer's clock. */
+  hours_since_latest_payment: number | null;
 };
 
 export type GatewayStage = 'not_paid' | 'part_paid' | 'paid';

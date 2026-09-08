@@ -101,3 +101,33 @@ on conflict (mode, effective_from) do nothing;
 --
 -- Charged on successful pay/capture only. A refund does not hand the bank fee
 -- back, so refunding must not credit one either.
+
+-- ---------------------------------------------------------------------------
+-- Follow-ups from reviewing the first real payment against Kashier's dashboard
+-- ---------------------------------------------------------------------------
+--
+-- 1. Kashier reports the flat fee itself, as `payoutFees` on the ACCOUNT
+--    endpoint — it just never appears on the transaction. kashier_account now
+--    stores it (plus onHoldBalance and totalOnHoldBalance, also dropped), and
+--    the payouts page shows it beside the hand-entered schedule so the two can
+--    be compared. Note Kashier calls it "payout" fees, which may mean per
+--    transfer rather than per transaction; that is a question for Kashier, not
+--    something to assume either way.
+--
+-- 2. The schedule is dated from the account's creation (2026-08-03) rather
+--    than from when it was configured, so it covers every payment the system
+--    holds. See `capture_kashier_payout_fees_and_hold_balance`.
+--
+-- 3. net_revenue subtracted the fee but not the 14% VAT charged on it, so it
+--    came out 0.51 above net_settled on the live payment — the VAT exactly.
+--    Kashier deducts fee AND VAT AND the flat fee, so all three come off, and
+--    the two figures now agree at 90.84. Computing net_revenue from gross and
+--    net_settled from settlementInfo keeps them an independent cross-check.
+--
+-- 4. The "still at Kashier" comparison read availableBalance alone, which is
+--    only what can be withdrawn this minute. Money inside Kashier's settlement
+--    window sits in onHoldBalance, so a payment made an hour ago was being
+--    reported as a 95.84 shortfall. v_money_position now carries all three
+--    balances plus collected_since_sync and hours_since_latest_payment, and
+--    the panel distinguishes: stale snapshot, settlement window, genuinely
+--    missing, or Kashier holding more than we ever recorded.

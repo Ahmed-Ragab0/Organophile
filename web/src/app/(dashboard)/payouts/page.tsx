@@ -166,7 +166,7 @@ export default function PayoutsPage() {
           read together. */}
       <div className="mb-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
         <MoneyPositionPanel position={p} loading={position.loading} />
-        <FeeSchedulePanel mode={mode} />
+        <FeeSchedulePanel mode={mode} kashierReports={p?.kashier_payout_fees} />
       </div>
 
       <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
