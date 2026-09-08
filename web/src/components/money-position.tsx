@@ -49,7 +49,19 @@ export function MoneyPositionPanel({
   const kashierHas = reported === null || reported === undefined ? null : n(reported);
   const ourGross = n(position?.awaiting_payout_gross);
   const gap = kashierHas === null ? null : kashierHas - ourGross;
-  const gapMatters = gap !== null && Math.abs(gap) > 0.5;
+
+  /*
+   * How big a difference has to be before it means anything.
+   *
+   * A flat 0.5 EGP threshold called a 0.57 difference on a 100 EGP balance
+   * "transactions never reached the system" — technically true and completely
+   * unhelpful. What matters is the difference relative to the money involved,
+   * with a floor so that small absolute amounts never raise an alarm.
+   */
+  const scale = Math.max(Math.abs(kashierHas ?? 0), Math.abs(ourGross), 1);
+  const minorLimit = Math.max(2, scale * 0.01);
+  const gapMatters = gap !== null && Math.abs(gap) > minorLimit;
+  const gapMinor = gap !== null && Math.abs(gap) > 0.5 && !gapMatters;
 
   // Two very different causes produce a gap, and they need opposite actions.
   const sinceSync = n(position?.collected_since_sync);
@@ -57,7 +69,11 @@ export function MoneyPositionPanel({
   // not depend on the viewer's clock being right.
   const hoursSinceLatest = position?.hours_since_latest_payment ?? null;
 
-  const diagnosis = !gapMatters
+  const diagnosis = gapMinor
+    // Real but immaterial. Named rather than hidden: a figure that quietly
+    // rounds away is worse than one that says it is small.
+    ? { tone: 'info' as const, text: t.position.gapMinor }
+    : !gapMatters
     ? null
     : sinceSync > 0
       ? { tone: 'info' as const, text: t.position.gapStale }
@@ -150,9 +166,6 @@ export function MoneyPositionPanel({
           </span>
         </div>
 
-        {/* What of it can be withdrawn right now. Kashier reports these
-            separately and they rarely agree — money sits in the total long
-            before it becomes available. */}
         {kashierHas !== null && (
           <dl className="mt-2 grid grid-cols-2 gap-2">
             <div className="rounded-tile bg-surface-2 px-3 py-2">
@@ -164,6 +177,28 @@ export function MoneyPositionPanel({
               <dd className="tnum text-sm font-medium text-ink">{money(ourGross)}</dd>
             </div>
           </dl>
+        )}
+
+        {/*
+          Kashier's own last payout. Ours reads zero because that transfer
+          happened before this system existed, and showing only our figure on
+          the same screen reads as a contradiction rather than as two records
+          that begin on different dates.
+        */}
+        {position?.kashier_last_transfer != null && n(position.kashier_last_transfer) > 0 && (
+          <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2 rounded-tile bg-surface-2 px-3 py-2">
+            <span className="text-[0.6875rem] text-ink-muted">
+              {t.position.kashierLastTransfer}
+              {position.kashier_last_transfer_at && (
+                <span className="ms-1 text-ink-faint">
+                  {formatDateTime(position.kashier_last_transfer_at, locale)}
+                </span>
+              )}
+            </span>
+            <span className="tnum text-sm font-medium text-ink">
+              {money(position.kashier_last_transfer)}
+            </span>
+          </div>
         )}
 
         {gap !== null && (

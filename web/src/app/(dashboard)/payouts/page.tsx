@@ -161,39 +161,45 @@ export default function PayoutsPage() {
         </div>
       )}
 
-      {/* The position and the one number in it that comes from us rather than
-          from Kashier, side by side — so the deduction and its source are
-          read together. */}
-      <div className="mb-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+      {/*
+        The fee panel is short and the position panel is long, so side by side
+        the fee column ran a full card's height of empty space. Stacking the
+        four payout figures underneath it fills that column with the numbers
+        that belong beside a balance anyway — transferred, in flight, still
+        waiting, failed — instead of pushing them to a separate band below.
+      */}
+      <div className="mb-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,21rem)]">
         <MoneyPositionPanel position={p} loading={position.loading} />
-        <FeeSchedulePanel mode={mode} kashierReports={p?.kashier_payout_fees} />
-      </div>
 
-      <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label={t.payouts.transferred}
-          value={formatMoney(n(p?.transferred), locale)}
-          hint={`${n(p?.transfers_count)} ${t.position.transfersCount}`}
-          tone="ok"
-        />
-        <StatCard
-          label={t.finance.payoutsInFlight}
-          value={formatMoney(n(p?.in_flight), locale)}
-          tone={n(p?.in_flight) > 0 ? 'warn' : 'neutral'}
-        />
-        <StatCard
-          label={t.position.awaiting}
-          value={formatMoney(n(p?.awaiting_payout), locale)}
-          hint={t.position.awaitingHint}
-          tone={n(p?.awaiting_payout) > 0 ? 'warn' : 'neutral'}
-          emphasis
-        />
-        <StatCard
-          label={t.payouts.failed}
-          value={formatMoney(n(p?.failed), locale)}
-          tone={n(p?.failed) > 0 ? 'danger' : 'neutral'}
-        />
-      </section>
+        <div className="grid content-start gap-3">
+          <FeeSchedulePanel mode={mode} kashierReports={p?.kashier_payout_fees} />
+
+          <div className="grid grid-cols-2 gap-3">
+            <StatCard
+              label={t.payouts.transferred}
+              value={formatMoney(n(p?.transferred), locale)}
+              hint={`${n(p?.transfers_count)} ${t.position.transfersCount}`}
+              tone="ok"
+            />
+            <StatCard
+              label={t.finance.payoutsInFlight}
+              value={formatMoney(n(p?.in_flight), locale)}
+              tone={n(p?.in_flight) > 0 ? 'warn' : 'neutral'}
+            />
+            <StatCard
+              label={t.position.awaiting}
+              value={formatMoney(n(p?.awaiting_payout), locale)}
+              tone={n(p?.awaiting_payout) > 0 ? 'warn' : 'neutral'}
+              emphasis
+            />
+            <StatCard
+              label={t.payouts.failed}
+              value={formatMoney(n(p?.failed), locale)}
+              tone={n(p?.failed) > 0 ? 'danger' : 'neutral'}
+            />
+          </div>
+        </div>
+      </div>
 
       <Card>
         <CardHeader

@@ -94,7 +94,7 @@ export function FeeSchedulePanel({
         }
       />
 
-      <div className="space-y-4 p-4">
+      <div className="space-y-3 p-4">
         {schedule.loading && <Skeleton className="h-16 w-full" />}
 
         {!schedule.loading && !current && (
@@ -103,59 +103,56 @@ export function FeeSchedulePanel({
 
         {!schedule.loading && current && !editing && (
           <>
-            <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm text-ink-muted">{t.position.bankFees}</p>
-                <p className="text-xs text-ink-faint">
-                  {`${t.feeSchedule.since} ${formatDate(current.effective_from, locale)}`}
-                </p>
-              </div>
-              <span className="shrink-0 font-display text-lg font-semibold tnum text-ink">
+            {/*
+              Amount, source and date on one line each. This used to stack a
+              headline figure, a comparison box and a paragraph of explanation
+              into a column beside a much taller panel, which left a card's
+              worth of empty space under it. The explanation now lives on the
+              date it qualifies, where it is actually read.
+            */}
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <span className="text-sm text-ink-muted">{t.position.perTransaction}</span>
+              <span className="font-display text-xl font-semibold tnum text-ink">
                 {formatMoney(Number(current.bank_fee_flat), locale)}
-                <span className="ms-1.5 text-xs font-normal text-ink-faint">
-                  {t.position.perTransaction}
-                </span>
               </span>
             </div>
 
-            {/*
-              Kashier reports this same figure on its account endpoint, under
-              `payoutFees`. Showing it beside ours turns a hand-entered number
-              into a checkable one — and the name is worth noticing: "payout"
-              fees may mean per transfer rather than per transaction, which is
-              a question for Kashier, not something to silently assume either
-              way.
-            */}
-            {kashierReports !== null && kashierReports !== undefined && (
-              <div className="flex flex-wrap items-baseline justify-between gap-2 rounded-tile bg-surface-2 px-3 py-2">
-                <span className="text-xs text-ink-muted">{t.feeSchedule.kashierReports}</span>
-                <span className="flex items-center gap-2">
-                  <span className="tnum text-sm font-medium text-ink">
-                    {formatMoney(Number(kashierReports), locale)}
-                  </span>
-                  {Math.abs(Number(kashierReports) - Number(current.bank_fee_flat)) < 0.005
-                    ? <Badge tone="ok">{t.feeSchedule.matches}</Badge>
-                    : <Badge tone="warn">{t.feeSchedule.differs}</Badge>}
-                </span>
+            <dl className="space-y-1.5 text-xs">
+              {kashierReports !== null && kashierReports !== undefined && (
+                <div className="flex items-baseline justify-between gap-2">
+                  <dt className="text-ink-muted">{t.feeSchedule.kashierReports}</dt>
+                  <dd className="flex items-center gap-1.5">
+                    <span className="tnum text-ink">
+                      {formatMoney(Number(kashierReports), locale)}
+                    </span>
+                    {Math.abs(Number(kashierReports) - Number(current.bank_fee_flat)) < 0.005
+                      ? <Badge tone="ok">{t.feeSchedule.matches}</Badge>
+                      : <Badge tone="warn">{t.feeSchedule.differs}</Badge>}
+                  </dd>
+                </div>
+              )}
+              <div className="flex items-baseline justify-between gap-2">
+                <dt className="text-ink-muted">{t.feeSchedule.effectiveFrom}</dt>
+                <dd className="text-ink">{formatDate(current.effective_from, locale)}</dd>
               </div>
-            )}
+            </dl>
 
-            <Notice tone="info">{t.feeSchedule.datedNote}</Notice>
+            <p className="text-xs leading-relaxed text-ink-faint">{t.feeSchedule.datedNote}</p>
 
             {rows.length > 1 && (
-              <div>
-                <p className="mb-1.5 text-xs font-medium text-ink-muted">
-                  {t.feeSchedule.history}
-                </p>
-                <ul className="space-y-1">
+              <details className="text-xs">
+                <summary className="cursor-pointer text-ink-muted">
+                  {`${t.feeSchedule.history} (${rows.length - 1})`}
+                </summary>
+                <ul className="mt-1.5 space-y-1">
                   {rows.slice(1).map((r) => (
-                    <li key={r.id} className="flex items-baseline justify-between gap-3 text-xs text-ink-faint">
+                    <li key={r.id} className="flex items-baseline justify-between gap-3 text-ink-faint">
                       <span>{formatDate(r.effective_from, locale)}</span>
                       <span className="tnum">{formatMoney(Number(r.bank_fee_flat), locale)}</span>
                     </li>
                   ))}
                 </ul>
-              </div>
+              </details>
             )}
           </>
         )}

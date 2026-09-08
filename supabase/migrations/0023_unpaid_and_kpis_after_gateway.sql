@@ -91,3 +91,33 @@ comment on view public.v_unpaid_subscriptions is
 -- awaiting_payout_gross; comparing our net against their gross would report a
 -- permanent shortfall the size of the fees. The remaining difference is 0.57,
 -- a residue of the 95.67 already transferred out.
+
+-- ---------------------------------------------------------------------------
+-- Follow-up: what the 0.57 difference actually is
+-- ---------------------------------------------------------------------------
+--
+-- The primary account's full payload explains it:
+--
+--   lastTransfer                    95.67
+--   lastTransferDate                2026-09-01T05:17:42Z
+--   lastTransferReference           BT-1788239911170-987
+--   totalBalanceBeforeLastTransfer  95.67
+--   totalBalance                    100.57
+--
+-- The balance before that transfer was exactly the amount transferred, so
+-- Kashier emptied the account to zero on 1 September. Our first recorded
+-- payment is 8 September, 100.00 gross. Everything since the account was
+-- zeroed is therefore our 100.00 plus 0.57 that arrived at Kashier without
+-- reaching this system.
+--
+-- 0.57 on a 100 EGP balance is a rounding residue, not a missing transaction,
+-- and the flat 0.5 threshold was calling it one. The panel now scales the
+-- threshold to the money involved (1%, floor 2 EGP) and names a real but
+-- immaterial difference as small rather than either hiding it or raising it as
+-- an alarm.
+--
+-- v_money_position also now exposes kashier_last_transfer / _at / _ref and
+-- our_records_start. Our `transferred` reads 0 because that payout predates
+-- the system entirely, and showing only our figure next to Kashier's balance
+-- reads as a contradiction rather than as two records that begin on different
+-- dates.

@@ -189,9 +189,37 @@ async function handle(req: Request): Promise<Response> {
         break;
       }
 
-      const data = (res.body as { data?: { transfers?: TransferRow[] } })?.data;
-      const transfers = data?.transfers ?? [];
-      if (transfers.length === 0) break;
+      // Kashier's account endpoint returned a bare array where a wrapper was
+      // assumed, and that cost us every balance reading until it was found.
+      // Do not assume a single shape here either: a transfer of 95.67 exists
+      // at Kashier with a reference and a date, and this loop has never once
+      // produced a payout row — reading only `data.transfers` is the likeliest
+      // reason. Accept every shape it could plausibly take.
+      const body = res.body as {
+        data?: { transfers?: TransferRow[] } | TransferRow[];
+        transfers?: TransferRow[];
+      } | null;
+      const data = body?.data;
+      const transfers: TransferRow[] =
+        Array.isArray(data) ? data
+          : Array.isArray((data as { transfers?: TransferRow[] })?.transfers)
+            ? (data as { transfers: TransferRow[] }).transfers
+            : Array.isArray(body?.transfers) ? body.transfers
+              : [];
+
+      if (transfers.length === 0) {
+        // Say so rather than breaking silently: "no transfers" and "a shape we
+        // did not recognise" look identical from the outside, and only one of
+        // them is a problem.
+        log('info', 'transfers_page_empty', {
+          mode,
+          page,
+          bodyKeys: body ? Object.keys(body) : [],
+          dataKeys: data && !Array.isArray(data) ? Object.keys(data) : null,
+          dataIsArray: Array.isArray(data),
+        });
+        break;
+      }
 
       for (const transfer of transfers) {
         summary.fetched++;

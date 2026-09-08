@@ -591,6 +591,11 @@ export type MoneyPosition = {
   awaiting_payout_gross: number;
   kashier_available: number | null;
   kashier_accounts_returned: string | null;
+  /** Kashier's own last payout — ours can be zero when it predates the system. */
+  kashier_last_transfer: number | null;
+  kashier_last_transfer_at: string | null;
+  kashier_last_transfer_ref: string | null;
+  our_records_start: string | null;
 };
 
 export type GatewayStage = 'not_paid' | 'part_paid' | 'paid';
