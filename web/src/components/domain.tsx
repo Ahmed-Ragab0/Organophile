@@ -47,6 +47,11 @@ export function TransferBadge({ event }: { event: KashierTransferEvent | null | 
 export function MatchBadge({ method }: { method: string | null | undefined }) {
   const { t } = useI18n();
   if (method === 'override') return <Badge tone="brand">{t.payments.matchOverride}</Badge>;
+  // The two automatic methods are both correct matches but not equally strong:
+  // one is ukkera's own transfer_id, the other the merchantOrderId guess that
+  // the first live payment showed to be a display string. Naming them apart
+  // keeps that distinction visible instead of averaging it away.
+  if (method === 'auto_ukkera_transfer') return <Badge tone="ok">{t.payments.matchUkkera}</Badge>;
   if (method === 'auto_order_key') return <Badge tone="ok">{t.payments.matchAuto}</Badge>;
   return <Badge tone="warn">{t.payments.matchNone}</Badge>;
 }

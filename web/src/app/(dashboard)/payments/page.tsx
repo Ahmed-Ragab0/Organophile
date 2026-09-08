@@ -50,7 +50,9 @@ export default function PaymentsPage() {
       if (search.trim()) {
         const s = search.trim();
         q = q.or(
-          `transaction_id.ilike.%${s}%,merchant_order_id.ilike.%${s}%,student_name.ilike.%${s}%,student_phone.ilike.%${s}%`,
+          `transaction_id.ilike.%${s}%,merchant_order_id.ilike.%${s}%,student_name.ilike.%${s}%,`
+          + `student_phone.ilike.%${s}%,payer_name.ilike.%${s}%,payer_phone.ilike.%${s}%,`
+          + `ukkera_transfer_id.ilike.%${s}%`,
         );
       }
       return q;
@@ -76,17 +78,26 @@ export default function PaymentsPage() {
     {
       key: 'student',
       header: t.payments.student,
-      render: (r) =>
-        r.student_name
-          ? (
-            <div className="min-w-0">
-              <p className="truncate text-ink">{r.student_name}</p>
-              {r.student_phone && (
-                <p className="ltr-id truncate text-xs text-ink-faint">{r.student_phone}</p>
+      render: (r) => {
+        // A matched payment names the student. An unmatched one still knows
+        // who paid, from ukkera's metaData — so it falls back to the payer
+        // rather than to a dash. Marked as the payer, not the student,
+        // because nothing has yet tied that person to an order here.
+        const name = r.student_name ?? r.payer_name;
+        const phone = r.student_phone ?? r.payer_phone;
+        if (!name) return <span className="text-ink-faint">—</span>;
+        return (
+          <div className="min-w-0">
+            <p className="truncate text-ink">
+              {name}
+              {!r.student_name && (
+                <span className="ms-1.5 text-xs text-ink-faint">({t.payments.payer})</span>
               )}
-            </div>
-          )
-          : <span className="text-ink-faint">—</span>,
+            </p>
+            {phone && <p className="ltr-id truncate text-xs text-ink-faint">{phone}</p>}
+          </div>
+        );
+      },
     },
     {
       key: 'course',
@@ -122,7 +133,8 @@ export default function PaymentsPage() {
 
   function exportCsv() {
     const cols = [
-      'transaction_date', 'transaction_id', 'merchant_order_id', 'student_name',
+      'transaction_date', 'transaction_id', 'merchant_order_id', 'ukkera_transfer_id',
+      'student_name', 'payer_name', 'payer_phone',
       'student_phone', 'course_name', 'event', 'status', 'amount', 'signed_amount',
       'settled_amount', 'fees', 'currency', 'method', 'card_brand', 'masked_card',
       'match_method', 'mode',

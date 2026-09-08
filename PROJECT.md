@@ -227,20 +227,32 @@ The header must be named exactly **`Authorization`** with value `Bearer <token>`
 
 ## 7. Open issues
 
-1. **`transfer_id` (ukkera) == `merchantOrderId` (Kashier)?** Unconfirmed, but
-   no longer unmeasured. This is why the payment↔subscription link is a soft
-   join plus a manual override table, never a foreign key — a wrong FK would
-   reject real payments at ingest, a wrong soft join only shows up in the
-   reconciliation report.
+1. **`transfer_id` (ukkera) == `merchantOrderId` (Kashier)? — SETTLED, and the
+   answer was no.** The first real payment (TX-4809032148, 8 Sep 2026) came
+   through ukkera carrying:
 
-   `v_payment_match_health` now counts how often the join actually holds, over
-   live `pay`/`capture` events, and the Reconciliation page shows it. It
-   distinguishes **"no evidence yet"** from **"0% matched"** — today it reads
-   the first, because no live payment has arrived. It cannot be settled in
-   advance: we do not control ukkera's checkout, so what it writes into that
-   field is unknowable until it sends one.
-   [`docs/kashier-testing.md`](docs/kashier-testing.md) has the procedure and
-   what to do if the rate is not 100%.
+   ```
+   merchantOrderId : "transfer-+201117428440-1788870390057"
+   metaData.key    : "INSTRUCTOR_TRANSFER"
+   metaData.data   : <base64> -> {"transfer_id": 459,
+                                  "account": {name, email, phone}}
+   referral url    : "https://organophile.ukkera.net/"
+   ```
+
+   `merchantOrderId` is a display string ukkera builds as
+   `transfer-<payer phone>-<epoch ms>` — not an order id, and containing the
+   payer's phone, which makes it unusable as a key. ukkera's real identifier,
+   `transfer_id`, sits inside the base64 `metaData`, which is also where the
+   payer's name, email and phone are.
+
+   `app.ukkera_meta()` decodes it, `payments.ukkera_transfer_id` stores it, and
+   `v_payment_matches` joins on it as `auto_ukkera_transfer`. The old
+   merchantOrderId join is kept as a fallback — nothing proves ukkera uses this
+   shape for every product. Match rate on the one live payment: **100%**.
+
+   The soft-join-plus-override design is what made this survivable: a foreign
+   key on the wrong column would have rejected the payment at ingest.
+
 2. **Transfer webhooks arrive unsigned.** Kashier sends no
    `x-kashier-signature` header at all for this account, so they are correctly
    refused. Payout tracking therefore runs through `kashier-sync-payouts`

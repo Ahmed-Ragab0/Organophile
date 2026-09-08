@@ -283,6 +283,15 @@ export type Payment = {
   kashier_order_id: string | null;
   merchant_order_id: string | null;
   merchant_order_key: string | null;
+  /** ukkera's transfer_id, decoded from the Kashier payload's base64 metaData.
+   *  This — not merchant_order_id — is what matches subscriptions.order_id. */
+  ukkera_transfer_id: string | null;
+  ukkera_transfer_key: string | null;
+  /** Who paid, from the same metaData. Present even with no ukkera webhook. */
+  payer_name: string | null;
+  payer_email: string | null;
+  payer_phone: string | null;
+  payer_phone_normalized: string | null;
   order_reference: string | null;
   event: KashierTxnEvent;
   status: TxnStatus;
@@ -309,6 +318,11 @@ export type Payment = {
 
 export type EnrichedPayment = {
   id: string | null;
+  /** From ukkera's metaData — identifies the payer even with no match. */
+  ukkera_transfer_id?: string | null;
+  payer_name?: string | null;
+  payer_phone?: string | null;
+  payer_email?: string | null;
   transaction_id: string | null;
   kashier_order_id: string | null;
   merchant_order_id: string | null;
