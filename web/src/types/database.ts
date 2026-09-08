@@ -784,8 +784,17 @@ export type OrderJourney = {
   payment_status: PaymentStatus;
   kashier_payments: number;
   paid_gross: number | null;
+  /** @deprecated Kashier's own figure, taken before the flat bank fee. */
   paid_settled: number | null;
+  /** @deprecated Kashier's commission only — no VAT, no bank fee. */
   paid_fees: number | null;
+  /** Commission + VAT on it + bank fee. */
+  paid_fees_total: number | null;
+  /** What actually reaches the account. */
+  paid_net: number | null;
+  ukkera_transfer_id: string | null;
+  plan_id: string | null;
+  plan_kind: PackageKind | null;
   last_payment_at: string | null;
   latest_transaction_id: string | null;
   latest_mode: KashierMode | null;

@@ -257,6 +257,7 @@ export const ar = {
     partiallyPaidOut: 'اتحول جزئياً',
     paidOut: 'وصل حسابك',
     estimate: 'تقديري',
+    afterAllFees: 'بعد كل رسوم كاشير',
     estimateHint:
       'كاشير مش بيقول التحويل غطى أنهي عمليات بالظبط، فالحالة دي محسوبة بترتيب التحصيل — الأقدم بيتحول الأول.',
     transaction: 'رقم عملية كاشير',
@@ -976,6 +977,7 @@ export const en: Dict = {
     partiallyPaidOut: 'Partly transferred',
     paidOut: 'In your bank',
     estimate: 'Estimated',
+    afterAllFees: 'After every Kashier deduction',
     estimateHint:
       'Kashier does not say which transactions a transfer covered, so this is worked out from settlement order — oldest paid out first.',
     transaction: 'Kashier transaction',

@@ -119,7 +119,11 @@ export default function JourneyPage() {
     (a, r) => ({
       due: a.due + Number(r.total_due ?? 0),
       paid: a.paid + Number(r.total_paid ?? 0),
-      atKashier: a.atKashier + (r.payout_stage === 'at_kashier' ? Number(r.paid_settled ?? 0) : 0),
+      // paid_net, not paid_settled. Kashier's settled figure is taken before
+      // the flat bank fee it never mentions, so this page — whose whole job is
+      // to follow the money to the bank — was stopping one deduction short of
+      // the bank, by 5 EGP per payment.
+      atKashier: a.atKashier + (r.payout_stage === 'at_kashier' ? Number(r.paid_net ?? 0) : 0),
       unpaid: a.unpaid + (r.gateway_stage === 'not_paid' ? 1 : 0),
     }),
     { due: 0, paid: 0, atKashier: 0, unpaid: 0 },
@@ -191,14 +195,14 @@ export default function JourneyPage() {
     },
     {
       key: 'settled', header: t.journey.settled, numeric: true,
-      render: (r) => r.paid_settled === null
+      render: (r) => r.paid_net === null
         ? <span className="text-ink-faint">—</span>
         : (
           <div>
-            <Money value={Number(r.paid_settled)} tone="plain" />
-            {Number(r.paid_fees ?? 0) > 0 && (
+            <Money value={Number(r.paid_net)} tone="plain" />
+            {Number(r.paid_fees_total ?? 0) > 0 && (
               <p className="text-xs text-ink-faint">
-                −{formatMoney(Number(r.paid_fees), locale)}
+                −{formatMoney(Number(r.paid_fees_total), locale)}
               </p>
             )}
           </div>
@@ -232,7 +236,7 @@ export default function JourneyPage() {
                 `journey-${new Date().toISOString().slice(0, 10)}.csv`,
                 toCsv(rows as unknown as Array<Record<string, unknown>>, [
                   'order_id', 'student_name', 'student_phone', 'course_name', 'package_name',
-                  'total_due', 'total_paid', 'remaining', 'paid_settled', 'paid_fees',
+                  'total_due', 'total_paid', 'remaining', 'paid_net', 'paid_fees_total',
                   'gateway_stage', 'payout_stage', 'latest_transaction_id', 'match_method',
                   'ordered_at', 'last_payment_at',
                 ]),
@@ -249,7 +253,7 @@ export default function JourneyPage() {
         <StatCard
           label={t.journey.atKashier}
           value={formatMoney(totals.atKashier, locale)}
-          hint={t.journey.estimate}
+          hint={t.journey.afterAllFees}
           tone={totals.atKashier > 0 ? 'warn' : 'neutral'}
           emphasis
         />
