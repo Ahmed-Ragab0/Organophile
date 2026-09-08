@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { downloadCsv, formatDate, toCsv } from '@/lib/format';
@@ -10,6 +11,9 @@ import {
 } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
 import { Money, PaymentStatusBadge, StatCard } from '@/components/domain';
+import {
+  DeleteRecordDialog, EditRecordModal, RecordActions, type FieldSpec,
+} from '@/components/record-actions';
 import type {
   Course, PaymentStatus, StudentFinancials, University,
 } from '@/types/database';
@@ -19,6 +23,7 @@ const PAGE_SIZE = 200;
 
 export default function StudentsPage() {
   const { t, locale } = useI18n();
+  const router = useRouter();
 
   const [search, setSearch] = useState('');
   const [universityId, setUniversityId] = useState('');
@@ -30,6 +35,8 @@ export default function StudentsPage() {
   const [onlyDebt, setOnlyDebt] = useState(false);
   const [onlyPaid, setOnlyPaid] = useState(false);
   const [page, setPage] = useState(0);
+  const [editing, setEditing] = useState<StudentFinancials | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const universities = useSupabaseQuery<University[]>(
     (sb) => sb.from('universities').select('*').order('name'),
@@ -47,7 +54,7 @@ export default function StudentsPage() {
     [universityId],
   );
 
-  const { data, loading, error } = useSupabaseQuery<StudentFinancials[]>(
+  const { data, loading, error, reload } = useSupabaseQuery<StudentFinancials[]>(
     (sb) =>
       sb.rpc('search_students', {
         p_search: search || null,
@@ -137,6 +144,32 @@ export default function StudentsPage() {
         <span className="text-xs text-ink-muted">{formatDate(r.registered_at, locale)}</span>
       ),
     },
+    {
+      key: 'actions', header: '',
+      render: (r) => (
+        <RecordActions
+          archived={!r.is_active}
+          onView={() => router.push(`/students/${r.student_id}`)}
+          onEdit={() => setEditing(r)}
+          onDelete={() => setDeleting(r.student_id)}
+        />
+      ),
+    },
+  ];
+
+  /* The editable shape of a student. Money is deliberately absent: what a
+     student owes is derived from their subscriptions, and a box here would
+     invite someone to disagree with the arithmetic. */
+  const studentFields: FieldSpec[] = [
+    { name: 'name', label: t.students.name, type: 'text', required: true },
+    { name: 'phone', label: t.students.phone, type: 'text' },
+    { name: 'email', label: t.students.email, type: 'text' },
+    { name: 'group_name', label: t.students.group, type: 'text' },
+    {
+      name: 'university_id', label: t.students.university, type: 'select',
+      options: (universities.data ?? []).map((u) => ({ value: u.id, label: u.name })),
+    },
+    { name: 'is_active', label: t.students.activeLabel, type: 'checkbox' },
   ];
 
   return (
@@ -285,6 +318,27 @@ export default function StudentsPage() {
           errorMessage={t.common.error}
         />
       </Card>
+
+      {editing && (
+        <EditRecordModal
+          open
+          onClose={() => setEditing(null)}
+          table="students"
+          id={editing.student_id}
+          fields={studentFields}
+          values={editing as unknown as Record<string, unknown>}
+          title={t.records.edit}
+          onSaved={reload}
+        />
+      )}
+
+      <DeleteRecordDialog
+        kind="student"
+        id={deleting}
+        open={deleting !== null}
+        onClose={() => setDeleting(null)}
+        onDone={reload}
+      />
     </>
   );
 }

@@ -12,6 +12,7 @@ import {
 import { DataTable, type Column } from '@/components/ui/table';
 import { Money, StatCard } from '@/components/domain';
 import { AddExpenseModal } from '@/components/financial-actions';
+import { LedgerDetailModal } from '@/components/ledger-detail';
 import {
   EXPENSE_CATEGORIES,
   type DashboardKpis, type ExpenseByCategory, type LedgerEntry, type WalletBalance,
@@ -20,6 +21,7 @@ import {
 export default function ExpensesPage() {
   const { t, locale } = useI18n();
   const [open, setOpen] = useState(false);
+  const [detail, setDetail] = useState<LedgerEntry | null>(null);
 
   const [category, setCategory] = useState('');
   const [walletId, setWalletId] = useState('');
@@ -119,9 +121,17 @@ export default function ExpensesPage() {
       key: 'actions',
       header: '',
       render: (r) => (
-        <Button size="sm" variant="danger" onClick={() => voidEntry(r.id)}>
-          {t.ledger.voidAction}
-        </Button>
+        <div className="flex items-center justify-end gap-1.5">
+          <Button size="sm" variant="secondary" onClick={() => setDetail(r)}>
+            {t.records.view}
+          </Button>
+          {/* Void, not delete: the ledger is append-only, and an expense that
+              was recorded and then reversed is a different fact from one that
+              never existed. */}
+          <Button size="sm" variant="ghost" onClick={() => voidEntry(r.id)}>
+            {t.ledger.voidAction}
+          </Button>
+        </div>
       ),
     },
   ];
@@ -222,6 +232,8 @@ export default function ExpensesPage() {
         wallets={wallets.data ?? []}
         onSaved={() => { reload(); wallets.reload(); byCategory.reload(); }}
       />
+
+      <LedgerDetailModal entry={detail} onClose={() => setDetail(null)} />
     </>
   );
 }

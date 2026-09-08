@@ -258,6 +258,39 @@ one of three reads as settled.
 
 ---
 
+### Viewing, editing and deleting records
+
+Three verbs, in the same order, on every list in the app: **عرض / تعديل / حذف**.
+`web/src/components/record-actions.tsx` holds all three, so a screen wires them
+rather than reinventing them.
+
+Deleting is the one that needed a rule. Every table grants admins ALL, and the
+foreign keys made a plain delete quietly destructive — a student's
+`installment_plans` CASCADE away and their `ledger_entries.student_id` is SET
+NULL, leaving the money on the books, correct in total, belonging to nobody. No
+error is raised, so nothing ever tells you it happened.
+
+> **A record that money points at cannot be deleted.**
+
+Enforced by `public.delete_record`, not by the UI, which can only ever suggest.
+The flow is:
+
+1. `public.describe_record(kind, id)` — what is attached, and whether any of it
+   is money. The dialog opens with facts instead of "are you sure?".
+2. `public.delete_record(kind, id)` — returns `{ok:false, reason:'has_money'}`
+   rather than raising, so the screen can explain rather than apologise.
+3. `public.archive_record(kind, id)` — what a blocked delete offers instead.
+   Keeps the history, leaves the lists. For a plan, archived means *closed*.
+
+`app.record_links` is the single place that knows the reference graph.
+
+Ledger entries are the exception and stay outside this: they are append-only
+and RLS grants the client SELECT only. "Remove" there means **void**, because an
+expense that was recorded and then reversed is a different fact from one that
+never existed.
+
+---
+
 ## 7. Open issues
 
 1. **What identifies a purchase? — settled, after getting it wrong once.**

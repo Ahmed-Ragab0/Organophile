@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { formatDate, formatDateTime, formatMoney } from '@/lib/format';
@@ -11,13 +11,17 @@ import {
 } from '@/components/ui/primitives';
 import { LedgerDetailModal } from '@/components/ledger-detail';
 import { PlanTotalInput } from '@/components/plan-total';
+import {
+  DeleteRecordDialog, EditRecordModal, RecordActions,
+  type FieldSpec, type RecordKind,
+} from '@/components/record-actions';
 import { DataTable, type Column } from '@/components/ui/table';
 import {
   InstallmentPips, LedgerTypeBadge, Money, Mono, PaymentStatusBadge, PlanStatusBadge,
   SignedMoney, StatCard,
 } from '@/components/domain';
 import type {
-  InstallmentPlan, LedgerEntry, StudentFinancials, SubscriptionFinancials,
+  InstallmentPlan, LedgerEntry, StudentFinancials, SubscriptionFinancials, University,
 } from '@/types/database';
 
 type SubscriptionRow = SubscriptionFinancials & {
@@ -28,8 +32,11 @@ type SubscriptionRow = SubscriptionFinancials & {
 export default function StudentDetailPage() {
   const { t, locale } = useI18n();
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const id = params?.id;
   const [detail, setDetail] = useState<LedgerEntry | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState<{ kind: RecordKind; id: string } | null>(null);
 
   const student = useSupabaseQuery<StudentFinancials>(
     (sb) => sb.from('v_student_financials').select('*').eq('student_id', id).single(),
@@ -42,6 +49,11 @@ export default function StudentDetailPage() {
         .eq('student_id', id)
         .order('enrolled_at', { ascending: false }),
     [id],
+  );
+
+  const universities = useSupabaseQuery<University[]>(
+    (sb) => sb.from('universities').select('*').order('name'),
+    [],
   );
 
   const plans = useSupabaseQuery<InstallmentPlan[]>(
@@ -69,6 +81,18 @@ export default function StudentDetailPage() {
   if (!s) return <ErrorState message={t.common.empty} />;
 
   const n = (v: number | null | undefined) => Number(v ?? 0);
+
+  const studentFields: FieldSpec[] = [
+    { name: 'name', label: t.students.name, type: 'text', required: true },
+    { name: 'phone', label: t.students.phone, type: 'text' },
+    { name: 'email', label: t.students.email, type: 'text' },
+    { name: 'group_name', label: t.students.group, type: 'text' },
+    {
+      name: 'university_id', label: t.students.university, type: 'select',
+      options: (universities.data ?? []).map((u) => ({ value: u.id, label: u.name })),
+    },
+    { name: 'is_active', label: t.students.activeLabel, type: 'checkbox' },
+  ];
 
   const subColumns: Array<Column<SubscriptionRow>> = [
     { key: 'order', header: t.subscriptions.orderId, render: (r) => <Mono value={r.order_id} /> },
@@ -142,7 +166,16 @@ export default function StudentDetailPage() {
       <PageHeader
         title={s.name}
         subtitle={[s.phone, s.university_name, s.group_name].filter(Boolean).join(' · ')}
-        action={<PaymentStatusBadge status={s.payment_status} />}
+        action={(
+          <div className="flex items-center gap-2">
+            <PaymentStatusBadge status={s.payment_status} />
+            <RecordActions
+              archived={!s.is_active}
+              onEdit={() => setEditing(true)}
+              onDelete={() => setDeleting({ kind: 'student', id: s.student_id })}
+            />
+          </div>
+        )}
       />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -194,7 +227,13 @@ export default function StudentDetailPage() {
                         />
                       </div>
                     </div>
-                    <PlanStatusBadge status={pl.status} />
+                    <div className="flex items-center gap-2">
+                      <PlanStatusBadge status={pl.status} />
+                      <RecordActions
+                        archived={pl.closed_at !== null}
+                        onDelete={() => setDeleting({ kind: 'installment_plan', id: pl.plan_id })}
+                      />
+                    </div>
                   </div>
 
                   <div className="mt-4 grid gap-4 sm:grid-cols-3">
@@ -275,6 +314,31 @@ export default function StudentDetailPage() {
       </section>
 
       <LedgerDetailModal entry={detail} onClose={() => setDetail(null)} />
+
+      {editing && (
+        <EditRecordModal
+          open
+          onClose={() => setEditing(false)}
+          table="students"
+          id={s.student_id}
+          fields={studentFields}
+          values={s as unknown as Record<string, unknown>}
+          title={t.records.edit}
+          onSaved={() => { student.reload(); subscriptions.reload(); }}
+        />
+      )}
+
+      <DeleteRecordDialog
+        kind={deleting?.kind ?? 'student'}
+        id={deleting?.id ?? null}
+        open={deleting !== null}
+        onClose={() => setDeleting(null)}
+        onDone={() => {
+          // A deleted student has no page left to stand on; a closed plan does.
+          if (deleting?.kind === 'student') router.push('/students');
+          else { plans.reload(); student.reload(); }
+        }}
+      />
     </>
   );
 }

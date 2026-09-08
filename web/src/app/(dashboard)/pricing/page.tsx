@@ -12,6 +12,9 @@ import {
 import { DataTable, type Column } from '@/components/ui/table';
 import { Money, Mono, PackageKindBadge, PaymentStatusBadge, StatCard } from '@/components/domain';
 import { effectivePrice, PriceRules, PriceSourceBadge } from '@/components/pricing';
+import {
+  DeleteRecordDialog, EditRecordModal, RecordActions, type FieldSpec,
+} from '@/components/record-actions';
 import type { Package, SubscriptionFinancials } from '@/types/database';
 
 /** A subscription plus the names the financials view does not carry. */
@@ -108,6 +111,8 @@ export default function PricingPage() {
   const [search, setSearch] = useState('');
   const [onlyUnpriced, setOnlyUnpriced] = useState(false);
   const [saveNonce, setSaveNonce] = useState(0);
+  const [editingPackage, setEditingPackage] = useState<PackageRow | null>(null);
+  const [deletingPackage, setDeletingPackage] = useState<string | null>(null);
 
   const reload = () => setSaveNonce((n) => n + 1);
 
@@ -218,6 +223,14 @@ export default function PricingPage() {
     return null;
   }
 
+  const packageFields: FieldSpec[] = [
+    { name: 'name', label: t.subscriptions.package, type: 'text', required: true,
+      hint: t.pricing.packageNameHint },
+    { name: 'price', label: t.pricing.price, type: 'number' },
+    { name: 'total_price', label: t.plans.totalDue, type: 'number' },
+    { name: 'installment_count', label: t.pricing.installmentCount, type: 'number' },
+  ];
+
   // At full width the course earns its own column rather than sitting as
   // sub-text, and the status is worth stating outright: a null price is the
   // whole reason this table exists, and an empty cell is easy to skim past.
@@ -267,6 +280,16 @@ export default function PricingPage() {
       numeric: true,
       render: (p) => (
         <PriceCell value={p.price} onSave={(next) => savePackagePrice(p.id, next)} />
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      render: (p) => (
+        <RecordActions
+          onEdit={() => setEditingPackage(p)}
+          onDelete={() => setDeletingPackage(p.id)}
+        />
       ),
     },
     {
@@ -519,6 +542,27 @@ export default function PricingPage() {
         </Card>
       </div>
 
+
+      {editingPackage && (
+        <EditRecordModal
+          open
+          onClose={() => setEditingPackage(null)}
+          table="packages"
+          id={editingPackage.id}
+          fields={packageFields}
+          values={editingPackage as unknown as Record<string, unknown>}
+          title={t.records.edit}
+          onSaved={reload}
+        />
+      )}
+
+      <DeleteRecordDialog
+        kind="package"
+        id={deletingPackage}
+        open={deletingPackage !== null}
+        onClose={() => setDeletingPackage(null)}
+        onDone={reload}
+      />
     </>
   );
 }

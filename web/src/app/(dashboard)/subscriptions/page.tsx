@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { downloadCsv, formatDate, formatMoney, formatNumber, toCsv } from '@/lib/format';
@@ -10,6 +11,9 @@ import {
 } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
 import { InstallmentPips, PackageKindBadge } from '@/components/domain';
+import {
+  DeleteRecordDialog, EditRecordModal, RecordActions, type FieldSpec,
+} from '@/components/record-actions';
 import { Money, Mono, PaymentStatusBadge, StatCard } from '@/components/domain';
 import { PriceSourceBadge } from '@/components/pricing';
 import type {
@@ -32,6 +36,7 @@ function sanitize(term: string): string {
 
 export default function SubscriptionsPage() {
   const { t, locale } = useI18n();
+  const router = useRouter();
 
   const [search, setSearch] = useState('');
   const [courseId, setCourseId] = useState('');
@@ -43,6 +48,8 @@ export default function SubscriptionsPage() {
   // than something you scan the list for.
   const [planKind, setPlanKind] = useState('');
   const [track, setTrack] = useState('');
+  const [editing, setEditing] = useState<SubscriptionListRow | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [enrolledFrom, setEnrolledFrom] = useState('');
   const [enrolledTo, setEnrolledTo] = useState('');
   const [page, setPage] = useState(0);
@@ -63,7 +70,7 @@ export default function SubscriptionsPage() {
     [courseId],
   );
 
-  const { data, loading, error } = useSupabaseQuery<SubscriptionListRow[]>(
+  const { data, loading, error, reload } = useSupabaseQuery<SubscriptionListRow[]>(
     (sb) => {
       let q = sb
         .from('v_subscriptions_list')
@@ -288,17 +295,25 @@ export default function SubscriptionsPage() {
       ),
     },
     {
-      key: 'edit',
+      key: 'actions',
       header: '',
       render: (r) => (
-        <Link
-          href={`/pricing/${r.subscription_id}`}
-          className="text-xs font-medium text-accent-strong hover:underline"
-        >
-          {t.pricing.openEditor} →
-        </Link>
+        <RecordActions
+          onView={() => router.push(`/pricing/${r.subscription_id}`)}
+          onEdit={() => setEditing(r)}
+          onDelete={() => setDeleting(r.subscription_id)}
+        />
       ),
     },
+  ];
+
+  /* Only what a person decides. The amount ukkera charged and the payments
+     against it are facts, not fields. */
+  const subscriptionFields: FieldSpec[] = [
+    { name: 'total_due', label: t.pricing.totalDue, type: 'number', hint: t.pricing.totalDueHint },
+    { name: 'due_date', label: t.pricing.dueDate, type: 'date' },
+    { name: 'installment_count', label: t.pricing.installmentCount, type: 'number' },
+    { name: 'notes', label: t.pricing.notes, type: 'textarea' },
   ];
 
   return (
@@ -509,6 +524,33 @@ export default function SubscriptionsPage() {
           }
         />
       </Card>
+
+      {editing && (
+        <EditRecordModal
+          open
+          onClose={() => setEditing(null)}
+          table="subscriptions"
+          id={editing.subscription_id}
+          fields={subscriptionFields}
+          values={{
+            // price_override is what the view calls subscriptions.total_due.
+            total_due: editing.price_override ?? '',
+            due_date: editing.due_date ?? '',
+            installment_count: editing.installment_count,
+            notes: '',
+          }}
+          title={t.records.edit}
+          onSaved={reload}
+        />
+      )}
+
+      <DeleteRecordDialog
+        kind="subscription"
+        id={deleting}
+        open={deleting !== null}
+        onClose={() => setDeleting(null)}
+        onDone={reload}
+      />
     </>
   );
 }

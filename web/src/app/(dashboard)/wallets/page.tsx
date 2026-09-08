@@ -10,11 +10,16 @@ import {
 import { MoneyModeNotice } from '@/components/money-mode-notice';
 import { Money, StatCard } from '@/components/domain';
 import { AddExpenseModal, AddRevenueModal, TransferModal } from '@/components/financial-actions';
+import {
+  DeleteRecordDialog, EditRecordModal, RecordActions, type FieldSpec,
+} from '@/components/record-actions';
 import type { WalletBalance } from '@/types/database';
 
 export default function WalletsPage() {
   const { t, locale } = useI18n();
   const [modal, setModal] = useState<'expense' | 'transfer' | 'revenue' | null>(null);
+  const [editing, setEditing] = useState<WalletBalance | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const wallets = useSupabaseQuery<WalletBalance[]>(
     (sb) => sb.from('v_wallet_balances').select('*').order('sort_order'),
@@ -31,6 +36,24 @@ export default function WalletsPage() {
   const reload = () => wallets.reload();
 
   if (wallets.error) return <ErrorState message={t.common.error} detail={wallets.error} />;
+
+  const walletFields: FieldSpec[] = [
+    { name: 'name', label: t.wallets.name, type: 'text', required: true },
+    {
+      name: 'type', label: t.wallets.type, type: 'select',
+      options: [
+        { value: 'bank', label: t.wallets.bank },
+        { value: 'cash', label: t.wallets.cash },
+        { value: 'digital', label: t.wallets.digital },
+      ],
+    },
+    {
+      name: 'opening_balance', label: t.wallets.openingBalance, type: 'number',
+      hint: t.wallets.openingBalanceHint,
+    },
+    { name: 'sort_order', label: t.wallets.sortOrder, type: 'number' },
+    { name: 'is_active', label: t.wallets.activeLabel, type: 'checkbox' },
+  ];
 
   return (
     <>
@@ -116,11 +139,39 @@ export default function WalletsPage() {
                     </dd>
                   </div>
                 </dl>
+
+                <div className="mt-3 border-t border-border pt-3">
+                  <RecordActions
+                    onEdit={() => setEditing(w)}
+                    onDelete={() => setDeleting(w.id)}
+                  />
+                </div>
               </Card>
             );
           })}
         </section>
       )}
+
+      {editing && (
+        <EditRecordModal
+          open
+          onClose={() => setEditing(null)}
+          table="wallets"
+          id={editing.id}
+          fields={walletFields}
+          values={editing as unknown as Record<string, unknown>}
+          title={t.records.edit}
+          onSaved={reload}
+        />
+      )}
+
+      <DeleteRecordDialog
+        kind="wallet"
+        id={deleting}
+        open={deleting !== null}
+        onClose={() => setDeleting(null)}
+        onDone={reload}
+      />
 
       <AddExpenseModal
         open={modal === 'expense'} onClose={() => setModal(null)}

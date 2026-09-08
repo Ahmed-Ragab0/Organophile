@@ -10,6 +10,10 @@ import {
 } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
 import { Money, PaymentStatusBadge, StatCard } from '@/components/domain';
+import {
+  DeleteRecordDialog, EditRecordModal, RecordActions,
+  type FieldSpec, type RecordKind,
+} from '@/components/record-actions';
 import type { CourseCatalogueRow, StudentFinancials, University } from '@/types/database';
 
 /**
@@ -26,6 +30,11 @@ export default function CoursesPage() {
   // the same way the university does — which is the point of parsing them.
   const [track, setTrack] = useState('');
   const [classYear, setClassYear] = useState('');
+  // One pair of dialogs for both levels of the drill-down: a course and a
+  // university are the same three verbs over a different kind.
+  const [editing, setEditing] = useState<
+    { kind: RecordKind; id: string; values: Record<string, unknown> } | null>(null);
+  const [deleting, setDeleting] = useState<{ kind: RecordKind; id: string } | null>(null);
 
   const universities = useSupabaseQuery<University[]>(
     (sb) => sb.from('universities').select('*').order('name'),
@@ -112,6 +121,27 @@ export default function CoursesPage() {
       render: (r) => <PaymentStatusBadge status={r.payment_status} />,
     },
   ];
+
+  /* A course's university, level, section, year and track are all read out of
+     its name by a trigger, so the name is the only thing to edit — changing it
+     re-derives the rest. Offering separate boxes would let them disagree. */
+  const fieldsFor: Record<string, FieldSpec[]> = {
+    course: [
+      { name: 'name', label: t.courses.course, type: 'text', required: true,
+        hint: t.courseInfo.unparsedHint },
+      { name: 'is_active', label: t.courses.activeLabel, type: 'checkbox' },
+    ],
+    university: [
+      { name: 'name', label: t.courses.university, type: 'text', required: true },
+      { name: 'is_active', label: t.courses.activeLabel, type: 'checkbox' },
+    ],
+  };
+
+  function afterChange() {
+    catalogue.reload();
+    universities.reload();
+    students.reload();
+  }
 
   // The breadcrumb doubles as the way back up a level.
   const crumbs = [
@@ -212,17 +242,28 @@ export default function CoursesPage() {
             {(universities.data ?? []).map((u) => {
               const count = allCourses.filter((c) => c.university_id === u.id).length;
               return (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => setUniversityId(u.id)}
-                  className="bg-surface p-4 text-start hover:bg-surface-2"
-                >
-                  <p className="font-medium text-ink">{u.name}</p>
-                  <p className="mt-0.5 text-xs text-ink-faint">
-                    {count} {t.courses.course}
-                  </p>
-                </button>
+                <div key={u.id} className="bg-surface p-4">
+                  <button
+                    type="button"
+                    onClick={() => setUniversityId(u.id)}
+                    className="block w-full text-start"
+                  >
+                    <p className="font-medium text-ink hover:text-accent-strong">{u.name}</p>
+                    <p className="mt-0.5 text-xs text-ink-faint">
+                      {count} {t.courses.course}
+                    </p>
+                  </button>
+                  <div className="mt-3">
+                    <RecordActions
+                      archived={!u.is_active}
+                      onEdit={() => setEditing({
+                        kind: 'university', id: u.id,
+                        values: u as unknown as Record<string, unknown>,
+                      })}
+                      onDelete={() => setDeleting({ kind: 'university', id: u.id })}
+                    />
+                  </div>
+                </div>
               );
             })}
             {(universities.data ?? []).length === 0 && (
@@ -239,13 +280,13 @@ export default function CoursesPage() {
           <CardHeader title={t.courses.course} hint={`${courses.length} ${t.common.rows}`} />
           <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
             {courses.map((c) => (
+              <div key={c.course_id} className="bg-surface p-4">
               <button
-                key={c.course_id}
                 type="button"
                 onClick={() => { setUniversityId(c.university_id); setCourseId(c.course_id); }}
-                className="bg-surface p-4 text-start hover:bg-surface-2"
+                className="block w-full text-start"
               >
-                <p className="truncate font-medium text-ink">{c.course_name}</p>
+                <p className="truncate font-medium text-ink hover:text-accent-strong">{c.course_name}</p>
                 <p className="mt-0.5 text-xs text-ink-faint">{c.university_name}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   {c.level !== null && (
@@ -268,6 +309,17 @@ export default function CoursesPage() {
                   <Money value={Number(c.remaining ?? 0)} tone={Number(c.remaining ?? 0) > 0 ? 'danger' : 'plain'} />
                 </div>
               </button>
+              <div className="mt-3">
+                <RecordActions
+                  archived={!c.is_active}
+                  onEdit={() => setEditing({
+                    kind: 'course', id: c.course_id,
+                    values: { name: c.course_name, is_active: c.is_active },
+                  })}
+                  onDelete={() => setDeleting({ kind: 'course', id: c.course_id })}
+                />
+              </div>
+              </div>
             ))}
             {courses.length === 0 && (
               <p className="bg-surface px-5 py-10 text-center text-sm text-ink-faint sm:col-span-2 lg:col-span-3">
@@ -294,6 +346,27 @@ export default function CoursesPage() {
           errorMessage={t.common.error}
         />
       </Card>
+
+      {editing && (
+        <EditRecordModal
+          open
+          onClose={() => setEditing(null)}
+          table={editing.kind === 'course' ? 'courses' : 'universities'}
+          id={editing.id}
+          fields={fieldsFor[editing.kind]}
+          values={editing.values}
+          title={t.records.edit}
+          onSaved={afterChange}
+        />
+      )}
+
+      <DeleteRecordDialog
+        kind={deleting?.kind ?? 'course'}
+        id={deleting?.id ?? null}
+        open={deleting !== null}
+        onClose={() => setDeleting(null)}
+        onDone={afterChange}
+      />
     </>
   );
 }
