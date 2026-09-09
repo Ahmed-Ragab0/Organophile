@@ -291,9 +291,9 @@ signed Kashier traffic.**
   `awaiting_payout` never report a student's money as banked because Kashier
   moved money that was never ours.
 
-**`payoutFees` is per TRANSFER, not per payment (0038).** 0022 read the account
-endpoint's `payoutFees: 5` as a flat bank fee on every transaction and applied
-it everywhere. Kashier's own balance disproves it to the piastre:
+**The bank fee is 5 per payment, and the balance cannot tell you that (0038,
+0040, 0041).** 0022 applied a flat 5 per transaction. 0038 removed it, arguing
+from Kashier's own balance:
 
 ```
 totalBalanceBeforeLastTransfer   292.08
@@ -305,19 +305,30 @@ settled_amount payment #2       + 95.67
                                 = 191.51   ← the same number
 ```
 
-The balance is credited with `settled_amount` untouched — gross minus Kashier's
-commission and its VAT, nothing else. Had 5 been withheld per payment it would
-read 181.51. The transfer also removed exactly its own amount from the balance,
-so nothing was withheld on the way out either: the fee comes off the transfer,
-once, and reduces what the bank receives.
+Every figure there is right and the conclusion drawn from it was not. What it
+proves is that the balance is credited with `settled_amount` untouched — that
+the fee is **not taken at settlement**. It says nothing about what Kashier
+deducts when it moves that balance to a bank account, because that side appears
+in no API: `/v2/transfers` never lists a settlement, and the account endpoint
+gives an amount with no breakdown. A fee charged per transaction *at payout*
+fits every observation as well as a flat fee per transfer does.
 
-Two consequences follow from the same fact:
+0040 restores 5 per payment, on the account owner's reading of the bank
+statement — the only view of the bank side anyone has. **Still open:** per
+transaction, or once per transfer. The first settlement covering several
+payments answers it, by comparing what the bank receives against
+`sum(settled_amount)`. Until then it is a recorded figure, not a derived one,
+and it should not be argued away from a balance a second time.
 
-* **The Kashier balance is NET.** Comparing it against our gross figure — which
-  `v_money_position`'s panel did — can never reach zero; once everything settles
-  it stays short by exactly the fees. Net against net closes.
-* **The gap between our books and their balance is settlement lag**, one payment
-  at a time, and nothing else.
+Two things follow, and 0041 exists because the second one bites immediately:
+
+* **Kashier's balance is `settled_amount`** — net of their commission and VAT,
+  and of nothing else.
+* **So compare it against `awaiting_settled`, never `awaiting_payout`.** Their
+  balance has not paid the bank fee yet, so holding our after-fee figure against
+  it stays short by 5 per payment for ever. Settled against settled reaches
+  zero; the current gap is 95.67, which is payment #3 still inside the
+  settlement window, and nothing else.
 
 **Transfers are not being ingested.** `kashier_events_raw` holds `pay` events
 and zero `transfer` events; `public.payouts` is empty. Kashier moved 100.57 out

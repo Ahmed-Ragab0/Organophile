@@ -778,6 +778,13 @@ export type MoneyPosition = {
   transfers_count: number;
   last_transfer_at: string | null;
   awaiting_payout: number;
+  /**
+   * What Kashier should still be holding, measured the way Kashier measures it:
+   * settled_amount, before the bank fee. `awaiting_payout` is what we end up
+   * with — a different question, and the wrong one to hold against their
+   * reported balance.
+   */
+  awaiting_settled: number;
   /** What Kashier itself reported at the last sync. Null until one succeeds. */
   kashier_reported_balance: number | null;
   kashier_synced_at: string | null;

@@ -41,18 +41,21 @@ export function MoneyPositionPanel({
    * does not break out, and `available` is only what is withdrawable this
    * minute. `total` is the like-for-like figure.
    *
-   * It is NET. The balance is credited with each payment's settled_amount —
-   * gross minus Kashier's commission and its VAT — which the account API
-   * proves to the piastre: 95.84 + 95.67 = 191.51, the exact balance reported
-   * with two payments settled and a third still in the window.
+   * It is `settled_amount` — gross minus Kashier's commission and its VAT, and
+   * nothing else. The account API proves it to the piastre: 95.84 + 95.67 =
+   * 191.51, the exact balance reported with two payments settled and a third
+   * still in the window.
    *
-   * This used to compare against our GROSS figure, on the belief that Kashier
-   * took its fee only at payout. That comparison can never reach zero: once
-   * everything settles it stays short by exactly the fees, for ever. Net
-   * against net is the one that closes.
+   * So the figure to hold it against is `awaiting_settled`. The bank fee comes
+   * off when the balance moves to a bank account, not when a payment settles,
+   * so Kashier's balance has not paid it yet — comparing our after-fee figure
+   * leaves the gap short by the fee on every payment, permanently. Two earlier
+   * versions of this line were wrong in both directions: gross against the
+   * balance, then after-fee against it. Settled against settled is the one that
+   * can reach zero.
    */
   const kashierHas = reported === null || reported === undefined ? null : n(reported);
-  const ourNet = n(position?.awaiting_payout);
+  const ourNet = n(position?.awaiting_settled);
   const gap = kashierHas === null ? null : kashierHas - ourNet;
 
   /*
