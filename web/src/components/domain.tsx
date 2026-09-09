@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import { Badge, Card, cx, FillBar } from './ui/primitives';
 import { useI18n } from '@/lib/i18n/context';
-import { formatMoney } from '@/lib/format';
+import { formatDate, formatMoney, formatNumber } from '@/lib/format';
 import type {
   KashierTransferEvent, KashierTxnEvent, LedgerEntryType, PackageKind, PlanStatus,
   PaymentStatus, TxnStatus, WalletBalance,
@@ -229,12 +229,75 @@ export function PlanStatusBadge({ status }: { status: PlanStatus }) {
 }
 
 /** What the student bought: the whole course, a chapter, or an instalment. */
-export function PackageKindBadge({ kind }: { kind: PackageKind | null | undefined }) {
+/**
+ * Colour belongs to the three kinds that change how a purchase behaves. A kind
+ * the owner added later means something to them and nothing to this file, so
+ * it gets the neutral tone rather than a colour picked at random.
+ */
+const KIND_TONES: Record<string, 'ok' | 'info' | 'warn'> = {
+  full: 'ok', chapter: 'info', installment: 'warn',
+};
+
+export function PackageKindBadge({
+  kind, label,
+}: {
+  kind: PackageKind | null | undefined;
+  /** The kind's current name from the database. Falls back to the built-in
+      dictionary, which only knows the four seeded codes. */
+  label?: string;
+}) {
   const { t } = useI18n();
+  // "Unspecified" is the absence of an answer, and a badge saying so is noise
+  // on every row that has not been categorised.
   if (!kind || kind === 'other') return null;
-  const tone = { full: 'ok', chapter: 'info', installment: 'warn' }[kind] as
-    'ok' | 'info' | 'warn';
-  return <Badge tone={tone}>{t.plans.kinds[kind]}</Badge>;
+  const text = label || t.plans.kinds[kind as keyof typeof t.plans.kinds] || kind;
+  return <Badge tone={KIND_TONES[kind] ?? 'neutral'}>{text}</Badge>;
+}
+
+/**
+ * The next payment owed on a row: how much, when, and how close that is.
+ *
+ * Three lines rather than a date, because a date alone makes the reader do the
+ * subtraction — and the whole reason to put this on a list is so that "late"
+ * is visible without reading every row carefully. The day count comes from the
+ * database, so lateness never depends on the viewer's clock.
+ */
+export function NextDueCell({
+  date, amount, inDays,
+}: {
+  date: string | null | undefined;
+  amount: number | null | undefined;
+  inDays: number | null | undefined;
+}) {
+  const { t, locale } = useI18n();
+
+  if (amount === null || amount === undefined) {
+    return <span className="text-ink-faint">—</span>;
+  }
+
+  const days = inDays ?? null;
+  const late = days !== null && days < 0;
+  const relative = days === null
+    ? null
+    : days < 0
+      ? t.plans.overdueByDays.replace('{n}', formatNumber(Math.abs(days), locale))
+      : days === 0
+        ? t.plans.dueToday
+        : t.plans.dueInDays.replace('{n}', formatNumber(days, locale));
+
+  return (
+    <div className="min-w-0 text-end">
+      <p className={cx('tnum text-sm font-medium', late ? 'text-danger' : 'text-ink')}>
+        {formatMoney(Number(amount), locale)}
+      </p>
+      <p className="text-xs text-ink-faint">
+        {date ? formatDate(date, locale) : t.plans.nextDueNoDate}
+      </p>
+      {relative && (
+        <p className={cx('text-xs', late ? 'text-danger' : 'text-ink-muted')}>{relative}</p>
+      )}
+    </div>
+  );
 }
 
 /**

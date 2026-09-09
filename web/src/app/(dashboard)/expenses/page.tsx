@@ -13,9 +13,8 @@ import { DataTable, type Column } from '@/components/ui/table';
 import { Money, StatCard } from '@/components/domain';
 import { AddExpenseModal } from '@/components/financial-actions';
 import { LedgerDetailModal } from '@/components/ledger-detail';
-import {
-  EXPENSE_CATEGORIES,
-  type DashboardKpis, type ExpenseByCategory, type LedgerEntry, type WalletBalance,
+import type {
+  DashboardKpis, ExpenseByCategory, ExpenseCategory, LedgerEntry, WalletBalance,
 } from '@/types/database';
 
 export default function ExpensesPage() {
@@ -23,7 +22,9 @@ export default function ExpensesPage() {
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<LedgerEntry | null>(null);
 
-  const [category, setCategory] = useState('');
+  // The row's id, not its name: two spellings of one category must filter as
+  // one, and a rename must not silently empty this list.
+  const [categoryId, setCategoryId] = useState('');
   const [walletId, setWalletId] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -52,13 +53,18 @@ export default function ExpensesPage() {
         .limit(500);
 
       if (!includeVoided) q = q.is('voided_at', null);
-      if (category) q = q.eq('category', category);
+      if (categoryId) q = q.eq('category_id', categoryId);
       if (walletId) q = q.eq('wallet_id', walletId);
       if (from) q = q.gte('occurred_at', `${from}T00:00:00Z`);
       if (to) q = q.lte('occurred_at', `${to}T23:59:59Z`);
       return q;
     },
-    [category, walletId, from, to, includeVoided],
+    [categoryId, walletId, from, to, includeVoided],
+  );
+
+  const categories = useSupabaseQuery<ExpenseCategory[]>(
+    (sb) => sb.from('expense_categories').select('*').order('sort_order').order('name'),
+    [],
   );
 
   // Gateway fees are no longer expenses, but they are still money out of the
@@ -182,6 +188,12 @@ export default function ExpensesPage() {
             >
               {t.common.export}
             </Button>
+            <Link
+              href="/settings"
+              className="inline-flex items-center rounded-field border border-border bg-surface px-4 py-2.5 text-sm font-medium text-ink shadow-card transition-colors hover:bg-surface-2"
+            >
+              {t.settings.expenseCategories} →
+            </Link>
             <Button onClick={() => setOpen(true)}>+ {t.expenses.addTitle}</Button>
           </div>
         }
@@ -225,9 +237,11 @@ export default function ExpensesPage() {
       <Card className="mb-4 p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field label={t.expenses.category}>
-            <Select value={category} onChange={(e) => setCategory(e.target.value)}>
+            <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
               <option value="">{t.common.all}</option>
-              {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              {(categories.data ?? []).map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
             </Select>
           </Field>
           <Field label={t.ledger.wallet}>
@@ -274,7 +288,9 @@ export default function ExpensesPage() {
         open={open}
         onClose={() => setOpen(false)}
         wallets={wallets.data ?? []}
-        onSaved={() => { reload(); wallets.reload(); byCategory.reload(); }}
+        onSaved={() => {
+          reload(); wallets.reload(); byCategory.reload(); categories.reload();
+        }}
       />
 
       <LedgerDetailModal entry={detail} onClose={() => setDetail(null)} />

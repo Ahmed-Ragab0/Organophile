@@ -45,8 +45,18 @@ export type LedgerEntryType =
   | 'adjustment_in'
   | 'adjustment_out';
 
-/** What an ukkera package sells: the whole course, one chapter, or one instalment. */
-export type PackageKind = 'full' | 'chapter' | 'installment' | 'other';
+/**
+ * What an ukkera package sells: the whole course, one chapter, or one
+ * instalment — or anything else the owner has since added to `plan_kinds`.
+ *
+ * The four literals are the codes the name parser writes and the instalment
+ * logic branches on, so they stay spelled out and keep their autocompletion.
+ * `(string & {})` widens the type without collapsing them, because a kind
+ * added at runtime is a perfectly valid value that no build knows about.
+ */
+export type PackageKind =
+  | 'full' | 'chapter' | 'installment' | 'other'
+  | (string & {});
 
 /** A plan's progress. `unknown` means the course price has never been set. */
 export type PlanStatus = 'closed' | 'unknown' | 'paid' | 'unpaid' | 'partial';
@@ -92,6 +102,8 @@ export type LedgerEntry = {
   occurred_at: string;
   description: string | null;
   category: string | null;
+  /** Set when the category is a row. Null on entries written before it was. */
+  category_id: string | null;
   reference: string | null;
   metadata: Json;
   is_test: boolean;
@@ -245,6 +257,22 @@ export type SubscriptionListRow = {
   package_kind: PackageKind | null;
   installment_seq: number | null;
   chapter_name: string | null;
+  /**
+   * The next instalment: when, and how much of it is still owed.
+   *
+   * Null on anything paid in full — "no payment is coming" rather than "the
+   * payment is zero". `next_due_in_days` is negative once the date has passed
+   * and is computed by the database, so lateness never depends on the
+   * viewer's clock.
+   */
+  next_due_date: string | null;
+  next_due_amount: number | null;
+  next_due_in_days: number | null;
+  /** Which row of the schedule that is. Null when there is no schedule. */
+  next_due_seq: number | null;
+  /** The kind's display name, so a renamed kind renders as its new name. */
+  plan_kind_name: string | null;
+  plan_kind_name_en: string | null;
 };
 
 /** `v_payment_match_health` — how often the order-id hypothesis holds. */
@@ -279,6 +307,12 @@ export type SubscriptionFinancials = {
   plan_kind: PackageKind;
   ukkera_transfer_id: string | null;
   merchant_order_key: string | null;
+  /** The first instalment the payments have not reached. Null when none is. */
+  next_due_seq: number | null;
+  next_due_date: string | null;
+  next_due_amount: number | null;
+  /** Negative once the date has passed. Computed by the database. */
+  next_due_in_days: number | null;
 };
 
 export type University = {
@@ -418,6 +452,9 @@ export type InstallmentPlan = {
   closed_at: string | null;
   notes: string | null;
   status: PlanStatus;
+  /** Agreed with the student, not derived: the instalment is not bought yet. */
+  next_due_date: string | null;
+  next_due_in_days: number | null;
 };
 
 /**
@@ -897,12 +934,45 @@ export type PayoutsMonthly = {
   failed: number;
 };
 
-export const EXPENSE_CATEGORIES = [
-  'مرتبات',
-  'تسويق',
-  'إيجارات',
-  'تقنية',
-  'إنتاج محتوى',
-  'أخرى',
-] as const;
-export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+/** The `expense_categories` table — what a picker needs and nothing more. */
+export type ExpenseCategory = {
+  id: string;
+  name: string;
+  is_active: boolean;
+  sort_order: number;
+};
+
+/**
+ * `v_expense_categories` — the same list with the counts that decide whether
+ * one can be removed.
+ *
+ * This used to be a frozen array in this file. It is a table now, because the
+ * list is the business's vocabulary and changing it should not be a deploy.
+ */
+export type ExpenseCategoryRow = {
+  id: string;
+  name: string;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  entries: number;
+  total: number;
+  last_used_at: string | null;
+};
+
+/** `v_plan_kinds` — what a package can be, and what currently points at each. */
+export type PlanKindRow = {
+  id: string;
+  code: string;
+  name: string;
+  name_en: string | null;
+  /** Seeded and code-bearing: renameable, never deletable. */
+  is_system: boolean;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  packages: number;
+  subscriptions: number;
+};

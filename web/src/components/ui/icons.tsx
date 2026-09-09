@@ -152,6 +152,20 @@ export const IconImport = (p: IconProps) => (
   </Svg>
 );
 
+/**
+ * Lists & settings — three rows with a handle on one of them.
+ *
+ * Not a cog: nothing on that page is a switch. It is lists you add rows to,
+ * and the mark should say so before the label does.
+ */
+export const IconSettings = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 7h16M4 12h16M4 17h16" />
+    <circle cx="9" cy="7" r="1.9" />
+    <circle cx="15" cy="17" r="1.9" />
+  </Svg>
+);
+
 export const IconHealth = (p: IconProps) => (
   <Svg {...p}>
     <path d="M3 12.5h4l2.5-6 4 12 2.5-6h5" />
@@ -247,6 +261,7 @@ export const NAV_ICONS = {
   payouts: IconPayouts,
   reconciliation: IconReconciliation,
   import: IconImport,
+  settings: IconSettings,
   health: IconHealth,
 } as const;
 

@@ -48,6 +48,7 @@ const NAV_GROUPS = [
       { href: '/payouts', key: 'payouts' },
       { href: '/reconciliation', key: 'reconciliation' },
       { href: '/import', key: 'import' },
+      { href: '/settings', key: 'settings' },
       { href: '/health', key: 'health' },
     ],
   },

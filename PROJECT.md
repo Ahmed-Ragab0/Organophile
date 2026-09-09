@@ -157,6 +157,20 @@ allowlist works better when the queue in front of it is empty.
 - `payments` (Kashier transactions), `payouts` (Kashier transfers),
   `kashier_account` (balance from the API)
 
+**Lists the owner edits** — every dropdown in the app comes from one of these,
+and each is managed on a screen rather than in a deploy.
+- `universities`, `tracks` — on the Classification page.
+- `expense_categories` — on the Settings page. `ledger_entries.category_id`
+  points at the row; `ledger_entries.category` keeps the text as written at the
+  time, and the views read `coalesce(category_row.name, category_text)` so a
+  rename reaches every row that has an id and never rewrites what it cannot.
+- `plan_kinds` — on the Settings page. Four rows are `is_system`: their **code**
+  (`full`/`chapter`/`installment`/`other`) is what the name parser writes and
+  what opens an instalment plan, so it is protected by a trigger. Their **name**
+  is display only and can be changed freely. `packages.kind` and
+  `subscriptions.plan_kind` are foreign keys to `plan_kinds(code)`
+  ON UPDATE CASCADE / ON DELETE RESTRICT.
+
 **Money**
 - `subscription_installments` — the collection *plan* for a subscription: what
   is expected and when. It moves no money; what was actually received is in
@@ -173,10 +187,12 @@ estimate), `v_revenue_by_method`, `v_fees_monthly`, `v_payouts_monthly`,
 `v_dashboard_kpis`, `v_wallet_balances`, `v_ledger`, `v_finance_daily`,
 `v_finance_monthly`, `v_monthly_report`, `v_student_financials`,
 `v_subscription_financials`, `v_course_catalogue`, `v_revenue_by_course`,
-`v_revenue_by_university`, `v_expenses_by_category`, `v_payments_enriched`,
+`v_revenue_by_university`, `v_expenses_by_category`, `v_expense_categories`,
+`v_plan_kinds`, `v_payments_enriched`,
 `v_unmatched_payments`, `v_unpaid_subscriptions`, `v_ingest_health`
 
 **Functions the app calls**
+`describe_record` / `delete_record` / `archive_record`,
 `add_expense`, `add_manual_revenue`, `transfer_between_wallets`,
 `void_ledger_entry`, `search_students`, `import_students`,
 `reconcile_transactions`, `sweep_failed_events`, `normalize_phone`

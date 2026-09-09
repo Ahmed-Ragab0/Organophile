@@ -16,8 +16,9 @@ import {
 } from '@/components/record-actions';
 import { Money, Mono, PaymentStatusBadge, StatCard } from '@/components/domain';
 import { PriceSourceBadge } from '@/components/pricing';
+import { NextDueCell } from '@/components/domain';
 import type {
-  Course, Package, PaymentStatus, SubscriptionListRow,
+  Course, Package, PaymentStatus, PlanKindRow, SubscriptionListRow,
 } from '@/types/database';
 
 const STATUSES: PaymentStatus[] = ['paid', 'partial', 'unpaid', 'overdue', 'unknown'];
@@ -71,6 +72,18 @@ export default function SubscriptionsPage() {
     },
     [courseId],
   );
+
+  // The four hard-coded kinds are rows now, and one of them may be something
+  // this build has never heard of.
+  const planKinds = useSupabaseQuery<PlanKindRow[]>(
+    (sb) => sb.from('plan_kinds').select('*').order('sort_order').order('name'),
+    [],
+  );
+  const kindLabel = (code: string | null | undefined) => {
+    const row = (planKinds.data ?? []).find((k) => k.code === code);
+    if (!row) return code ?? '';
+    return locale === 'en' ? (row.name_en ?? row.name) : row.name;
+  };
 
   const { data, loading, error, reload } = useSupabaseQuery<SubscriptionListRow[]>(
     (sb) => {
@@ -183,7 +196,7 @@ export default function SubscriptionsPage() {
     },
     planKind && {
       key: 'planKind', label: t.pricing.packageKind,
-      value: t.plans.kinds[planKind as keyof typeof t.plans.kinds],
+      value: kindLabel(planKind),
       onRemove: () => change(setPlanKind)(''),
     },
     trackId && {
@@ -224,7 +237,7 @@ export default function SubscriptionsPage() {
           <p className="truncate text-ink">{r.course_name ?? '—'}</p>
           {r.package_name && <p className="truncate text-xs text-ink-faint">{r.package_name}</p>}
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <PackageKindBadge kind={r.package_kind} />
+            <PackageKindBadge kind={r.package_kind} label={kindLabel(r.package_kind)} />
             {r.level !== null && (
               <span className="text-xs text-ink-faint">
                 {t.courseInfo.level} {formatNumber(r.level, locale)}
@@ -286,6 +299,18 @@ export default function SubscriptionsPage() {
         <Money
           value={Number(r.remaining ?? 0)}
           tone={Number(r.remaining ?? 0) > 0 ? 'danger' : 'plain'}
+        />
+      ),
+    },
+    {
+      key: 'nextDue',
+      header: t.plans.nextDue,
+      numeric: true,
+      render: (r) => (
+        <NextDueCell
+          date={r.next_due_date}
+          amount={r.next_due_amount}
+          inDays={r.next_due_in_days}
         />
       ),
     },
@@ -367,6 +392,8 @@ export default function SubscriptionsPage() {
                       plan_installments_paid: r.installments_paid ?? '',
                       plan_installment_count: r.plan_installment_count ?? '',
                       plan_remaining: r.plan_remaining ?? '',
+                      next_due_date: r.next_due_date ?? '',
+                      next_due_amount: r.next_due_amount ?? '',
                       ukkera_transfer_id: r.ukkera_transfer_id ?? '',
                       installments: r.installment_count,
                       payment_date: r.payment_date ?? '',
@@ -378,6 +405,7 @@ export default function SubscriptionsPage() {
                       'university', 'level', 'section', 'class_year', 'track',
                       'price_source', 'total_due', 'total_paid', 'remaining', 'payment_status',
                       'plan_installments_paid', 'plan_installment_count', 'plan_remaining',
+                      'next_due_date', 'next_due_amount',
                       'installments', 'payment_date', 'enrolled_at', 'source',
                       'ukkera_transfer_id',
                     ],
@@ -432,10 +460,11 @@ export default function SubscriptionsPage() {
           <Field label={t.pricing.packageKind}>
             <Select value={planKind} onChange={(e) => change(setPlanKind)(e.target.value)}>
               <option value="">{t.common.all}</option>
-              <option value="full">{t.plans.kinds.full}</option>
-              <option value="chapter">{t.plans.kinds.chapter}</option>
-              <option value="installment">{t.plans.kinds.installment}</option>
-              <option value="other">{t.plans.kinds.other}</option>
+              {(planKinds.data ?? []).map((k) => (
+                <option key={k.code} value={k.code}>
+                  {locale === 'en' ? (k.name_en ?? k.name) : k.name}
+                </option>
+              ))}
             </Select>
           </Field>
 

@@ -66,6 +66,7 @@ export const ar = {
     pricing: 'الأسعار والدفعات',
     journey: 'رحلة الطلب',
     classification: 'الجامعات والتخصصات',
+    settings: 'القوايم والإعدادات',
   },
   navGroups: {
     money: 'المالية',
@@ -132,7 +133,10 @@ export const ar = {
     subtitle: 'قائمة الطلاب وبياناتهم',
     name: 'الاسم',
     phone: 'الموبايل',
-    group: 'المجموعة',
+    group: 'المجموعة (الجروب)',
+    groupHint:
+      'الجروب اللي الطالب بيحضر معاه، زي ما هو مكتوب في يوكيرا. مش الكورس ومش '
+      + 'المستوى — Organic 1/2/3/4 بيتقرا من اسم الكورس نفسه وبيبان جنب كل اشتراك.',
     university: 'الجامعة',
     track: 'التخصص',
     unclassified: 'من غير تحديد',
@@ -623,6 +627,8 @@ export const ar = {
       track: 'تخصص',
       wallet: 'محفظة',
       installment_plan: 'خطة أقساط',
+      expense_category: 'بند مصروفات',
+      plan_kind: 'نوع باقة',
     },
     linkKinds: {
       ledger_entries: 'قيود في الدفتر',
@@ -637,6 +643,8 @@ export const ar = {
       has_money: 'فيه فلوس مسجّلة عليه',
       not_found: 'السجل مش موجود',
       not_archivable: 'السجل ده مالوش أرشفة',
+      in_use: 'فيه حاجات شغالة بيه دلوقتي',
+      system_record: 'ده نوع أساسي في السيستم — تقدر تغيّر اسمه بس مش تمسحه',
       unknown: 'مش عارفين السبب',
     },
   },
@@ -652,6 +660,13 @@ export const ar = {
     totalPaid: 'المدفوع',
     remaining: 'الباقي عليه',
     nextAmount: 'قيمة القسط الجاي',
+    nextDue: 'الاستحقاق الجاي',
+    nextDueHint: 'أقرب دفعة لسه متدفعتش، بتاريخها',
+    nextDueNone: 'مفيش دفعات فاضلة',
+    nextDueNoDate: 'من غير تاريخ',
+    dueToday: 'النهارده',
+    dueInDays: 'بعد {n} يوم',
+    overdueByDays: 'متأخر {n} يوم',
     priceUnknown: 'سعر الكورس لسه متحددش',
     priceUnknownHint: 'حدد سعر الكورس في صفحة الأسعار علشان نعرف الباقي',
     noPlans: 'مفيش خطط أقساط',
@@ -690,6 +705,37 @@ export const ar = {
       'اسم الكورس زي ORGANIC 1 - Azhar Cairo - Girls - 2027 - Clinical بيتقسّم لوحده: '
       + 'الجامعة والتخصص بيتربطوا بالصفوف اللي هنا، والطالب بياخد نفس التصنيف من الكورس '
       + 'اللي اشترك فيه.',
+  },
+  settings: {
+    title: 'القوايم والإعدادات',
+    subtitle: 'الاختيارات اللي بتظهر في السيستم كله — من هنا بتتضاف وتتعدّل',
+    expenseCategories: 'بنود المصروفات',
+    expenseCategoriesHint: 'اللي بتختار منه وانت بتسجّل مصروف',
+    addCategory: 'بند جديد',
+    categoryName: 'اسم البند',
+    emptyCategories: 'مفيش بنود لسه',
+    entriesCount: 'قيد',
+    planKinds: 'أنواع الباقات',
+    planKindsHint: 'نوع اللي الطالب بيشتريه — كورس كامل، شابتر، قسط، أو أي حاجة تانية',
+    addPlanKind: 'نوع جديد',
+    planKindName: 'الاسم بالعربي',
+    planKindNameEn: 'الاسم بالإنجليزي',
+    packagesCount: 'باقة',
+    subscriptionsCount: 'اشتراك',
+    emptyPlanKinds: 'مفيش أنواع لسه',
+    systemBadge: 'أساسي',
+    sortOrder: 'الترتيب',
+    activeLabel: 'مفعّل',
+    renameNote:
+      'الاسم بس اللي بيتغيّر لما تعدّله — كل اللي متسجّل عليه بيفضل مربوط بيه، '
+      + 'ومش بيتقسم لصفّين.',
+    systemNote:
+      'الأربع أنواع الأساسية (كورس كامل / شابتر / بالقسط / غير محدد) بيعتمد عليهم '
+      + 'السيستم في قراءة أسماء الباقات وفتح خطط الأقساط. تقدر تسمّيهم زي ما تحب، '
+      + 'بس مينفعش تمسحهم.',
+    kindLockNote:
+      'لو غيّرت نوع باقة بإيدك، النوع ده بيفضل بتاعك — تغيير اسم الباقة بعد كده '
+      + 'مش هيرجّعه للنوع اللي السيستم كان قارياه.',
   },
   courseInfo: {
     university: 'الجامعة',
@@ -890,6 +936,7 @@ export const en: Dict = {
     pricing: 'Pricing & instalments',
     journey: 'Order journey',
     classification: 'Universities & tracks',
+    settings: 'Lists & settings',
   },
   navGroups: {
     money: 'Finance',
@@ -956,7 +1003,11 @@ export const en: Dict = {
     subtitle: 'Roster and contact details',
     name: 'Name',
     phone: 'Phone',
-    group: 'Group',
+    group: 'Group (class)',
+    groupHint:
+      "The class the student attends, as ukkera spells it. Not the course and "
+      + 'not the level — Organic 1/2/3/4 is read from the course title and shows '
+      + 'beside each subscription.',
     university: 'University',
     track: 'Track',
     unclassified: 'Not set',
@@ -1445,6 +1496,8 @@ export const en: Dict = {
       track: 'Track',
       wallet: 'Wallet',
       installment_plan: 'Instalment plan',
+      expense_category: 'Expense category',
+      plan_kind: 'Package type',
     },
     linkKinds: {
       ledger_entries: 'Ledger entries',
@@ -1459,6 +1512,8 @@ export const en: Dict = {
       has_money: 'Money is recorded against it',
       not_found: 'Record not found',
       not_archivable: 'This kind cannot be archived',
+      in_use: 'Things are using it right now',
+      system_record: 'A built-in type — rename it freely, but it cannot be removed',
       unknown: 'Reason unknown',
     },
   },
@@ -1474,6 +1529,13 @@ export const en: Dict = {
     totalPaid: 'Paid',
     remaining: 'Still owed',
     nextAmount: 'Next instalment',
+    nextDue: 'Next due',
+    nextDueHint: 'The soonest payment still owed, with its date',
+    nextDueNone: 'Nothing left to pay',
+    nextDueNoDate: 'No date set',
+    dueToday: 'Today',
+    dueInDays: 'in {n} days',
+    overdueByDays: '{n} days late',
     priceUnknown: 'Course price not set',
     priceUnknownHint: 'Set the course price on the pricing page to see what is left',
     noPlans: 'No instalment plans',
@@ -1513,6 +1575,39 @@ export const en: Dict = {
       'A title like ORGANIC 1 - Azhar Cairo - Girls - 2027 - Clinical is taken apart '
       + 'on arrival: its university and track bind to the rows here, and a student '
       + 'inherits the same classification from the course they bought.',
+  },
+  settings: {
+    title: 'Lists & settings',
+    subtitle: 'The choices that appear across the system — added and edited here',
+    expenseCategories: 'Expense categories',
+    expenseCategoriesHint: 'What you pick from when recording an expense',
+    addCategory: 'New category',
+    categoryName: 'Category name',
+    emptyCategories: 'No categories yet',
+    entriesCount: 'entries',
+    planKinds: 'Package types',
+    planKindsHint:
+      'What a student is buying — a full course, a chapter, an instalment, or '
+      + 'anything else you sell',
+    addPlanKind: 'New type',
+    planKindName: 'Arabic name',
+    planKindNameEn: 'English name',
+    packagesCount: 'packages',
+    subscriptionsCount: 'subscriptions',
+    emptyPlanKinds: 'No types yet',
+    systemBadge: 'Built in',
+    sortOrder: 'Order',
+    activeLabel: 'Active',
+    renameNote:
+      'Renaming changes the name only — everything already filed under it stays '
+      + 'attached, and it never splits into two rows.',
+    systemNote:
+      'The four built-in types (full course / chapter / instalments / '
+      + 'unspecified) are what the system reads package names against and what '
+      + 'opens an instalment plan. Rename them freely; they cannot be removed.',
+    kindLockNote:
+      'Set a package type by hand and it stays yours — renaming the package '
+      + 'afterwards will not put back whatever the system had read from it.',
   },
   courseInfo: {
     university: 'University',

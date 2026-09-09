@@ -11,7 +11,8 @@ import {
 /** The record families `describe_record` / `delete_record` understand. */
 export type RecordKind =
   | 'student' | 'course' | 'package' | 'subscription'
-  | 'university' | 'track' | 'wallet' | 'installment_plan';
+  | 'university' | 'track' | 'wallet' | 'installment_plan'
+  | 'expense_category' | 'plan_kind';
 
 type LinkRow = { what: string; count: number; money: boolean };
 
@@ -23,6 +24,12 @@ type RecordInfo = {
   money_count: number;
   money_amount: number;
   blocked_by_money: boolean;
+  /**
+   * Why this cannot be deleted, when the answer is not money — a row the code
+   * itself branches on, or one still in use. Named by the database so the
+   * dialog states the actual rule rather than a generic failure.
+   */
+  blocked_reason: string | null;
   can_delete: boolean;
   can_archive: boolean;
   archived: boolean;
@@ -156,6 +163,11 @@ export function DeleteRecordDialog({
                 {t.records.blockedByMoney.replace(
                   '{amount}', formatMoney(Number(info.money_amount ?? 0), locale),
                 )}
+              </Notice>
+            ) : info.blocked_reason ? (
+              <Notice tone="warn">
+                {t.records.reasons[info.blocked_reason as keyof typeof t.records.reasons]
+                  ?? info.blocked_reason}
               </Notice>
             ) : info.links.length > 0 ? (
               <Notice tone="warn">

@@ -7,7 +7,15 @@ import { toCairoDateKey } from '@/lib/format';
 import {
   Button, Checkbox, Field, Input, Modal, Notice, Select, Textarea,
 } from './ui/primitives';
-import { EXPENSE_CATEGORIES, type WalletBalance } from '@/types/database';
+import { useSupabaseQuery } from '@/lib/use-query';
+import type { ExpenseCategory, WalletBalance } from '@/types/database';
+
+/**
+ * The value the category select carries when the answer is "none of these".
+ * A sentinel rather than an empty string, because empty already means "not
+ * chosen yet" and the two must not collapse into one another.
+ */
+const NEW_CATEGORY = '__new__';
 
 /**
  * Every one of these calls a database function rather than inserting directly.
@@ -48,20 +56,42 @@ export function AddExpenseModal({
 }) {
   const { t } = useI18n();
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<string>(EXPENSE_CATEGORIES[0]);
+  /*
+   * The category is a row now, so this holds an id — with one exception. NEW
+   * means "not in the list yet", and the text box it reveals goes to the
+   * database as a name for `add_expense` to resolve or create.
+   *
+   * Recording a spend is the moment you discover the list is missing something,
+   * and sending someone to another screen to fix it loses the form they were
+   * halfway through.
+   */
+  const [categoryId, setCategoryId] = useState('');
+  const [newCategory, setNewCategory] = useState('');
   const [amount, setAmount] = useState('');
   const [walletId, setWalletId] = useState('');
   const [date, setDate] = useState(() => toCairoDateKey(new Date()));
   const [notes, setNotes] = useState('');
 
+  const categories = useSupabaseQuery<ExpenseCategory[]>(
+    (sb) => sb.from('expense_categories').select('*')
+      .eq('is_active', true).order('sort_order').order('name'),
+    [],
+  );
+
   const { busy, error, setError, run } = useLedgerAction(() => {
-    setDescription(''); setAmount(''); setNotes('');
+    setDescription(''); setAmount(''); setNotes(''); setNewCategory('');
+    // A category typed into the box is a new row: the list has to catch up
+    // before the next expense is recorded from the same open modal.
+    categories.reload();
     onSaved();
     onClose();
   });
 
   const active = wallets.filter((w) => w.is_active);
   const effectiveWallet = walletId || active[0]?.id || '';
+  const categoryRows = categories.data ?? [];
+  const effectiveCategory = categoryId || categoryRows[0]?.id || NEW_CATEGORY;
+  const addingCategory = effectiveCategory === NEW_CATEGORY;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -72,7 +102,11 @@ export function AddExpenseModal({
     await run(() =>
       createClient().rpc('add_expense', {
         p_description: description,
-        p_category: category,
+        // One or the other. The id is what survives a rename, so it wins
+        // whenever there is one; the name is only sent for a category that
+        // does not exist yet.
+        p_category: addingCategory ? newCategory : null,
+        p_category_id: addingCategory ? null : effectiveCategory,
         p_amount: Number(amount),
         p_wallet_id: effectiveWallet,
         p_occurred_at: new Date(`${date}T12:00:00`).toISOString(),
@@ -90,9 +124,23 @@ export function AddExpenseModal({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={`${t.expenses.category} *`}>
-            <Select value={category} onChange={(e) => setCategory(e.target.value)}>
-              {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            <Select
+              value={effectiveCategory}
+              onChange={(e) => setCategoryId(e.target.value)}
+            >
+              {categoryRows.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              <option value={NEW_CATEGORY}>{t.records.addNew}</option>
             </Select>
+            {addingCategory && (
+              <div className="mt-2">
+                <Input
+                  value={newCategory}
+                  placeholder={t.settings.categoryName}
+                  required
+                  onChange={(e) => setNewCategory(e.target.value)}
+                />
+              </div>
+            )}
           </Field>
           <Field label={`${t.expenses.amount} *`}>
             <Input

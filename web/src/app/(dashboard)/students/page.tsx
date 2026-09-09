@@ -179,7 +179,8 @@ export default function StudentsPage() {
     { name: 'name', label: t.students.name, type: 'text', required: true },
     { name: 'phone', label: t.students.phone, type: 'text' },
     { name: 'email', label: t.students.email, type: 'text' },
-    { name: 'group_name', label: t.students.group, type: 'text' },
+    { name: 'group_name', label: t.students.group, type: 'text',
+      hint: t.students.groupHint },
     {
       name: 'university_id', label: t.students.university, type: 'lookup',
       lookupTable: 'universities', lookupPrompt: t.classification.universityName,

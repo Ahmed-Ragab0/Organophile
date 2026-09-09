@@ -10,7 +10,7 @@ import {
   Badge, Button, Card, CardHeader, ErrorState, Field, Input, Modal, Notice,
   PageHeader, PageSkeleton, Select, Spinner, Textarea,
 } from '@/components/ui/primitives';
-import { Money, Mono, PaymentStatusBadge, StatCard } from '@/components/domain';
+import { Money, Mono, NextDueCell, PaymentStatusBadge, StatCard } from '@/components/domain';
 import { effectivePrice, PriceSourceBadge } from '@/components/pricing';
 import { LedgerDetailModal } from '@/components/ledger-detail';
 import type {
@@ -164,6 +164,22 @@ export default function SubscriptionPricingPage(
             <PaymentStatusBadge status={money.data?.payment_status} />
             <PriceSourceBadge source={price.source} />
           </div>
+          {/* What is owed next sits with the status rather than in a card of
+              its own: "partial" and "due in three days" are one thought, and
+              splitting them makes the reader join them back up. */}
+          {money.data?.next_due_amount !== null
+            && money.data?.next_due_amount !== undefined && (
+            <div className="mt-2.5 border-t border-border pt-2.5">
+              <p className="text-xs font-medium text-ink-muted">{t.plans.nextDue}</p>
+              <div className="mt-1 flex justify-start">
+                <NextDueCell
+                  date={money.data.next_due_date}
+                  amount={money.data.next_due_amount}
+                  inDays={money.data.next_due_in_days}
+                />
+              </div>
+            </div>
+          )}
           <p className="mt-2 text-xs text-ink-faint">
             {money.data?.last_payment_at
               ? `${t.studentDetail.lastPayment}: ${formatDate(money.data.last_payment_at, locale)}`

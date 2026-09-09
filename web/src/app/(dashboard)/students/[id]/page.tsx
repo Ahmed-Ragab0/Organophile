@@ -10,7 +10,7 @@ import {
   Badge, Button, Card, CardHeader, ErrorState, PageHeader, PageSkeleton,
 } from '@/components/ui/primitives';
 import { LedgerDetailModal } from '@/components/ledger-detail';
-import { PlanTotalInput } from '@/components/plan-total';
+import { PlanNextDueInput, PlanTotalInput } from '@/components/plan-total';
 import {
   DeleteRecordDialog, EditRecordModal, RecordActions,
   type FieldSpec, type RecordKind,
@@ -91,7 +91,8 @@ export default function StudentDetailPage() {
     { name: 'name', label: t.students.name, type: 'text', required: true },
     { name: 'phone', label: t.students.phone, type: 'text' },
     { name: 'email', label: t.students.email, type: 'text' },
-    { name: 'group_name', label: t.students.group, type: 'text' },
+    { name: 'group_name', label: t.students.group, type: 'text',
+      hint: t.students.groupHint },
     {
       name: 'university_id', label: t.students.university, type: 'lookup',
       lookupTable: 'universities', lookupPrompt: t.classification.universityName,
@@ -257,7 +258,7 @@ export default function StudentDetailPage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <div>
                       <p className="text-xs text-ink-muted">{t.plans.totalDue}</p>
                       {/* Editable here because this is where you find out it is
@@ -281,6 +282,19 @@ export default function StudentDetailPage() {
                       <p className="mt-0.5 font-display text-lg font-semibold text-warn tnum">
                         {pl.remaining === null ? '—' : formatMoney(Number(pl.remaining), locale)}
                       </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-ink-muted">{t.plans.nextDue}</p>
+                      {/* Editable for the same reason the total is: the next
+                          instalment has not been bought yet, so nothing in the
+                          data implies a date. It is an agreement, and someone
+                          has to record it. */}
+                      <PlanNextDueInput
+                        planId={pl.plan_id}
+                        value={pl.next_due_date}
+                        inDays={pl.next_due_in_days}
+                        onSaved={() => plans.reload()}
+                      />
                     </div>
                   </div>
 

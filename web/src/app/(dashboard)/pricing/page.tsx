@@ -10,12 +10,14 @@ import {
   ActiveFilters, Badge, Card, CardHeader, Checkbox, Field, Input, PageHeader,
 } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
-import { Money, Mono, PackageKindBadge, PaymentStatusBadge, StatCard } from '@/components/domain';
+import {
+  Money, Mono, NextDueCell, PackageKindBadge, PaymentStatusBadge, StatCard,
+} from '@/components/domain';
 import { effectivePrice, PriceRules, PriceSourceBadge } from '@/components/pricing';
 import {
   DeleteRecordDialog, EditRecordModal, RecordActions, type FieldSpec,
 } from '@/components/record-actions';
-import type { Package, SubscriptionFinancials } from '@/types/database';
+import type { Package, PlanKindRow, SubscriptionFinancials } from '@/types/database';
 
 /** A subscription plus the names the financials view does not carry. */
 type SubscriptionRow = {
@@ -125,6 +127,17 @@ export default function PricingPage() {
     [saveNonce],
   );
 
+  const planKinds = useSupabaseQuery<PlanKindRow[]>(
+    (sb) => sb.from('plan_kinds').select('*').eq('is_active', true)
+      .order('sort_order').order('name'),
+    [],
+  );
+  const kindLabel = (code: string | null | undefined) => {
+    const row = (planKinds.data ?? []).find((k) => k.code === code);
+    if (!row) return undefined;
+    return locale === 'en' ? (row.name_en ?? row.name) : row.name;
+  };
+
   const subscriptions = useSupabaseQuery<SubscriptionRow[]>(
     (sb) =>
       sb
@@ -226,6 +239,16 @@ export default function PricingPage() {
   const packageFields: FieldSpec[] = [
     { name: 'name', label: t.subscriptions.package, type: 'text', required: true,
       hint: t.pricing.packageNameHint },
+    // The type is read from the name, and setting it here overrides that for
+    // good — renaming the package afterwards will not put the parser's guess
+    // back. The hint says so, because a silent lock is a trap.
+    {
+      name: 'kind', label: t.pricing.packageKind, type: 'select',
+      hint: t.settings.kindLockNote,
+      options: (planKinds.data ?? []).map((k) => ({
+        value: k.code, label: locale === 'en' ? (k.name_en ?? k.name) : k.name,
+      })),
+    },
     { name: 'price', label: t.pricing.price, type: 'number' },
     { name: 'total_price', label: t.plans.totalDue, type: 'number' },
     { name: 'installment_count', label: t.pricing.installmentCount, type: 'number' },
@@ -249,7 +272,7 @@ export default function PricingPage() {
     {
       key: 'kind',
       header: t.pricing.packageKind,
-      render: (p) => <PackageKindBadge kind={p.kind} />,
+      render: (p) => <PackageKindBadge kind={p.kind} label={kindLabel(p.kind)} />,
     },
     {
       key: 'status',
@@ -373,6 +396,18 @@ export default function PricingPage() {
       header: t.pricing.installmentCount,
       numeric: true,
       render: (r) => <span className="tnum text-ink-muted">{r.installment_count}</span>,
+    },
+    {
+      key: 'nextDue',
+      header: t.plans.nextDue,
+      numeric: true,
+      render: (r) => (
+        <NextDueCell
+          date={r.money?.next_due_date}
+          amount={r.money?.next_due_amount}
+          inDays={r.money?.next_due_in_days}
+        />
+      ),
     },
     {
       key: 'status',
