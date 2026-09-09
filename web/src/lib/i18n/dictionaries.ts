@@ -418,6 +418,14 @@ export const ar = {
     reason: 'السبب',
     sweep: 'إعادة معالجة الفاشل',
     swept: 'تمت إعادة المعالجة',
+    access: 'صلاحيات المتصفح',
+    accessHint:
+      'الحاجات اللي المتصفح يقدر يعملها والـ RLS مش بيشوفها — زي مسح جدول بالكامل. '
+      + 'المفروض تفضل فاضية.',
+    accessClean: 'كله متقفول — مفيش صلاحية زيادة عند المتصفح.',
+    accessObject: 'الجدول',
+    accessGrantee: 'الدور',
+    accessFinding: 'الصلاحية',
     stateNames: {
       pending: 'في الانتظار',
       processed: 'تمت المعالجة',
@@ -1223,6 +1231,14 @@ export const en: Dict = {
     reason: 'Reason',
     sweep: 'Reprocess failed',
     swept: 'Reprocessed',
+    access: 'Browser client privileges',
+    accessHint:
+      'What the browser client can do that row-level security cannot govern — '
+      + 'emptying a whole table, for one. This should stay empty.',
+    accessClean: 'Nothing to report — the client holds no privilege RLS cannot govern.',
+    accessObject: 'Table',
+    accessGrantee: 'Role',
+    accessFinding: 'Privilege',
     stateNames: {
       pending: 'Pending',
       processed: 'Processed',

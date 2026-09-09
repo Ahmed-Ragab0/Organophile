@@ -9,7 +9,9 @@ import { formatDateTime } from '@/lib/format';
 import { Badge, Button, Card, CardHeader, PageHeader } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
 import { Mono } from '@/components/domain';
-import type { IngestHealth, KashierRawEvent, WebhookRejection } from '@/types/database';
+import type {
+  ClientAccessAudit, IngestHealth, KashierRawEvent, WebhookRejection,
+} from '@/types/database';
 
 type StateKey = 'pending' | 'processed' | 'failed' | 'ignored';
 
@@ -31,6 +33,14 @@ export default function HealthPage() {
     [sweepResult, mode],
   );
 
+  // 0037 revoked TRUNCATE from the browser client, which RLS cannot govern.
+  // The revoke is easy; noticing it come back is the hard part, so the check
+  // lives on the screen rather than in a memory.
+  const access = useSupabaseQuery<ClientAccessAudit[]>(
+    (sb) => sb.from('v_client_access_audit').select('*'),
+    [],
+  );
+
   const rejections = useSupabaseQuery<WebhookRejection[]>(
     (sb) => sb.from('webhook_rejections').select('*').order('received_at', { ascending: false }).limit(50),
     [],
@@ -43,6 +53,15 @@ export default function HealthPage() {
     setSweepResult(error ? error.message : JSON.stringify(data));
     health.reload();
   }
+
+  const accessCols: Array<Column<ClientAccessAudit>> = [
+    { key: 'object', header: t.health.accessObject, render: (r) => <Mono value={r.object} /> },
+    { key: 'grantee', header: t.health.accessGrantee, render: (r) => <Mono value={r.grantee} /> },
+    {
+      key: 'finding', header: t.health.accessFinding,
+      render: (r) => <Badge tone="danger">{r.finding}</Badge>,
+    },
+  ];
 
   const healthCols: Array<Column<IngestHealth>> = [
     { key: 'pipeline', header: t.health.pipeline, render: (r) => <span className="font-medium text-ink">{r.pipeline}</span> },
@@ -92,6 +111,30 @@ export default function HealthPage() {
           {t.health.swept}: <span className="ltr-id">{sweepResult}</span>
         </p>
       )}
+
+      <Card className="mb-4">
+        <CardHeader
+          title={t.health.access}
+          hint={t.health.accessHint}
+          action={
+            <Badge tone={(access.data ?? []).length === 0 ? 'ok' : 'danger'}>
+              {(access.data ?? []).length === 0
+                ? t.common.yes
+                : String((access.data ?? []).length)}
+            </Badge>
+          }
+        />
+        <DataTable
+          columns={accessCols}
+          rows={access.data ?? []}
+          keyOf={(r, i) => `${r.object}-${r.grantee}-${r.finding}-${i}`}
+          loading={access.loading}
+          error={access.error}
+          emptyMessage={t.health.accessClean}
+          loadingMessage={t.common.loading}
+          errorMessage={t.common.error}
+        />
+      </Card>
 
       <Card className="mb-4">
         <CardHeader title={t.health.subtitle} />

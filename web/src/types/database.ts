@@ -692,6 +692,17 @@ export type UnpaidSubscription = {
   course_name: string | null;
 };
 
+/**
+ * `v_client_access_audit` — anything the browser client can do that row-level
+ * security cannot govern. Empty is the healthy answer; a row means a table got
+ * its Supabase default privileges back.
+ */
+export type ClientAccessAudit = {
+  object: string;
+  grantee: string;
+  finding: string;
+};
+
 export type IngestHealth = {
   pipeline: string | null;
   state: string | null;

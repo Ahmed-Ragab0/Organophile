@@ -289,6 +289,25 @@ and RLS grants the client SELECT only. "Remove" there means **void**, because an
 expense that was recorded and then reversed is a different fact from one that
 never existed.
 
+**And the door beside it (0037).** Supabase's default privileges hand
+`authenticated` the full table privilege set on everything in `public` —
+`arwdDxtm` — whatever the migrations grant. `ledger_entries` grants only SELECT,
+forces RLS, and has a SELECT-only policy; it still held **TRUNCATE**, which is
+not subject to row-level security at all. A signed-in user RLS refuses every row
+to could still empty the ledger with one statement. Verified before it was
+fixed, not assumed.
+
+`TRUNCATE`, `REFERENCES`, `TRIGGER` and `MAINTAIN` are now revoked from `anon`
+and `authenticated`, and removed from the default privileges for `postgres` so
+the next `create table` does not hand them back. `SELECT/INSERT/UPDATE/DELETE`
+are untouched — those RLS governs.
+
+`public.v_client_access_audit` is the standing check, shown on **/health**.
+Empty is healthy. Every row is either a privilege the client holds that RLS
+cannot govern, or a reachable table with no RLS in front of it. This project has
+already watched a security setting come back twice (`security_invoker`), so the
+fix is checked as well as applied.
+
 ---
 
 ### Universities and specialisations
