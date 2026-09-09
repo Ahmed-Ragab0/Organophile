@@ -336,9 +336,9 @@ export const ar = {
     kashierSays: 'رصيد كاشير المعلن',
     kashierSaysHint: 'الرقم اللي كاشير نفسه بيقوله آخر مزامنة',
     transferUnheard:
-      'كاشير بتقول إنها حوّلت فلوس بعد ما النظام بدأ يسجّل، ومفيش عندنا سجل '
-      + 'للتحويل ده. قايمة التحويلات اللي بنسحبها من كاشير راجعة فاضية — '
-      + 'لحد ما تتظبط، الرقم اللي فوق هو كل اللي نعرفه عن التحويل.',
+      'الرقم ده هو كل اللي كاشير بتقوله عن التحويل. الـ API بتاع التحويلات '
+      + 'عندهم بيرجع صفر — لأنه للتحويلات اللي التاجر بيبعتها لناس، مش '
+      + 'لتسوية حسابك انت. فمفيش مصدر تاني نطابق بيه.',
     gap: 'الفرق',
     gapOk: 'مطابق',
     gapWarn: 'فيه فرق — راجع المعاملات والتحويلات',
@@ -1159,10 +1159,9 @@ export const en: Dict = {
     kashierSays: 'Balance Kashier reports',
     kashierSaysHint: 'What Kashier itself said at the last sync',
     transferUnheard:
-      'Kashier says it transferred money out after this system started recording, '
-      + 'and there is no payout record for it. The transfer list we pull from '
-      + 'Kashier comes back empty — until that is resolved, the figure above is '
-      + 'everything we know about that transfer.',
+      'This figure is everything Kashier says about that transfer. Their transfers '
+      + 'API returns zero — it lists money a merchant sends to recipients, not the '
+      + 'settlement of your own account. There is no second source to check it against.',
     gap: 'Difference',
     gapOk: 'Matches',
     gapWarn: 'They disagree — check transactions and transfers',

@@ -69,15 +69,16 @@ export function MoneyPositionPanel({
   const gapMinor = gap !== null && Math.abs(gap) > 0.5 && !gapMatters;
 
   /*
-   * Kashier says it transferred money out while this system was already
-   * recording, and no payout row exists for it.
+   * Kashier reports a transfer this system has no payout row for, and it never
+   * will: /v2/transfers answers `pagination.total: 0` with no filter applied,
+   * because it is the bulk-transfer API — money a merchant sends to recipients
+   * — and an account settlement is not one of those.
    *
-   * The first version of this notice blamed the transfers webhook. That was
-   * wrong: the REST pull is the route this system uses, and it was answering
-   * 400 because of one bad query parameter. So the notice states the FACT and
-   * leaves the cause to the sync's own error message, which now carries
-   * Kashier's words. A screen that names the wrong cause is worse than one
-   * that names none.
+   * So this is not a warning about something fixable. It is a note on the
+   * limits of the source, sitting next to the figure it qualifies, and it says
+   * so in the calm tone that deserves. Two earlier versions of this line named
+   * causes that turned out to be wrong (an unconfigured webhook, then a broken
+   * pull); naming no cause beats naming the wrong one.
    */
   const transferUnheard =
     n(position?.transfers_count) === 0
@@ -228,7 +229,7 @@ export function MoneyPositionPanel({
 
         {transferUnheard && (
           <div className="mt-2">
-            <Notice tone="warn">{t.position.transferUnheard}</Notice>
+            <Notice tone="info">{t.position.transferUnheard}</Notice>
           </div>
         )}
 

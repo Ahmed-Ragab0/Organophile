@@ -205,11 +205,25 @@ signed Kashier traffic.**
   webhook event catalogue does not list.
 - The REST list endpoint uses different names again: `id` not `transferId`,
   `name` not `recipientName`, `createdAt` not `date`. The projection accepts all.
-- **`GET /v2/transfers` rejects `sortType`.** Not ignores — 400s. That single
-  parameter is why the payout sync failed on every run for days while
-  `/v2/account` answered 200 beside it with the same key. The working call is
-  `/v2/transfers?limit=&page=`, and the response is
-  `{message, data:{inProgressTransfersCount, transfers}, pagination}`.
+- **`GET /v2/transfers` rejects `sortType=desc`.** Not ignores — 400s, with
+  `"sortType" must be one of [1, -1]`. That single parameter is why the payout
+  sync failed on every run for days while `/v2/account` answered 200 beside it
+  with the same key. The working call is `/v2/transfers?limit=&page=`, and the
+  response is `{message, data:{inProgressTransfersCount, transfers}, pagination}`.
+  `accountId` is rejected too — `"accountId" is not allowed`.
+
+- **`/v2/transfers` never lists your settlements.** With the call fixed it
+  answers `pagination.total: 0`, unfiltered, while the same account reports
+  `lastTransfer: 100.57`. They are different products: `/v2/transfers` is the
+  bulk-transfer API — money a merchant sends *to recipients* — and Kashier
+  settling your own balance into your own bank is not one of those. Probed to
+  exhaustion on 9 Sep 2026 (`&merchantId`, `&status=TRANSFERRED`, `&accountId`,
+  `&sortType`); all either 0 or refused.
+
+  So the **only** record of a settlement is the account endpoint:
+  `lastTransfer`, `lastTransferDate`, `lastTransferId`,
+  `lastTransferReference`, `totalBalanceBeforeLastTransfer`. That is a snapshot
+  of the LAST one — two settlements between two syncs and the first is gone.
 
 **`payoutFees` is per TRANSFER, not per payment (0038).** 0022 read the account
 endpoint's `payoutFees: 5` as a flat bank fee on every transaction and applied

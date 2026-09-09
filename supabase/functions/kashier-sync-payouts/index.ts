@@ -296,14 +296,24 @@ async function handle(req: Request): Promise<Response> {
 
       if (transfers.length === 0) {
         /*
-         * An empty list is not automatically the truth. Kashier's account
-         * endpoint reports a transfer of 100.57 dated 9 Sep 2026 while this
-         * list comes back with nothing in it, and the response carries an
-         * `inProgressTransfersCount` and a `pagination` block that would say
-         * which of those two is right.
+         * Empty is the truth here, and it is not a bug — settled 9 Sep 2026 by
+         * probing every shape this could have taken:
          *
-         * The whole body is logged HERE and only here, where `transfers` is
-         * empty by definition — so it cannot contain anyone's bank details.
+         *   ?limit=&page=                 200  pagination.total = 0
+         *   &merchantId=MID-…             200  pagination.total = 0
+         *   &status=TRANSFERRED           200  pagination.total = 0
+         *   &accountId=ACC-…              400  "accountId" is not allowed
+         *   &sortType=DESC                400  "sortType" must be one of [1, -1]
+         *
+         * `pagination.total: 0` with no filter applied is Kashier saying it has
+         * no transfers, while the SAME account reports lastTransfer 100.57. The
+         * two are different products: /v2/transfers is the bulk-transfer API —
+         * money a merchant sends to recipients — and the automatic settlement
+         * to your own bank is not one of those. It appears nowhere but the
+         * account endpoint's lastTransfer* fields.
+         *
+         * The body is still logged, HERE and only here, where `transfers` is
+         * empty by definition and so cannot carry anyone's bank details.
          */
         log('info', 'transfers_page_empty', {
           mode,
@@ -314,26 +324,6 @@ async function handle(req: Request): Promise<Response> {
           body: JSON.stringify(res.body).slice(0, 1000),
         });
 
-        // The list may simply be scoped to something we have not named. Probe
-        // the ways it could be, once, on the first page only.
-        if (page === 1) {
-          const scoped = [
-            accountId ? `/v2/transfers?limit=${PAGE_LIMIT}&page=1&accountId=${accountId}` : null,
-            merchantId ? `/v2/transfers?limit=${PAGE_LIMIT}&page=1&merchantId=${merchantId}` : null,
-            `/v2/transfers?limit=${PAGE_LIMIT}&page=1&status=TRANSFERRED`,
-            `/v2/transfers?limit=${PAGE_LIMIT}&page=1&sortType=DESC`,
-          ].filter((v): v is string => v !== null);
-
-          for (const path of scoped) {
-            const probe = await kashierGet(mode, path, secret);
-            log('info', 'transfers_scope_probe', {
-              mode,
-              path,
-              status: probe.status,
-              body: JSON.stringify(probe.body).slice(0, 600),
-            });
-          }
-        }
         break;
       }
 
