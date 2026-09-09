@@ -373,6 +373,8 @@ export const ar = {
     initiated: 'تم البدء',
     syncing: 'جارٍ المزامنة…',
     syncDone: 'المزامنة تمت',
+    syncTransfersFailed:
+      'الرصيد اتحدّث، بس كاشير رفضت طلب قايمة التحويلات ({status}).',
     syncFetched: 'جه من كاشير',
     syncNew: 'جديد',
     missingSecret:
@@ -1194,6 +1196,8 @@ export const en: Dict = {
     initiated: 'Initiated',
     syncing: 'Syncing…',
     syncDone: 'Sync complete',
+    syncTransfersFailed:
+      'Balance updated, but Kashier refused the transfer list request ({status}).',
     syncFetched: 'Fetched',
     syncNew: 'New',
     missingSecret:

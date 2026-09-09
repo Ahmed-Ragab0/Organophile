@@ -4,9 +4,17 @@ Answers "how much does Kashier owe me, has it been transferred, and how do I
 prove it" — plus how to test the whole thing on test mode before trusting it
 with real money.
 
-Status as of 2026-09-08: **the sync has never run successfully.** It fails with
-`no_secret_key_for_mode` because `KASHIER_SECRET_KEY_LIVE` is not set in
-Supabase. Everything else is built and tested. Section 3 is the fix.
+Status as of 2026-09-09: **half of it works.** `KASHIER_SECRET_KEY_LIVE` is
+set, and `GET /v2/account` returns real balances — two accounts, the primary
+holding 191.51. `GET /v2/transfers` answers **400** on every run, so
+`public.payouts` is still empty and no payout has ever been recorded.
+
+Same host, same Secret Key, one endpoint answering and the other refusing: the
+key is right and the request is not. The function used to log only the status
+code, which is why this sat unexplained; it now keeps Kashier's own response
+body, and on the first page it tries the plausible shapes in order and
+remembers whichever answers. Section 3 is the old missing-key fix, kept because
+it is still what the test mode needs.
 
 ---
 

@@ -415,14 +415,19 @@ and students survive it and simply become unclassified.
    `student_payments − gateway_fees = revenue`. Net profit is unchanged by the
    reclassification, which is the proof it was only ever a naming error.
 
-2. **Transfer webhooks arrive unsigned.** Kashier sends no
-   `x-kashier-signature` header at all for this account, so they are correctly
-   refused. Payout tracking therefore runs through `kashier-sync-payouts`
-   instead, which is better provenance anyway. A Transfer API Key must be
-   requested from Kashier support to enable signed transfer webhooks.
-   **Related and currently blocking:** `KASHIER_SECRET_KEY_LIVE` is not set, so
-   the sync fails with `no_secret_key_for_mode` and has never run.
-   [`docs/kashier-payouts.md`](docs/kashier-payouts.md) §3 is the fix.
+2. **No payout has ever been recorded, and it is the transfers REST call.**
+   `KASHIER_SECRET_KEY_LIVE` is set and `GET /v2/account` returns real balances
+   — two accounts, the primary holding 191.51, synced 9 Sep 2026. `GET
+   /v2/transfers` answers **400** every time. Same host, same key: the key is
+   right and the request is not. The function logged only the status code,
+   which is why it went unexplained for days; it now keeps Kashier's response
+   body and probes the plausible URL shapes on the first page, remembering
+   whichever answers. Press تحديث من كاشير once and the screen — not just the
+   log — says what Kashier objected to.
+   Transfer webhooks are the other route and are worse: Kashier sends them with
+   no `x-kashier-signature` header at all for this account, so they are
+   correctly refused, and a Transfer API Key has to be requested from support
+   to enable signing. The REST pull is better provenance and is one 400 away.
 3. **Kashier live webhook not yet registered** — only test mode is; every row
    in `kashier_events_raw` is `mode = 'test'`. Register it before real payments
    flow: [`docs/kashier-live-webhook.md`](docs/kashier-live-webhook.md) is the

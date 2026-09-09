@@ -70,22 +70,33 @@ async function authorise(req: Request): Promise<{ ok: true } | { ok: false; reas
   return admin ? { ok: true } : { ok: false, reason: 'not_admin' };
 }
 
+/**
+ * A failed GET used to return only its status code, and the transfers call has
+ * been answering 400 for days with nobody able to see why. Kashier puts the
+ * reason in the body; throwing it away turned a one-line fix into a guess.
+ * The text is kept and trimmed, never the headers — the Secret Key is in those.
+ */
 async function kashierGet(
   mode: KashierMode,
   path: string,
   secret: string,
-): Promise<{ status: number; body: unknown }> {
+): Promise<{ status: number; body: unknown; detail: string | null }> {
   const res = await fetch(`${BASE_URL[mode]}${path}`, {
     method: 'GET',
     headers: { Authorization: secret, accept: 'application/json' },
   });
+  const text = await res.text();
   let body: unknown = null;
   try {
-    body = await res.json();
+    body = JSON.parse(text);
   } catch {
     body = null;
   }
-  return { status: res.status, body };
+  return {
+    status: res.status,
+    body,
+    detail: res.ok ? null : text.slice(0, 500) || null,
+  };
 }
 
 Deno.serve(async (req) => {
@@ -101,6 +112,7 @@ Deno.serve(async (req) => {
 type AccountRow = {
   isPrimary?: boolean;
   accountId?: string;
+  merchantId?: string;
   type?: string;
   totalBalance?: number | string;
   availableBalance?: number | string;
@@ -127,10 +139,24 @@ async function handle(req: Request): Promise<Response> {
   }
 
   const client = serviceClient();
+  // `account: true, fetched: 0` was reported as a clean sync while the
+  // transfers call was answering 400 every single time. A half that failed has
+  // to reach the caller, or the screen congratulates the user on nothing.
   const summary = {
     mode, account: false, accountsReturned: 0,
     fetched: 0, ingested: 0, duplicates: 0, failed: 0,
+    transfersOk: false,
+    transfersError: null as { status: number; detail: string | null } | null,
+    transfersTried: null as Array<
+      { path: string; status: number; detail: string | null }
+    > | null,
+    accountError: null as { status: number; detail: string | null } | null,
   };
+
+  // Filled in by the balance call below, because the transfer list may need
+  // to be addressed by one of them and only Kashier knows which.
+  let merchantId: string | null = null;
+  let accountId: string | null = null;
 
   try {
     // --- balance -------------------------------------------------------------
@@ -163,6 +189,8 @@ async function handle(req: Request): Promise<Response> {
         if (error) throw new Error(`account upsert: ${error.message}`);
         summary.account = true;
         summary.accountsReturned = list.length;
+        merchantId = typeof chosen.merchantId === 'string' ? chosen.merchantId : null;
+        accountId = typeof chosen.accountId === 'string' ? chosen.accountId : null;
       }
 
       log('info', 'account_selected', {
@@ -173,21 +201,77 @@ async function handle(req: Request): Promise<Response> {
         type: chosen?.type ?? null,
       });
     } else {
-      log('warn', 'account_fetch_failed', { mode, status: account.status });
+      summary.accountError = { status: account.status, detail: account.detail };
+      log('warn', 'account_fetch_failed', {
+        mode, status: account.status, detail: account.detail,
+      });
     }
 
-    // --- transfers -----------------------------------------------------------
+    /*
+     * --- transfers ----------------------------------------------------------
+     *
+     * `/v2/transfers?sortType=desc&…` has been answering 400 on every run, and
+     * the balance call beside it — same host, same Secret Key — answers 200.
+     * So the key is right and the request is not, and Kashier's documentation
+     * is not something this account's behaviour has matched before.
+     *
+     * Rather than change one guess per deploy, the shapes are tried in order on
+     * the first page only, and the one that answers is remembered for the rest
+     * of the run. Every attempt is a read-only GET, and each is logged with
+     * what Kashier said, so a run that still fails ends with a list of what was
+     * tried instead of a bare status code.
+     */
+    const transferPaths = (page: number): string[] => {
+      const q = `limit=${PAGE_LIMIT}&page=${page}`;
+      return [
+        `/v2/transfers?sortType=desc&${q}`,
+        `/v2/transfers?${q}`,
+        merchantId ? `/v2/transfers/${merchantId}?${q}` : null,
+        merchantId ? `/v2/transfers?merchantId=${merchantId}&${q}` : null,
+        accountId ? `/v2/transfers?accountId=${accountId}&${q}` : null,
+        `/v2/payouts?${q}`,
+      ].filter((v): v is string => v !== null);
+    };
+
+    // Once a shape works, stop probing: the fallback exists to find the right
+    // request, not to make five of them on every page.
+    let workingPath: ((page: number) => string) | null = null;
+
     for (let page = 1; page <= maxPages; page++) {
-      const res = await kashierGet(
-        mode,
-        `/v2/transfers?sortType=desc&limit=${PAGE_LIMIT}&page=${page}`,
-        secret,
-      );
+      let res: Awaited<ReturnType<typeof kashierGet>> | null = null;
+
+      if (workingPath) {
+        res = await kashierGet(mode, workingPath(page), secret);
+      } else {
+        const attempts: Array<{ path: string; status: number; detail: string | null }> = [];
+        for (const path of transferPaths(page)) {
+          const attempt = await kashierGet(mode, path, secret);
+          attempts.push({ path, status: attempt.status, detail: attempt.detail });
+          if (attempt.status === 200) {
+            res = attempt;
+            const template = path.replace(`page=${page}`, 'page=');
+            workingPath = (p: number) => `${template}${p}`;
+            log('info', 'transfers_path_found', { mode, path });
+            break;
+          }
+        }
+        if (!res) {
+          const first = attempts[0];
+          summary.transfersError = { status: first.status, detail: first.detail };
+          summary.transfersTried = attempts;
+          log('warn', 'transfers_fetch_failed', { mode, page, attempts });
+          break;
+        }
+      }
 
       if (res.status !== 200) {
-        log('warn', 'transfers_fetch_failed', { mode, page, status: res.status });
+        summary.transfersError = { status: res.status, detail: res.detail };
+        log('warn', 'transfers_fetch_failed', {
+          mode, page, status: res.status, detail: res.detail,
+        });
         break;
       }
+      summary.transfersOk = true;
 
       // Kashier's account endpoint returned a bare array where a wrapper was
       // assumed, and that cost us every balance reading until it was found.

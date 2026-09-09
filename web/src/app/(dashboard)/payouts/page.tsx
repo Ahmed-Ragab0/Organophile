@@ -66,7 +66,25 @@ export default function PayoutsPage() {
       const body = await res.json().catch(() => null);
 
       if (res.ok) {
-        const s = body as { fetched?: number; ingested?: number; duplicates?: number } | null;
+        const s = body as {
+          fetched?: number; ingested?: number; duplicates?: number;
+          transfersError?: { status?: number; detail?: string | null } | null;
+        } | null;
+
+        // A 200 with a failed half is the worst of both: the balance updates,
+        // the transfer list does not, and the old message called that success.
+        // Kashier's own words go on the screen — a status code alone sends you
+        // to the logs, and the point of the message is to save that trip.
+        if (s?.transfersError) {
+          setResult({
+            tone: 'warn',
+            text: `${t.payouts.syncTransfersFailed.replace(
+              '{status}', String(s.transfersError.status ?? '—'),
+            )}${s.transfersError.detail ? ` — ${s.transfersError.detail}` : ''}`,
+          });
+          return;
+        }
+
         setResult({
           tone: 'ok',
           text: `${t.payouts.syncDone} — ${t.payouts.syncFetched}: ${s?.fetched ?? 0} · ${t.payouts.syncNew}: ${s?.ingested ?? 0}`,
