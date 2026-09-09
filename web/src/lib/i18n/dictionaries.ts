@@ -336,9 +336,9 @@ export const ar = {
     kashierSays: 'رصيد كاشير المعلن',
     kashierSaysHint: 'الرقم اللي كاشير نفسه بيقوله آخر مزامنة',
     transferUnheard:
-      'كاشير بتقول إنها حوّلت فلوس بعد ما النظام بدأ يسجّل، والنظام موصلوش أي '
-      + 'إشعار بالتحويل ده. يعني ويب هوك التحويلات (transfer) مش مفعّل عند كاشير — '
-      + 'من غيره مش هنعرف يدخل حسابك إمتى ولا بكام.',
+      'كاشير بتقول إنها حوّلت فلوس بعد ما النظام بدأ يسجّل، ومفيش عندنا سجل '
+      + 'للتحويل ده. قايمة التحويلات اللي بنسحبها من كاشير راجعة فاضية — '
+      + 'لحد ما تتظبط، الرقم اللي فوق هو كل اللي نعرفه عن التحويل.',
     gap: 'الفرق',
     gapOk: 'مطابق',
     gapWarn: 'فيه فرق — راجع المعاملات والتحويلات',
@@ -1160,8 +1160,9 @@ export const en: Dict = {
     kashierSaysHint: 'What Kashier itself said at the last sync',
     transferUnheard:
       'Kashier says it transferred money out after this system started recording, '
-      + 'and no transfer event ever arrived. The transfers webhook is not enabled '
-      + 'at Kashier — without it, nothing here can say when a payout reaches your bank.',
+      + 'and there is no payout record for it. The transfer list we pull from '
+      + 'Kashier comes back empty — until that is resolved, the figure above is '
+      + 'everything we know about that transfer.',
     gap: 'Difference',
     gapOk: 'Matches',
     gapWarn: 'They disagree — check transactions and transfers',

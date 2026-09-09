@@ -205,6 +205,11 @@ signed Kashier traffic.**
   webhook event catalogue does not list.
 - The REST list endpoint uses different names again: `id` not `transferId`,
   `name` not `recipientName`, `createdAt` not `date`. The projection accepts all.
+- **`GET /v2/transfers` rejects `sortType`.** Not ignores — 400s. That single
+  parameter is why the payout sync failed on every run for days while
+  `/v2/account` answered 200 beside it with the same key. The working call is
+  `/v2/transfers?limit=&page=`, and the response is
+  `{message, data:{inProgressTransfersCount, transfers}, pagination}`.
 
 **`payoutFees` is per TRANSFER, not per payment (0038).** 0022 read the account
 endpoint's `payoutFees: 5` as a flat bank fee on every transaction and applied

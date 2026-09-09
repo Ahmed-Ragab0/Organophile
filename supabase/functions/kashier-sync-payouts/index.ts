@@ -224,8 +224,11 @@ async function handle(req: Request): Promise<Response> {
     const transferPaths = (page: number): string[] => {
       const q = `limit=${PAGE_LIMIT}&page=${page}`;
       return [
-        `/v2/transfers?sortType=desc&${q}`,
+        // Known good, 9 Sep 2026. `sortType=desc` is what the 400 was about —
+        // Kashier rejects the parameter outright rather than ignoring it, and
+        // it stays in the list below only so a future change is caught.
         `/v2/transfers?${q}`,
+        `/v2/transfers?sortType=desc&${q}`,
         merchantId ? `/v2/transfers/${merchantId}?${q}` : null,
         merchantId ? `/v2/transfers?merchantId=${merchantId}&${q}` : null,
         accountId ? `/v2/transfers?accountId=${accountId}&${q}` : null,
@@ -292,16 +295,45 @@ async function handle(req: Request): Promise<Response> {
               : [];
 
       if (transfers.length === 0) {
-        // Say so rather than breaking silently: "no transfers" and "a shape we
-        // did not recognise" look identical from the outside, and only one of
-        // them is a problem.
+        /*
+         * An empty list is not automatically the truth. Kashier's account
+         * endpoint reports a transfer of 100.57 dated 9 Sep 2026 while this
+         * list comes back with nothing in it, and the response carries an
+         * `inProgressTransfersCount` and a `pagination` block that would say
+         * which of those two is right.
+         *
+         * The whole body is logged HERE and only here, where `transfers` is
+         * empty by definition — so it cannot contain anyone's bank details.
+         */
         log('info', 'transfers_page_empty', {
           mode,
           page,
           bodyKeys: body ? Object.keys(body) : [],
           dataKeys: data && !Array.isArray(data) ? Object.keys(data) : null,
           dataIsArray: Array.isArray(data),
+          body: JSON.stringify(res.body).slice(0, 1000),
         });
+
+        // The list may simply be scoped to something we have not named. Probe
+        // the ways it could be, once, on the first page only.
+        if (page === 1) {
+          const scoped = [
+            accountId ? `/v2/transfers?limit=${PAGE_LIMIT}&page=1&accountId=${accountId}` : null,
+            merchantId ? `/v2/transfers?limit=${PAGE_LIMIT}&page=1&merchantId=${merchantId}` : null,
+            `/v2/transfers?limit=${PAGE_LIMIT}&page=1&status=TRANSFERRED`,
+            `/v2/transfers?limit=${PAGE_LIMIT}&page=1&sortType=DESC`,
+          ].filter((v): v is string => v !== null);
+
+          for (const path of scoped) {
+            const probe = await kashierGet(mode, path, secret);
+            log('info', 'transfers_scope_probe', {
+              mode,
+              path,
+              status: probe.status,
+              body: JSON.stringify(probe.body).slice(0, 600),
+            });
+          }
+        }
         break;
       }
 

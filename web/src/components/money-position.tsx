@@ -70,8 +70,14 @@ export function MoneyPositionPanel({
 
   /*
    * Kashier says it transferred money out while this system was already
-   * recording, and no payout ever reached us. The transfers webhook is the
-   * only thing that would have told us, so its silence is the finding.
+   * recording, and no payout row exists for it.
+   *
+   * The first version of this notice blamed the transfers webhook. That was
+   * wrong: the REST pull is the route this system uses, and it was answering
+   * 400 because of one bad query parameter. So the notice states the FACT and
+   * leaves the cause to the sync's own error message, which now carries
+   * Kashier's words. A screen that names the wrong cause is worse than one
+   * that names none.
    */
   const transferUnheard =
     n(position?.transfers_count) === 0
