@@ -41,14 +41,19 @@ export function MoneyPositionPanel({
    * does not break out, and `available` is only what is withdrawable this
    * minute. `total` is the like-for-like figure.
    *
-   * It is also GROSS. Kashier takes its fee at settlement rather than at
-   * collection, so comparing our net-of-fees figure against it would report a
-   * permanent shortfall the size of the fees. Gross against gross is the only
-   * comparison that can ever reach zero.
+   * It is NET. The balance is credited with each payment's settled_amount —
+   * gross minus Kashier's commission and its VAT — which the account API
+   * proves to the piastre: 95.84 + 95.67 = 191.51, the exact balance reported
+   * with two payments settled and a third still in the window.
+   *
+   * This used to compare against our GROSS figure, on the belief that Kashier
+   * took its fee only at payout. That comparison can never reach zero: once
+   * everything settles it stays short by exactly the fees, for ever. Net
+   * against net is the one that closes.
    */
   const kashierHas = reported === null || reported === undefined ? null : n(reported);
-  const ourGross = n(position?.awaiting_payout_gross);
-  const gap = kashierHas === null ? null : kashierHas - ourGross;
+  const ourNet = n(position?.awaiting_payout);
+  const gap = kashierHas === null ? null : kashierHas - ourNet;
 
   /*
    * How big a difference has to be before it means anything.
@@ -58,10 +63,21 @@ export function MoneyPositionPanel({
    * unhelpful. What matters is the difference relative to the money involved,
    * with a floor so that small absolute amounts never raise an alarm.
    */
-  const scale = Math.max(Math.abs(kashierHas ?? 0), Math.abs(ourGross), 1);
+  const scale = Math.max(Math.abs(kashierHas ?? 0), Math.abs(ourNet), 1);
   const minorLimit = Math.max(2, scale * 0.01);
   const gapMatters = gap !== null && Math.abs(gap) > minorLimit;
   const gapMinor = gap !== null && Math.abs(gap) > 0.5 && !gapMatters;
+
+  /*
+   * Kashier says it transferred money out while this system was already
+   * recording, and no payout ever reached us. The transfers webhook is the
+   * only thing that would have told us, so its silence is the finding.
+   */
+  const transferUnheard =
+    n(position?.transfers_count) === 0
+    && position?.kashier_last_transfer_at != null
+    && position?.our_records_start != null
+    && new Date(position.kashier_last_transfer_at) > new Date(position.our_records_start);
 
   // Two very different causes produce a gap, and they need opposite actions.
   const sinceSync = n(position?.collected_since_sync);
@@ -173,17 +189,20 @@ export function MoneyPositionPanel({
               <dd className="tnum text-sm font-medium text-ink">{money(available)}</dd>
             </div>
             <div className="rounded-tile bg-surface-2 px-3 py-2">
-              <dt className="text-[0.6875rem] text-ink-muted">{t.position.ourGross}</dt>
-              <dd className="tnum text-sm font-medium text-ink">{money(ourGross)}</dd>
+              <dt className="text-[0.6875rem] text-ink-muted">{t.position.ourNet}</dt>
+              <dd className="tnum text-sm font-medium text-ink">{money(ourNet)}</dd>
             </div>
           </dl>
         )}
 
         {/*
-          Kashier's own last payout. Ours reads zero because that transfer
-          happened before this system existed, and showing only our figure on
-          the same screen reads as a contradiction rather than as two records
-          that begin on different dates.
+          Kashier's own last payout, and whether we ever heard about it.
+
+          A transfer dated before our records simply predates the system. One
+          dated AFTER them that produced no payout row is a different thing
+          entirely: Kashier moved money and nothing told us. That is not a
+          reconciliation gap to think about, it is a webhook that is not
+          arriving, and only the second case is worth raising.
         */}
         {position?.kashier_last_transfer != null && n(position.kashier_last_transfer) > 0 && (
           <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2 rounded-tile bg-surface-2 px-3 py-2">
@@ -198,6 +217,12 @@ export function MoneyPositionPanel({
             <span className="tnum text-sm font-medium text-ink">
               {money(position.kashier_last_transfer)}
             </span>
+          </div>
+        )}
+
+        {transferUnheard && (
+          <div className="mt-2">
+            <Notice tone="warn">{t.position.transferUnheard}</Notice>
           </div>
         )}
 

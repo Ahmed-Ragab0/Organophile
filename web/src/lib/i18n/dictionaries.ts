@@ -320,7 +320,7 @@ export const ar = {
     netRevenue: 'صافي الإيراد',
     netRevenueHint: 'اللي بيوصلك فعلًا بعد كل خصومات كاشير',
     available: 'متاح للسحب',
-    ourGross: 'المسجّل عندنا (قبل الرسوم)',
+    ourNet: 'المسجّل عندنا (بعد رسوم كاشير)',
     kashierLastTransfer: 'آخر تحويل عند كاشير',
     gapMinor: 'فرق بسيط — على الأغلب باقي تقريب أو عملية قبل ما النظام يشتغل',
     gapStale: 'فيه دفعات وصلت بعد آخر مزامنة — اضغط تحديث من كاشير',
@@ -335,6 +335,10 @@ export const ar = {
     awaitingHint: 'الصافي ناقص اللي اتحول واللي في الطريق',
     kashierSays: 'رصيد كاشير المعلن',
     kashierSaysHint: 'الرقم اللي كاشير نفسه بيقوله آخر مزامنة',
+    transferUnheard:
+      'كاشير بتقول إنها حوّلت فلوس بعد ما النظام بدأ يسجّل، والنظام موصلوش أي '
+      + 'إشعار بالتحويل ده. يعني ويب هوك التحويلات (transfer) مش مفعّل عند كاشير — '
+      + 'من غيره مش هنعرف يدخل حسابك إمتى ولا بكام.',
     gap: 'الفرق',
     gapOk: 'مطابق',
     gapWarn: 'فيه فرق — راجع المعاملات والتحويلات',
@@ -1137,7 +1141,7 @@ export const en: Dict = {
     netRevenue: 'Net revenue',
     netRevenueHint: 'What actually reaches you, after every Kashier deduction',
     available: 'Available now',
-    ourGross: 'Ours, before fees',
+    ourNet: 'Ours, after Kashier fees',
     kashierLastTransfer: 'Kashier\u2019s last transfer',
     gapMinor: 'Small difference — most likely rounding, or a transaction predating this system',
     gapStale: 'Payments arrived after the last sync — press Refresh from Kashier',
@@ -1152,6 +1156,10 @@ export const en: Dict = {
     awaitingHint: 'Net owed minus what has been transferred and what is in flight',
     kashierSays: 'Balance Kashier reports',
     kashierSaysHint: 'What Kashier itself said at the last sync',
+    transferUnheard:
+      'Kashier says it transferred money out after this system started recording, '
+      + 'and no transfer event ever arrived. The transfers webhook is not enabled '
+      + 'at Kashier — without it, nothing here can say when a payout reaches your bank.',
     gap: 'Difference',
     gapOk: 'Matches',
     gapWarn: 'They disagree — check transactions and transfers',

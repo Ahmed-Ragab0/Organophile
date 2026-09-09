@@ -206,6 +206,40 @@ signed Kashier traffic.**
 - The REST list endpoint uses different names again: `id` not `transferId`,
   `name` not `recipientName`, `createdAt` not `date`. The projection accepts all.
 
+**`payoutFees` is per TRANSFER, not per payment (0038).** 0022 read the account
+endpoint's `payoutFees: 5` as a flat bank fee on every transaction and applied
+it everywhere. Kashier's own balance disproves it to the piastre:
+
+```
+totalBalanceBeforeLastTransfer   292.08
+lastTransfer                   − 100.57
+totalBalance                   = 191.51   ← what the API reports
+
+settled_amount payment #1         95.84
+settled_amount payment #2       + 95.67
+                                = 191.51   ← the same number
+```
+
+The balance is credited with `settled_amount` untouched — gross minus Kashier's
+commission and its VAT, nothing else. Had 5 been withheld per payment it would
+read 181.51. The transfer also removed exactly its own amount from the balance,
+so nothing was withheld on the way out either: the fee comes off the transfer,
+once, and reduces what the bank receives.
+
+Two consequences follow from the same fact:
+
+* **The Kashier balance is NET.** Comparing it against our gross figure — which
+  `v_money_position`'s panel did — can never reach zero; once everything settles
+  it stays short by exactly the fees. Net against net closes.
+* **The gap between our books and their balance is settlement lag**, one payment
+  at a time, and nothing else.
+
+**Transfers are not being ingested.** `kashier_events_raw` holds `pay` events
+and zero `transfer` events; `public.payouts` is empty. Kashier moved 100.57 out
+on 9 Sep 2026 while the system was live and nothing told us. Until that webhook
+is enabled at Kashier, no screen here can say whether a payout reached the bank
+— the money position now says so out loud instead of showing a silent zero.
+
 ### ukkera
 
 Sends different field names from the project brief:
