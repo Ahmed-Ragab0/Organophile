@@ -102,6 +102,45 @@ These are not style preferences. Breaking one causes a real, specific bug.
 8. **Direct writes to `ledger_entries` are denied by RLS.** Everything goes
    through `add_expense`, `add_manual_revenue`, `transfer_between_wallets`,
    `void_ledger_entry`.
+9. **Signing in and being allowed in are two different things.** Supabase Auth
+   proves who you are; `public.admin_users` decides whether that person may see
+   anything. Every policy in the database goes through `app.is_admin()`, and
+   `src/lib/supabase/middleware.ts` makes the same check before rendering a
+   page, so an account that is not on the list gets `/login?denied=1` and the
+   database would refuse it every row anyway.
+
+---
+
+### Letting an account in
+
+**The allowlist is deliberately read-only from the app.** An admin can see the
+list and can never edit it, so a stolen session cannot promote itself or add an
+accomplice. That is why there is no "add admin" screen and should not be one.
+
+Membership is granted out of band, in the Supabase SQL editor, after the person
+has signed up and confirmed their email:
+
+```sql
+insert into public.admin_users (user_id, email)
+select u.id, u.email from auth.users u
+ where lower(u.email) = lower('someone@example.com')
+on conflict (user_id) do update set email = excluded.email;
+```
+
+Revoking is the same statement as a `delete`. There is no partial access: a row
+in that table is the whole system, so treat adding one as handing over the
+books.
+
+**A new account that logs in and bounces straight back to the login page with
+"الحساب ده مش مصرّح له بالدخول" is this working, not failing.** It happened on
+9 Sep 2026 with a second owner account and looked like a bug for exactly as long
+as it took to read the table.
+
+**Public signup should be off.** This console has no self-service tier —
+`Authentication → Sign In / Providers → Email → "Allow new users to sign up"`
+belongs unchecked. Leaving it on lets anyone create an `auth.users` row and make
+the project send confirmation emails; RLS still shows them nothing, but an
+allowlist works better when the queue in front of it is empty.
 
 ---
 
