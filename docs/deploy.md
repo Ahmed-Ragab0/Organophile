@@ -38,6 +38,22 @@ the one that breaks the build if it is missed — the repository root holds
 `supabase/` and `docs/` as well, and the Next app is one level down. Everything
 else (framework, build command, output) is detected.
 
+> **`404: NOT_FOUND` on every path is what missing that looks like.** There is
+> no `package.json` at the repository root, so Vercel finds no framework, builds
+> nothing, and serves an empty deployment — the domain resolves, the edge
+> answers (`fra1::…`), and there is simply nothing behind it. It is a Vercel
+> page, not one of ours: our own 404 is in Arabic with the sidebar around it.
+>
+> Fix it in **Settings → Build and Deployment → Root Directory → `web`**, then
+> **Deployments → ⋯ → Redeploy**. Changing the setting alone does not rebuild.
+>
+> If the Root Directory is already `web`, check in this order:
+> 1. **Deployments** — is there a *Ready* deployment marked **Production**? A
+>    failed build leaves the domain pointing at nothing.
+> 2. **Settings → Domains** — is the domain on *this* project, and assigned to
+>    the production branch rather than a preview?
+> 3. **Settings → Git** — is the production branch `main`?
+
 **Environment variables** — two, and only two:
 
 | Name | Value |
@@ -137,14 +153,23 @@ Worth knowing, so nothing gets moved that should not be:
 
 ## 6. Before you push the button
 
+`.github/workflows/ci.yml` already runs on every push to `main`: `deno fmt
+--check`, lint, typecheck and the signature tests for the Edge Functions; the
+golden vectors regenerated from the real npm packages and diffed; `npm run lint`
+and `npm run build` for the dashboard against placeholder env values; and a
+secret scan.
+
+Vercel builds `main` on every push too, and it does **not** wait for CI. So a
+push with a red build is a broken production deploy — run the same checks before
+pushing rather than after:
+
 ```bash
-cd web && npm run build && npx tsc --noEmit && npx eslint src
-cd ../supabase && deno test --allow-all
+cd supabase && deno fmt --check functions/ tests/ && deno lint functions/ && deno test --allow-all
+cd ../web && npm run lint && npm run build
 ```
 
-Vercel builds `main` on every push, so a red build is a broken production
-deploy. There is no CI in this repository yet — running those four commands is
-the CI.
+`deno fmt --check` is the one that catches people: code that type-checks and
+lints cleanly can still fail it, and it is the first job in the workflow.
 
 **Check the repository is private** unless you mean it to be public. Nothing
 secret is committed — `.secrets/`, `.backups/` and every `.env` are gitignored,

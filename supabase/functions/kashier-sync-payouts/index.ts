@@ -149,14 +149,21 @@ async function handle(req: Request): Promise<Response> {
   // transfers call was answering 400 every single time. A half that failed has
   // to reach the caller, or the screen congratulates the user on nothing.
   const summary = {
-    mode, account: false, accountsReturned: 0,
-    fetched: 0, ingested: 0, duplicates: 0, failed: 0,
+    mode,
+    account: false,
+    accountsReturned: 0,
+    fetched: 0,
+    ingested: 0,
+    duplicates: 0,
+    failed: 0,
     settlement: null as string | null,
     transfersOk: false,
     transfersError: null as { status: number; detail: string | null } | null,
-    transfersTried: null as Array<
-      { path: string; status: number; detail: string | null }
-    > | null,
+    transfersTried: null as
+      | Array<
+        { path: string; status: number; detail: string | null }
+      >
+      | null,
     accountError: null as { status: number; detail: string | null } | null,
   };
 
@@ -177,13 +184,14 @@ async function handle(req: Request): Promise<Response> {
       // zero balance while real money had been collected, which is exactly
       // what reading the wrong row looks like. Prefer the primary, then any
       // account actually holding a balance, and only then fall back to first.
-      const chosen =
-        list.find((a) => a?.isPrimary === true)
-        ?? list.find((a) => Number(a?.totalBalance ?? 0) !== 0
-                         || Number(a?.availableBalance ?? 0) !== 0
-                         || Number(a?.onHoldBalance ?? 0) !== 0)
-        ?? list[0]
-        ?? null;
+      const chosen = list.find((a) => a?.isPrimary === true) ??
+        list.find((a) =>
+          Number(a?.totalBalance ?? 0) !== 0 ||
+          Number(a?.availableBalance ?? 0) !== 0 ||
+          Number(a?.onHoldBalance ?? 0) !== 0
+        ) ??
+        list[0] ??
+        null;
 
       if (chosen) {
         const { error } = await client.rpc('upsert_kashier_account', {
@@ -255,12 +263,16 @@ async function handle(req: Request): Promise<Response> {
           });
           if (settleErr) {
             log('error', 'settlement_ingest_failed', {
-              mode, id: settlement.id, message: settleErr.message,
+              mode,
+              id: settlement.id,
+              message: settleErr.message,
             });
           } else {
             summary.settlement = settlement.id;
             log('info', 'settlement_recorded', {
-              mode, id: settlement.id, amount: settlement.amount,
+              mode,
+              id: settlement.id,
+              amount: settlement.amount,
             });
           }
         }
@@ -276,7 +288,9 @@ async function handle(req: Request): Promise<Response> {
     } else {
       summary.accountError = { status: account.status, detail: account.detail };
       log('warn', 'account_fetch_failed', {
-        mode, status: account.status, detail: account.detail,
+        mode,
+        status: account.status,
+        detail: account.detail,
       });
     }
 
@@ -343,7 +357,10 @@ async function handle(req: Request): Promise<Response> {
       if (res.status !== 200) {
         summary.transfersError = { status: res.status, detail: res.detail };
         log('warn', 'transfers_fetch_failed', {
-          mode, page, status: res.status, detail: res.detail,
+          mode,
+          page,
+          status: res.status,
+          detail: res.detail,
         });
         break;
       }
@@ -360,12 +377,13 @@ async function handle(req: Request): Promise<Response> {
         transfers?: TransferRow[];
       } | null;
       const data = body?.data;
-      const transfers: TransferRow[] =
-        Array.isArray(data) ? data
-          : Array.isArray((data as { transfers?: TransferRow[] })?.transfers)
-            ? (data as { transfers: TransferRow[] }).transfers
-            : Array.isArray(body?.transfers) ? body.transfers
-              : [];
+      const transfers: TransferRow[] = Array.isArray(data)
+        ? data
+        : Array.isArray((data as { transfers?: TransferRow[] })?.transfers)
+        ? (data as { transfers: TransferRow[] }).transfers
+        : Array.isArray(body?.transfers)
+        ? body.transfers
+        : [];
 
       if (transfers.length === 0) {
         /*
