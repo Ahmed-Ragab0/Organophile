@@ -27,6 +27,14 @@ export default function ExpensesPage() {
   const [walletId, setWalletId] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  /**
+   * A voided expense used to be invisible here — the query filtered it out and
+   * nothing offered it back. That contradicts the reason this page voids
+   * instead of deleting: an expense recorded and then reversed is a different
+   * fact from one that never existed, and it can only be a different fact if
+   * you can still see it. It stays out of the total either way.
+   */
+  const [includeVoided, setIncludeVoided] = useState(false);
 
   const wallets = useSupabaseQuery<WalletBalance[]>(
     (sb) => sb.from('v_wallet_balances').select('*').order('sort_order'),
@@ -39,18 +47,18 @@ export default function ExpensesPage() {
         .from('v_ledger')
         .select('*')
         .eq('entry_type', 'expense')
-        .is('voided_at', null)
         .eq('is_test', false)
         .order('occurred_at', { ascending: false })
         .limit(500);
 
+      if (!includeVoided) q = q.is('voided_at', null);
       if (category) q = q.eq('category', category);
       if (walletId) q = q.eq('wallet_id', walletId);
       if (from) q = q.gte('occurred_at', `${from}T00:00:00Z`);
       if (to) q = q.lte('occurred_at', `${to}T23:59:59Z`);
       return q;
     },
-    [category, walletId, from, to],
+    [category, walletId, from, to, includeVoided],
   );
 
   // Gateway fees are no longer expenses, but they are still money out of the
@@ -68,9 +76,13 @@ export default function ExpensesPage() {
   );
 
   const rows = data ?? [];
-  // Totalled over the filtered set, so the figure always matches the table
-  // the user is actually looking at.
-  const total = rows.reduce((s, r) => s + Number(r.amount ?? 0), 0);
+  const voidedRows = rows.filter((r) => r.voided_at !== null);
+  // Totalled over the filtered set, so the figure always matches the table the
+  // user is actually looking at — minus the voided ones, which are shown but
+  // never counted. That is the whole difference between voiding and deleting.
+  const total = rows
+    .filter((r) => r.voided_at === null)
+    .reduce((s, r) => s + Number(r.amount ?? 0), 0);
 
   async function voidEntry(id: string) {
     if (!window.confirm(t.ledger.confirmVoid)) return;
@@ -107,7 +119,16 @@ export default function ExpensesPage() {
       key: 'amount',
       header: t.expenses.amount,
       numeric: true,
-      render: (r) => <Money value={Number(r.amount ?? 0)} tone="danger" />,
+      render: (r) => (
+        <span className={r.voided_at ? 'line-through opacity-60' : undefined}>
+          <Money value={Number(r.amount ?? 0)} tone={r.voided_at ? 'plain' : 'danger'} />
+        </span>
+      ),
+    },
+    {
+      key: 'state',
+      header: '',
+      render: (r) => (r.voided_at ? <Badge tone="danger">{t.ledger.voided}</Badge> : null),
     },
     {
       key: 'notes',
@@ -127,10 +148,12 @@ export default function ExpensesPage() {
           </Button>
           {/* Void, not delete: the ledger is append-only, and an expense that
               was recorded and then reversed is a different fact from one that
-              never existed. */}
-          <Button size="sm" variant="ghost" onClick={() => voidEntry(r.id)}>
-            {t.ledger.voidAction}
-          </Button>
+              never existed. Already voided is not voidable again. */}
+          {!r.voided_at && (
+            <Button size="sm" variant="ghost" onClick={() => voidEntry(r.id)}>
+              {t.ledger.voidAction}
+            </Button>
+          )}
         </div>
       ),
     },
@@ -153,6 +176,7 @@ export default function ExpensesPage() {
                   `expenses-${new Date().toISOString().slice(0, 10)}.csv`,
                   toCsv(rows as unknown as Array<Record<string, unknown>>, [
                     'occurred_at', 'description', 'category', 'wallet_name', 'amount',
+                    'voided_at',
                   ]),
                 )}
             >
@@ -178,7 +202,16 @@ export default function ExpensesPage() {
       )}
 
       <section className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label={t.common.total} value={formatMoney(total, locale)} tone="danger" emphasis />
+        <StatCard
+          label={t.common.total}
+          value={formatMoney(total, locale)}
+          hint={voidedRows.length > 0
+            ? `${t.expenses.voidedExcluded} ${formatMoney(
+                voidedRows.reduce((s, r) => s + Number(r.amount ?? 0), 0), locale)}`
+            : undefined}
+          tone="danger"
+          emphasis
+        />
         {currentMonthCategories.slice(0, 3).map((c) => (
           <StatCard
             key={`${c.month}-${c.category}`}
@@ -209,6 +242,17 @@ export default function ExpensesPage() {
           <Field label={t.common.to}>
             <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </Field>
+        </div>
+        <div className="mt-3">
+          <label className="flex items-center gap-2 text-xs text-ink-muted">
+            <input
+              type="checkbox"
+              checked={includeVoided}
+              onChange={(e) => setIncludeVoided(e.target.checked)}
+              className="accent-[var(--color-accent)]"
+            />
+            {t.expenses.showVoided}
+          </label>
         </div>
       </Card>
 

@@ -56,7 +56,9 @@ function ProfitHero({
     {
       key: 'expenses',
       label: t.finance.totalExpenses,
-      hint: t.finance.expensesHint,
+      // Zero expenses makes the two headline figures identical, which reads as
+      // a mistake unless the card says why.
+      hint: expenses === 0 ? t.finance.noExpenses : t.finance.expensesHint,
       value: -expenses,
       bar: 'bg-danger',
       tone: 'danger' as const,
@@ -91,7 +93,10 @@ function ProfitHero({
         ))}
 
         <div className="flex items-baseline justify-between gap-3 bg-surface-2 px-5 py-3.5">
-          <span className="text-sm font-semibold text-ink">{t.finance.netProfit}</span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-ink">{t.finance.netProfit}</span>
+            <span className="mt-0.5 block text-xs text-ink-faint">{t.finance.netProfitHint}</span>
+          </span>
           <Money
             value={profit}
             tone={profit < 0 ? 'danger' : 'ok'}
