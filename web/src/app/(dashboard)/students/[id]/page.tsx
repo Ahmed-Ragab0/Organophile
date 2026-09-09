@@ -7,7 +7,7 @@ import { useSupabaseQuery } from '@/lib/use-query';
 import { formatDate, formatDateTime, formatMoney } from '@/lib/format';
 import { useState } from 'react';
 import {
-  Button, Card, CardHeader, ErrorState, PageHeader, PageSkeleton,
+  Badge, Button, Card, CardHeader, ErrorState, PageHeader, PageSkeleton,
 } from '@/components/ui/primitives';
 import { LedgerDetailModal } from '@/components/ledger-detail';
 import { PlanTotalInput } from '@/components/plan-total';
@@ -21,7 +21,7 @@ import {
   SignedMoney, StatCard,
 } from '@/components/domain';
 import type {
-  InstallmentPlan, LedgerEntry, StudentFinancials, SubscriptionFinancials, University,
+  InstallmentPlan, LedgerEntry, StudentFinancials, SubscriptionFinancials, Track, University,
 } from '@/types/database';
 
 type SubscriptionRow = SubscriptionFinancials & {
@@ -53,6 +53,11 @@ export default function StudentDetailPage() {
 
   const universities = useSupabaseQuery<University[]>(
     (sb) => sb.from('universities').select('*').order('name'),
+    [],
+  );
+
+  const tracks = useSupabaseQuery<Track[]>(
+    (sb) => sb.from('tracks').select('*').order('name'),
     [],
   );
 
@@ -88,8 +93,15 @@ export default function StudentDetailPage() {
     { name: 'email', label: t.students.email, type: 'text' },
     { name: 'group_name', label: t.students.group, type: 'text' },
     {
-      name: 'university_id', label: t.students.university, type: 'select',
+      name: 'university_id', label: t.students.university, type: 'lookup',
+      lookupTable: 'universities', lookupPrompt: t.classification.universityName,
       options: (universities.data ?? []).map((u) => ({ value: u.id, label: u.name })),
+      hint: t.students.classifiedHint,
+    },
+    {
+      name: 'track_id', label: t.students.track, type: 'lookup',
+      lookupTable: 'tracks', lookupPrompt: t.classification.trackName,
+      options: (tracks.data ?? []).map((tr) => ({ value: tr.id, label: tr.name })),
     },
     { name: 'is_active', label: t.students.activeLabel, type: 'checkbox' },
   ];
@@ -165,9 +177,18 @@ export default function StudentDetailPage() {
 
       <PageHeader
         title={s.name}
-        subtitle={[s.phone, s.university_name, s.group_name].filter(Boolean).join(' · ')}
+        subtitle={[s.phone, s.group_name].filter(Boolean).join(' · ')}
         action={(
           <div className="flex items-center gap-2">
+            {/* Where the classification came from, because it decides whether
+                the next payment may still change it. */}
+            <Badge tone={s.university_name || s.track_name ? 'info' : 'neutral'}>
+              {[s.university_name, s.track_name].filter(Boolean).join(' · ')
+                || t.students.unclassified}
+            </Badge>
+            <Badge tone="neutral">
+              {s.classification_locked ? t.students.classifiedByHand : t.students.classifiedAuto}
+            </Badge>
             <PaymentStatusBadge status={s.payment_status} />
             <RecordActions
               archived={!s.is_active}

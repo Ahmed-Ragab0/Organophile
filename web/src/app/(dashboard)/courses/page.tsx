@@ -6,12 +6,12 @@ import { useI18n } from '@/lib/i18n/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { formatMoney } from '@/lib/format';
 import {
-  ActiveFilters, Badge, Card, CardHeader, cx, Field, PageHeader, Select,
+  ActiveFilters, Badge, Button, Card, CardHeader, cx, Field, PageHeader, Select,
 } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
 import { Money, PaymentStatusBadge, StatCard } from '@/components/domain';
 import {
-  DeleteRecordDialog, EditRecordModal, RecordActions,
+  CreateRecordModal, DeleteRecordDialog, EditRecordModal, RecordActions,
   type FieldSpec, type RecordKind,
 } from '@/components/record-actions';
 import type { CourseCatalogueRow, StudentFinancials, University } from '@/types/database';
@@ -28,8 +28,11 @@ export default function CoursesPage() {
   const [courseId, setCourseId] = useState<string | null>(null);
   // Track and year come out of the course title, so they can narrow the list
   // the same way the university does — which is the point of parsing them.
-  const [track, setTrack] = useState('');
+  // The track filters on the row's id, not its spelling: two courses written
+  // "Clinical" and "CLINICAL" are one specialisation and must filter as one.
+  const [trackId, setTrackId] = useState('');
   const [classYear, setClassYear] = useState('');
+  const [creating, setCreating] = useState<RecordKind | null>(null);
   // One pair of dialogs for both levels of the drill-down: a course and a
   // university are the same three verbs over a different kind.
   const [editing, setEditing] = useState<
@@ -51,6 +54,7 @@ export default function CoursesPage() {
       sb.rpc('search_students', {
         p_search: null,
         p_university_id: universityId,
+        p_track_id: trackId || null,
         p_course_id: courseId,
         p_payment_status: null,
         p_active: null,
@@ -62,17 +66,21 @@ export default function CoursesPage() {
         p_limit: 500,
         p_offset: 0,
       }),
-    [universityId, courseId],
+    [universityId, trackId, courseId],
   );
 
   const allCourses = catalogue.data ?? [];
   const courses = allCourses.filter((c) =>
     (!universityId || c.university_id === universityId)
-    && (!track || c.track === track)
+    && (!trackId || c.track_id === trackId)
     && (!classYear || String(c.class_year ?? '') === classYear));
 
   /** Every value actually present, so a filter never offers an empty result. */
-  const tracks = [...new Set(allCourses.map((c) => c.track).filter(Boolean))] as string[];
+  const tracks = [...new Map(
+    allCourses
+      .filter((c) => c.track_id)
+      .map((c) => [c.track_id as string, c.track_name ?? c.track ?? '—']),
+  )].map(([value, label]) => ({ value, label }));
   const years = [...new Set(allCourses.map((c) => c.class_year).filter(Boolean))]
     .sort((a, b) => Number(a) - Number(b)) as number[];
 
@@ -184,9 +192,14 @@ export default function CoursesPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             {tracks.length > 1 && (
               <Field label={t.courseInfo.track}>
-                <Select value={track} onChange={(e) => { setTrack(e.target.value); setCourseId(null); }}>
+                <Select
+                  value={trackId}
+                  onChange={(e) => { setTrackId(e.target.value); setCourseId(null); }}
+                >
                   <option value="">{t.common.all}</option>
-                  {tracks.map((tr) => <option key={tr} value={tr}>{tr}</option>)}
+                  {tracks.map((tr) => (
+                    <option key={tr.value} value={tr.value}>{tr.label}</option>
+                  ))}
                 </Select>
               </Field>
             )}
@@ -205,9 +218,10 @@ export default function CoursesPage() {
           <div className="mt-3">
             <ActiveFilters
               filters={[
-                track && {
-                  key: 'track', label: t.courseInfo.track, value: track,
-                  onRemove: () => setTrack(''),
+                trackId && {
+                  key: 'track', label: t.courseInfo.track,
+                  value: tracks.find((tr) => tr.value === trackId)?.label ?? trackId,
+                  onRemove: () => setTrackId(''),
                 },
                 classYear && {
                   key: 'year', label: t.courseInfo.classYear, value: classYear,
@@ -216,7 +230,7 @@ export default function CoursesPage() {
               ].filter(Boolean) as Array<{
                 key: string; label: string; value: string; onRemove: () => void;
               }>}
-              onClear={() => { setTrack(''); setClassYear(''); }}
+              onClear={() => { setTrackId(''); setClassYear(''); }}
               label={t.subscriptions.activeFilters}
               clearAllLabel={t.subscriptions.clearFilters}
             />
@@ -237,7 +251,23 @@ export default function CoursesPage() {
 
       {!universityId && (
         <Card className="mb-4">
-          <CardHeader title={t.courses.university} />
+          <CardHeader
+            title={t.courses.university}
+            hint={t.classification.subtitle}
+            action={
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="secondary" onClick={() => setCreating('university')}>
+                  {t.classification.addUniversity}
+                </Button>
+                <Link
+                  href="/classification"
+                  className="text-xs text-ink-muted hover:text-accent-strong"
+                >
+                  {t.classification.title} ←
+                </Link>
+              </div>
+            }
+          />
           <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
             {(universities.data ?? []).map((u) => {
               const count = allCourses.filter((c) => c.university_id === u.id).length;
@@ -292,7 +322,9 @@ export default function CoursesPage() {
                   {c.level !== null && (
                     <Badge tone="brand">{`${t.courseInfo.level} ${c.level}`}</Badge>
                   )}
-                  {c.track && <Badge tone="info">{c.track}</Badge>}
+                  {(c.track_name ?? c.track) && (
+                    <Badge tone="info">{c.track_name ?? c.track}</Badge>
+                  )}
                   {c.section && (
                     <Badge tone="neutral">
                       {t.courseInfo.sections[c.section as keyof typeof t.courseInfo.sections] ?? c.section}
@@ -346,6 +378,18 @@ export default function CoursesPage() {
           errorMessage={t.common.error}
         />
       </Card>
+
+      {creating && (
+        <CreateRecordModal
+          open
+          onClose={() => setCreating(null)}
+          table="universities"
+          values={{ is_active: true }}
+          fields={fieldsFor.university}
+          title={t.classification.addUniversity}
+          onSaved={afterChange}
+        />
+      )}
 
       {editing && (
         <EditRecordModal

@@ -65,6 +65,7 @@ export const ar = {
     reports: 'التقارير',
     pricing: 'الأسعار والدفعات',
     journey: 'رحلة الطلب',
+    classification: 'الجامعات والتخصصات',
   },
   navGroups: {
     money: 'المالية',
@@ -133,6 +134,13 @@ export const ar = {
     phone: 'الموبايل',
     group: 'المجموعة',
     university: 'الجامعة',
+    track: 'التخصص',
+    unclassified: 'من غير تحديد',
+    classifiedAuto: 'اتحدد من الكورس',
+    classifiedByHand: 'اتحدد يدوي',
+    classifiedHint:
+      'الجامعة والتخصص بيتقروا من اسم الكورس اللي الطالب اشترك فيه. أول ما تعدّلهم '
+      + 'بإيدك يبقوا بتوعك، والسيستم مبيغيّرهمش تاني.',
     email: 'البريد',
     subscriptions: 'الاشتراكات',
     paid: 'المدفوع',
@@ -583,12 +591,16 @@ export const ar = {
     detachWarning: 'الحاجات دي مش هتتمسح، بس هتفضل من غير ارتباط بالسجل ده.',
     nothingAttached: 'مفيش حاجة مرتبطة بيه — الحذف آمن.',
     blockedShort: 'مينفعش يتمسح',
+    addNew: '+ جديد',
+    detachClassification:
+      'مش هتتمسح، بس هتفضل من غير تصنيف لحد ما تحددهم تاني.',
     kinds: {
       student: 'طالب',
       course: 'كورس',
       package: 'باقة',
       subscription: 'اشتراك',
       university: 'جامعة',
+      track: 'تخصص',
       wallet: 'محفظة',
       installment_plan: 'خطة أقساط',
     },
@@ -636,6 +648,28 @@ export const ar = {
       installment: 'بالقسط',
       other: 'غير محدد',
     },
+  },
+  classification: {
+    title: 'الجامعات والتخصصات',
+    subtitle: 'الحاجتين اللي بيتصنّف بيهم الطالب والكورس',
+    universities: 'الجامعات',
+    tracks: 'التخصصات',
+    addUniversity: 'جامعة جديدة',
+    addTrack: 'تخصص جديد',
+    universityName: 'اسم الجامعة',
+    trackName: 'اسم التخصص',
+    activeLabel: 'مفعّل',
+    coursesCount: 'كورس',
+    studentsCount: 'طالب',
+    emptyUniversities: 'مفيش جامعات لسه — ضيف واحدة، أو هتتضاف لوحدها أول ما يجي كورس باسمها.',
+    emptyTracks: 'مفيش تخصصات لسه',
+    renameNote:
+      'لو غيّرت الاسم، كل الكتابات القديمة بتاعته بتفضل مربوطة بيه — يعني الكورس اللي '
+      + 'جاي من يوكيرا مكتوب فيه Azhar Cairo هيقع على نفس الجامعة بعد ما تسمّيها من تاني.',
+    autoNote:
+      'اسم الكورس زي ORGANIC 1 - Azhar Cairo - Girls - 2027 - Clinical بيتقسّم لوحده: '
+      + 'الجامعة والتخصص بيتربطوا بالصفوف اللي هنا، والطالب بياخد نفس التصنيف من الكورس '
+      + 'اللي اشترك فيه.',
   },
   courseInfo: {
     university: 'الجامعة',
@@ -712,6 +746,7 @@ export const ar = {
     tabMonths: 'شهر بشهر',
     tabCourses: 'الكورسات',
     tabUniversities: 'الجامعات',
+    tabTracks: 'التخصصات',
     tabExpenses: 'المصروفات',
     tabMethods: 'وسيلة الدفع',
     tabFees: 'رسوم كاشير',
@@ -728,6 +763,7 @@ export const ar = {
     category: 'البند',
     course: 'الكورس',
     university: 'الجامعة',
+    track: 'التخصص',
     method: 'الوسيلة',
     fees: 'الرسوم',
     vat: 'ض.ق.م',
@@ -833,6 +869,7 @@ export const en: Dict = {
     reports: 'Reports',
     pricing: 'Pricing & instalments',
     journey: 'Order journey',
+    classification: 'Universities & tracks',
   },
   navGroups: {
     money: 'Finance',
@@ -901,6 +938,14 @@ export const en: Dict = {
     phone: 'Phone',
     group: 'Group',
     university: 'University',
+    track: 'Track',
+    unclassified: 'Not set',
+    classifiedAuto: 'From the course',
+    classifiedByHand: 'Set by hand',
+    classifiedHint:
+      'The university and track are read from the titles of the courses this '
+      + 'student bought. The moment you edit either, they are yours and the '
+      + 'system stops changing them.',
     email: 'Email',
     subscriptions: 'Subscriptions',
     paid: 'Paid',
@@ -1348,12 +1393,16 @@ export const en: Dict = {
     detachWarning: 'These are not deleted, but they will no longer point at this record.',
     nothingAttached: 'Nothing is attached — safe to delete.',
     blockedShort: 'Cannot be deleted',
+    addNew: '+ New',
+    detachClassification:
+      'These are not deleted, but they stay unclassified until you set them again.',
     kinds: {
       student: 'Student',
       course: 'Course',
       package: 'Package',
       subscription: 'Subscription',
       university: 'University',
+      track: 'Track',
       wallet: 'Wallet',
       installment_plan: 'Instalment plan',
     },
@@ -1401,6 +1450,29 @@ export const en: Dict = {
       installment: 'Instalments',
       other: 'Unspecified',
     },
+  },
+  classification: {
+    title: 'Universities & tracks',
+    subtitle: 'The two things a student and a course are classified by',
+    universities: 'Universities',
+    tracks: 'Tracks',
+    addUniversity: 'New university',
+    addTrack: 'New track',
+    universityName: 'University name',
+    trackName: 'Track name',
+    activeLabel: 'Active',
+    coursesCount: 'courses',
+    studentsCount: 'students',
+    emptyUniversities:
+      'No universities yet — add one, or let the first course carrying a name create it.',
+    emptyTracks: 'No tracks yet',
+    renameNote:
+      'Renaming keeps every past spelling attached: a course arriving from ukkera '
+      + 'spelled "Azhar Cairo" still lands on this same university afterwards.',
+    autoNote:
+      'A title like ORGANIC 1 - Azhar Cairo - Girls - 2027 - Clinical is taken apart '
+      + 'on arrival: its university and track bind to the rows here, and a student '
+      + 'inherits the same classification from the course they bought.',
   },
   courseInfo: {
     university: 'University',
@@ -1477,6 +1549,7 @@ export const en: Dict = {
     tabMonths: 'By month',
     tabCourses: 'By course',
     tabUniversities: 'By university',
+    tabTracks: 'By track',
     tabExpenses: 'Expenses',
     tabMethods: 'Payment method',
     tabFees: 'Kashier fees',
@@ -1493,6 +1566,7 @@ export const en: Dict = {
     category: 'Category',
     course: 'Course',
     university: 'University',
+    track: 'Track',
     method: 'Method',
     fees: 'Fees',
     vat: 'VAT',

@@ -11,7 +11,7 @@ import {
 /** The record families `describe_record` / `delete_record` understand. */
 export type RecordKind =
   | 'student' | 'course' | 'package' | 'subscription'
-  | 'university' | 'wallet' | 'installment_plan';
+  | 'university' | 'track' | 'wallet' | 'installment_plan';
 
 type LinkRow = { what: string; count: number; money: boolean };
 
@@ -32,8 +32,15 @@ type RecordInfo = {
 export type FieldSpec = {
   name: string;
   label: string;
-  type: 'text' | 'number' | 'date' | 'select' | 'checkbox' | 'textarea';
+  type: 'text' | 'number' | 'date' | 'select' | 'checkbox' | 'textarea' | 'lookup';
   options?: Array<{ value: string; label: string }>;
+  /**
+   * `lookup` only: the table a missing option is created in, on the spot. A
+   * student whose university is not in the list is the normal case, not an
+   * error, and sending someone to another screen to fix it loses the form.
+   */
+  lookupTable?: string;
+  lookupPrompt?: string;
   hint?: string;
   required?: boolean;
   /** Shown for context, never sent. */
@@ -151,7 +158,11 @@ export function DeleteRecordDialog({
                 )}
               </Notice>
             ) : info.links.length > 0 ? (
-              <Notice tone="warn">{t.records.detachWarning}</Notice>
+              <Notice tone="warn">
+                {kind === 'university' || kind === 'track'
+                  ? t.records.detachClassification
+                  : t.records.detachWarning}
+              </Notice>
             ) : (
               <Notice tone="info">{t.records.nothingAttached}</Notice>
             )}
@@ -180,26 +191,28 @@ export function DeleteRecordDialog({
   );
 }
 
-/* -------------------------------------------------------------------- edit */
+/* -------------------------------------------------------- create and edit */
 
 /**
- * Editing, built from a field list rather than hand-written per screen.
+ * One form for every entity, built from a field list rather than written per
+ * screen. Creating and editing differ by a single line — an insert or an
+ * update — so they are the same component: two forms would drift.
  *
- * Every entity's form is the same form; the difference is a spec. Only changed
- * fields are sent, so an untouched form writes nothing and `updated_at` stays
- * honest about when a record last actually changed.
+ * Editing sends only changed fields, so an untouched form writes nothing and
+ * `updated_at` stays honest about when a record last actually changed.
  */
-export function EditRecordModal<T extends Record<string, unknown>>({
+function RecordFormModal<T extends Record<string, unknown>>({
   open, onClose, table, id, fields, values, title, onSaved,
 }: {
   open: boolean;
   onClose: () => void;
   table: string;
-  id: string;
+  /** null creates a new row; a string updates that one. */
+  id: string | null;
   fields: FieldSpec[];
   values: T;
   title: string;
-  onSaved: () => void;
+  onSaved: (id?: string) => void;
 }) {
   const { t } = useI18n();
 
@@ -212,20 +225,64 @@ export function EditRecordModal<T extends Record<string, unknown>>({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openedFor, setOpenedFor] = useState<string | null>(null);
+  // Options created from inside this form, kept locally so the new one is
+  // selected immediately instead of after a round trip through the parent.
+  const [added, setAdded] = useState<Record<string, Array<{ value: string; label: string }>>>({});
+  const [adding, setAdding] = useState<string | null>(null);
+  const [newName, setNewName] = useState('');
 
-  if (open && openedFor !== id) {
-    setOpenedFor(id);
+  const key = id ?? '__new__';
+  if (open && openedFor !== key) {
+    setOpenedFor(key);
     setDraft(seed());
+    setAdded({});
+    setAdding(null);
+    setNewName('');
     setError(null);
   }
   if (!open && openedFor !== null) setOpenedFor(null);
 
   if (!open) return null;
 
+  async function createOption(f: FieldSpec) {
+    const name = newName.trim();
+    if (!f.lookupTable || name === '') return;
+    setBusy(true);
+    setError(null);
+    const { data, error: err } = await createClient()
+      .from(f.lookupTable).insert({ name }).select('id, name').single();
+    setBusy(false);
+    if (err) { setError(err.message); return; }
+    const row = data as { id: string; name: string };
+    setAdded((a) => ({
+      ...a, [f.name]: [...(a[f.name] ?? []), { value: row.id, label: row.name }],
+    }));
+    setDraft((d) => ({ ...d, [f.name]: row.id }));
+    setAdding(null);
+    setNewName('');
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    const sb = createClient();
+
+    if (id === null) {
+      const row: Record<string, unknown> = {};
+      for (const f of fields) {
+        if (f.readOnly) continue;
+        const v = draft[f.name];
+        if (v === '' || v === undefined) continue;
+        row[f.name] = f.type === 'number' ? Number(v) : v;
+      }
+      const { data, error: err } = await sb.from(table).insert(row).select('id').single();
+      setBusy(false);
+      if (err) { setError(err.message); return; }
+      onSaved((data as { id: string } | null)?.id);
+      onClose();
+      return;
+    }
 
     const patch: Record<string, unknown> = {};
     for (const f of fields) {
@@ -239,10 +296,10 @@ export function EditRecordModal<T extends Record<string, unknown>>({
 
     if (Object.keys(patch).length === 0) { setBusy(false); onClose(); return; }
 
-    const { error: err } = await createClient().from(table).update(patch).eq('id', id);
+    const { error: err } = await sb.from(table).update(patch).eq('id', id);
     setBusy(false);
     if (err) { setError(err.message); return; }
-    onSaved();
+    onSaved(id);
     onClose();
   }
 
@@ -261,20 +318,56 @@ export function EditRecordModal<T extends Record<string, unknown>>({
               />
             );
           }
+
+          if (f.type === 'lookup' || f.type === 'select') {
+            const options = [...(f.options ?? []), ...(added[f.name] ?? [])];
+            return (
+              <Field key={f.name} label={f.required ? `${f.label} *` : f.label} hint={f.hint}>
+                <div className="flex gap-2">
+                  <Select
+                    value={String(value ?? '')}
+                    disabled={f.readOnly}
+                    onChange={(e) => setDraft((d) => ({ ...d, [f.name]: e.target.value }))}
+                  >
+                    <option value="">—</option>
+                    {options.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </Select>
+                  {f.type === 'lookup' && !f.readOnly && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => { setAdding(adding === f.name ? null : f.name); setNewName(''); }}
+                    >
+                      {adding === f.name ? t.common.cancel : t.records.addNew}
+                    </Button>
+                  )}
+                </div>
+                {adding === f.name && (
+                  <div className="mt-2 flex gap-2">
+                    <Input
+                      value={newName}
+                      placeholder={f.lookupPrompt ?? f.label}
+                      onChange={(e) => setNewName(e.target.value)}
+                    />
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={busy || newName.trim() === ''}
+                      onClick={() => void createOption(f)}
+                    >
+                      {t.common.add}
+                    </Button>
+                  </div>
+                )}
+              </Field>
+            );
+          }
+
           return (
             <Field key={f.name} label={f.required ? `${f.label} *` : f.label} hint={f.hint}>
-              {f.type === 'select' ? (
-                <Select
-                  value={String(value ?? '')}
-                  disabled={f.readOnly}
-                  onChange={(e) => setDraft((d) => ({ ...d, [f.name]: e.target.value }))}
-                >
-                  <option value="">—</option>
-                  {(f.options ?? []).map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </Select>
-              ) : f.type === 'textarea' ? (
+              {f.type === 'textarea' ? (
                 <Textarea
                   value={String(value ?? '')}
                   readOnly={f.readOnly}
@@ -304,6 +397,33 @@ export function EditRecordModal<T extends Record<string, unknown>>({
       </form>
     </Modal>
   );
+}
+
+export function EditRecordModal<T extends Record<string, unknown>>(props: {
+  open: boolean;
+  onClose: () => void;
+  table: string;
+  id: string;
+  fields: FieldSpec[];
+  values: T;
+  title: string;
+  onSaved: () => void;
+}) {
+  return <RecordFormModal {...props} onSaved={() => props.onSaved()} />;
+}
+
+export function CreateRecordModal(props: {
+  open: boolean;
+  onClose: () => void;
+  table: string;
+  fields: FieldSpec[];
+  title: string;
+  /** Starting values — a create form opened from a filtered list can prefill. */
+  values?: Record<string, unknown>;
+  onSaved: (id?: string) => void;
+}) {
+  const { values = {}, ...rest } = props;
+  return <RecordFormModal {...rest} id={null} values={values} />;
 }
 
 /* ----------------------------------------------------------------- actions */

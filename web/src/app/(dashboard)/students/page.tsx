@@ -15,7 +15,7 @@ import {
   DeleteRecordDialog, EditRecordModal, RecordActions, type FieldSpec,
 } from '@/components/record-actions';
 import type {
-  Course, PaymentStatus, StudentFinancials, University,
+  Course, PaymentStatus, StudentFinancials, Track, University,
 } from '@/types/database';
 
 const STATUSES: PaymentStatus[] = ['paid', 'partial', 'unpaid', 'overdue', 'unknown'];
@@ -27,6 +27,7 @@ export default function StudentsPage() {
 
   const [search, setSearch] = useState('');
   const [universityId, setUniversityId] = useState('');
+  const [trackId, setTrackId] = useState('');
   const [courseId, setCourseId] = useState('');
   const [status, setStatus] = useState('');
   const [active, setActive] = useState('');
@@ -40,6 +41,11 @@ export default function StudentsPage() {
 
   const universities = useSupabaseQuery<University[]>(
     (sb) => sb.from('universities').select('*').order('name'),
+    [],
+  );
+
+  const tracks = useSupabaseQuery<Track[]>(
+    (sb) => sb.from('tracks').select('*').order('name'),
     [],
   );
 
@@ -59,6 +65,7 @@ export default function StudentsPage() {
       sb.rpc('search_students', {
         p_search: search || null,
         p_university_id: universityId || null,
+        p_track_id: trackId || null,
         p_course_id: courseId || null,
         p_payment_status: status || null,
         p_active: active === '' ? null : active === 'true',
@@ -70,7 +77,8 @@ export default function StudentsPage() {
         p_limit: PAGE_SIZE,
         p_offset: page * PAGE_SIZE,
       }),
-    [search, universityId, courseId, status, active, registeredFrom, registeredTo, onlyDebt, onlyPaid, page],
+    [search, universityId, trackId, courseId, status, active, registeredFrom, registeredTo,
+     onlyDebt, onlyPaid, page],
   );
 
   const rows = data ?? [];
@@ -89,7 +97,7 @@ export default function StudentsPage() {
 
   function resetFilters() {
     setPage(0);
-    setSearch(''); setUniversityId(''); setCourseId(''); setStatus(''); setActive('');
+    setSearch(''); setUniversityId(''); setTrackId(''); setCourseId(''); setStatus(''); setActive('');
     setRegisteredFrom(''); setRegisteredTo(''); setOnlyDebt(false); setOnlyPaid(false);
   }
 
@@ -107,7 +115,14 @@ export default function StudentsPage() {
     {
       key: 'university',
       header: t.students.university,
-      render: (r) => r.university_name ?? <span className="text-ink-faint">—</span>,
+      render: (r) => (
+        <div className="min-w-0">
+          <p className="truncate">
+            {r.university_name ?? <span className="text-ink-faint">—</span>}
+          </p>
+          {r.track_name && <p className="truncate text-xs text-ink-faint">{r.track_name}</p>}
+        </div>
+      ),
     },
     {
       key: 'courses',
@@ -166,8 +181,15 @@ export default function StudentsPage() {
     { name: 'email', label: t.students.email, type: 'text' },
     { name: 'group_name', label: t.students.group, type: 'text' },
     {
-      name: 'university_id', label: t.students.university, type: 'select',
+      name: 'university_id', label: t.students.university, type: 'lookup',
+      lookupTable: 'universities', lookupPrompt: t.classification.universityName,
       options: (universities.data ?? []).map((u) => ({ value: u.id, label: u.name })),
+      hint: t.students.classifiedHint,
+    },
+    {
+      name: 'track_id', label: t.students.track, type: 'lookup',
+      lookupTable: 'tracks', lookupPrompt: t.classification.trackName,
+      options: (tracks.data ?? []).map((tr) => ({ value: tr.id, label: tr.name })),
     },
     { name: 'is_active', label: t.students.activeLabel, type: 'checkbox' },
   ];
@@ -187,7 +209,7 @@ export default function StudentsPage() {
                 downloadCsv(
                   `students-${new Date().toISOString().slice(0, 10)}.csv`,
                   toCsv(rows as unknown as Array<Record<string, unknown>>, [
-                    'name', 'phone', 'university_name', 'group_name', 'courses',
+                    'name', 'phone', 'university_name', 'track_name', 'group_name', 'courses',
                     'total_due', 'total_paid', 'remaining', 'payment_status', 'registered_at',
                   ]),
                 )}
@@ -226,6 +248,15 @@ export default function StudentsPage() {
               <option value="">{t.courses.allUniversities}</option>
               {(universities.data ?? []).map((u) => (
                 <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label={t.students.track}>
+            <Select value={trackId} onChange={(e) => change(setTrackId)(e.target.value)}>
+              <option value="">{t.common.all}</option>
+              {(tracks.data ?? []).map((tr) => (
+                <option key={tr.id} value={tr.id}>{tr.name}</option>
               ))}
             </Select>
           </Field>

@@ -291,6 +291,42 @@ never existed.
 
 ---
 
+### Universities and specialisations
+
+The two things a student and a course are classified by. Both are **rows**
+(`public.universities`, `public.tracks`), both are managed on
+`/classification`, and both appear as a dropdown wherever a student or a course
+is edited — with a `+ جديد` beside it, because a missing university is the
+normal case and walking someone to another screen loses the form they are in.
+
+**A spelling is bound to a row, not to a name.** `university_aliases` and
+`track_aliases` map every way an upstream might write it — `Azhar Cairo`,
+`AL-AZHAR CAIRO` — onto one row, and learn spellings they have not seen. Both
+tables carry the row's **id**: before that they stored the display name, so
+renaming a university left the alias pointing at a name that no longer existed
+and the next delivery carrying the old spelling **created a second university**.
+The rename looked fine right up until the next payment.
+
+**A student's classification is read out of the courses they bought**, by
+`app.classify_student`, under two rules:
+
+* *Unanimity or nothing.* A student on two universities' courses has no one
+  university, and a guess only beats a blank until somebody believes it.
+* *The admin wins, permanently.* `students.classification_locked` is set by a
+  trigger the moment either field is changed by hand — including changed to
+  **empty**. That is what makes a deliberately cleared field stay cleared
+  instead of reappearing after the next payment.
+
+Filters follow the id, never the word: `Clinical` and `CLINICAL` in two course
+titles are one specialisation and must narrow a list as one. Reports gain
+**التخصصات** beside **الجامعات**, both net of the gateway's cut.
+
+Deleting either is allowed — no money points at a classification — but the
+dialog says what it un-labels first. The foreign keys are SET NULL, so courses
+and students survive it and simply become unclassified.
+
+---
+
 ## 7. Open issues
 
 1. **What identifies a purchase? — settled, after getting it wrong once.**

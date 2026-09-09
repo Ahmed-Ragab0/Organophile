@@ -47,7 +47,9 @@ export default function SubscriptionsPage() {
   // course's track are now columns on the view, so they can be filters rather
   // than something you scan the list for.
   const [planKind, setPlanKind] = useState('');
-  const [track, setTrack] = useState('');
+  // The id, not the word: the same specialisation spelled two ways in two
+  // course titles is one row, and must filter as one.
+  const [trackId, setTrackId] = useState('');
   const [editing, setEditing] = useState<SubscriptionListRow | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [enrolledFrom, setEnrolledFrom] = useState('');
@@ -104,7 +106,7 @@ export default function SubscriptionsPage() {
       if (status) q = q.eq('payment_status', status);
       if (priceSource) q = q.eq('price_source', priceSource);
       if (planKind) q = q.eq('plan_kind', planKind);
-      if (track) q = q.eq('track', track);
+      if (trackId) q = q.eq('track_id', trackId);
       if (enrolledFrom) q = q.gte('enrolled_at', enrolledFrom);
       // The end date is inclusive: `lte` on a timestamp would cut the day off
       // at midnight and quietly drop everything enrolled that day.
@@ -115,7 +117,7 @@ export default function SubscriptionsPage() {
         error: { message: string } | null;
       }>;
     },
-    [search, courseId, packageId, status, priceSource, planKind, track,
+    [search, courseId, packageId, status, priceSource, planKind, trackId,
      enrolledFrom, enrolledTo, page],
   );
 
@@ -138,13 +140,17 @@ export default function SubscriptionsPage() {
   function resetFilters() {
     setPage(0);
     setSearch(''); setCourseId(''); setPackageId(''); setStatus('');
-    setPriceSource(''); setPlanKind(''); setTrack('');
+    setPriceSource(''); setPlanKind(''); setTrackId('');
     setEnrolledFrom(''); setEnrolledTo('');
   }
 
   // Offered from what the courses actually say, so the select can never
   // present a track that would return nothing.
-  const tracks = [...new Set((courses.data ?? []).map((c) => c.track).filter(Boolean))] as string[];
+  const tracks = [...new Map(
+    (courses.data ?? [])
+      .filter((c) => c.track_id)
+      .map((c) => [c.track_id as string, c.track ?? '—']),
+  )].map(([value, label]) => ({ value, label }));
 
   const courseName = (courses.data ?? []).find((c) => c.id === courseId)?.name ?? courseId;
   const packageName = (packages.data ?? []).find((p) => p.id === packageId)?.name ?? packageId;
@@ -180,9 +186,10 @@ export default function SubscriptionsPage() {
       value: t.plans.kinds[planKind as keyof typeof t.plans.kinds],
       onRemove: () => change(setPlanKind)(''),
     },
-    track && {
-      key: 'track', label: t.courseInfo.track, value: track,
-      onRemove: () => change(setTrack)(''),
+    trackId && {
+      key: 'track', label: t.courseInfo.track,
+      value: tracks.find((tr) => tr.value === trackId)?.label ?? trackId,
+      onRemove: () => change(setTrackId)(''),
     },
     enrolledFrom && {
       key: 'from', label: t.common.from, value: enrolledFrom,
@@ -223,7 +230,9 @@ export default function SubscriptionsPage() {
                 {t.courseInfo.level} {formatNumber(r.level, locale)}
               </span>
             )}
-            {r.track && <span className="text-xs text-ink-faint">{r.track}</span>}
+            {(r.track_name ?? r.track) && (
+              <span className="text-xs text-ink-faint">{r.track_name ?? r.track}</span>
+            )}
             {r.class_year !== null && (
               <span className="text-xs text-ink-faint tnum">{r.class_year}</span>
             )}
@@ -354,7 +363,7 @@ export default function SubscriptionsPage() {
                       level: r.level ?? '',
                       section: r.section ?? '',
                       class_year: r.class_year ?? '',
-                      track: r.track ?? '',
+                      track: r.track_name ?? r.track ?? '',
                       plan_installments_paid: r.installments_paid ?? '',
                       plan_installment_count: r.plan_installment_count ?? '',
                       plan_remaining: r.plan_remaining ?? '',
@@ -431,9 +440,9 @@ export default function SubscriptionsPage() {
           </Field>
 
           <Field label={t.courseInfo.track}>
-            <Select value={track} onChange={(e) => change(setTrack)(e.target.value)}>
+            <Select value={trackId} onChange={(e) => change(setTrackId)(e.target.value)}>
               <option value="">{t.common.all}</option>
-              {tracks.map((tr) => <option key={tr} value={tr}>{tr}</option>)}
+              {tracks.map((tr) => <option key={tr.value} value={tr.value}>{tr.label}</option>)}
             </Select>
           </Field>
 

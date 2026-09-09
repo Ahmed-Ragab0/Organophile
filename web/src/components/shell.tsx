@@ -37,6 +37,7 @@ const NAV_GROUPS = [
       { href: '/courses', key: 'courses' },
       { href: '/subscriptions', key: 'subscriptions' },
       { href: '/pricing', key: 'pricing' },
+      { href: '/classification', key: 'classification' },
     ],
   },
   {

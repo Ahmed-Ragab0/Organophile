@@ -88,6 +88,14 @@ export const IconCourses = (p: IconProps) => (
   </Svg>
 );
 
+/** Classification — a label tied onto something. */
+export const IconClassification = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M11.6 3H6.5A3.5 3.5 0 0 0 3 6.5v5.1a2 2 0 0 0 .59 1.41l7.4 7.4a2 2 0 0 0 2.82 0l5.1-5.1a2 2 0 0 0 0-2.82l-7.4-7.4A2 2 0 0 0 11.6 3z" />
+    <circle cx="8.1" cy="8.1" r="1.35" />
+  </Svg>
+);
+
 export const IconSubscriptions = (p: IconProps) => (
   <Svg {...p}>
     <path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h15A1.5 1.5 0 0 1 21 8.5v2a2 2 0 0 0 0 3.9v2A1.5 1.5 0 0 1 19.5 18h-15A1.5 1.5 0 0 1 3 16.4v-2a2 2 0 0 0 0-3.9z" />
@@ -231,6 +239,7 @@ export const NAV_ICONS = {
   reports: IconReports,
   students: IconStudents,
   courses: IconCourses,
+  classification: IconClassification,
   subscriptions: IconSubscriptions,
   pricing: IconPricing,
   journey: IconJourney,

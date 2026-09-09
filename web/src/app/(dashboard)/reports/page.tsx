@@ -14,8 +14,8 @@ import { MoneyModeNotice } from '@/components/money-mode-notice';
 import { MoneyPositionPanel } from '@/components/money-position';
 import type {
   ExpenseByCategory, FeesMonthly, FinanceDaily, InstallmentPlan, MoneyPosition, MonthlyReport,
-  PayoutsMonthly, PlanStatus, RevenueByCourse, RevenueByMethod, RevenueByUniversity,
-  StudentFinancials, WalletBalance,
+  PayoutsMonthly, PlanStatus, RevenueByCourse, RevenueByMethod, RevenueByTrack,
+  RevenueByUniversity, StudentFinancials, WalletBalance,
 } from '@/types/database';
 
 /**
@@ -35,7 +35,7 @@ import type {
  */
 
 type ReportKey =
-  | 'months' | 'daily' | 'courses' | 'universities'
+  | 'months' | 'daily' | 'courses' | 'universities' | 'tracks'
   | 'expenses' | 'methods' | 'fees' | 'students' | 'plans' | 'payouts';
 
 type PresetKey = 'this' | 'last' | 'quarter' | 'year' | 'all';
@@ -83,6 +83,7 @@ export default function ReportsPage() {
   const months = useRangeQuery<MonthlyReport>('v_monthly_report', 'month');
   const byCourse = useRangeQuery<RevenueByCourse>('v_revenue_by_course', 'month');
   const byUniversity = useRangeQuery<RevenueByUniversity>('v_revenue_by_university', 'month');
+  const byTrack = useRangeQuery<RevenueByTrack>('v_revenue_by_track', 'month');
   const byCategory = useRangeQuery<ExpenseByCategory>('v_expenses_by_category', 'month');
   const byMethod = useRangeQuery<RevenueByMethod>('v_revenue_by_method', 'month');
   const fees = useRangeQuery<FeesMonthly>('v_fees_monthly', 'month');
@@ -240,6 +241,23 @@ export default function ReportsPage() {
       csv: ['label', 'student_payments', 'gateway_fees', 'revenue', 'payments'],
       columns: [
         { key: 'label', header: t.reportsUi.university, render: (r) => String(r.label) },
+        { key: 'paid', header: t.reportsUi.studentPayments, numeric: true, render: (r) => <Money value={n(r.student_payments as number)} tone="plain" /> },
+        { key: 'fees', header: t.reportsUi.fees, numeric: true, render: (r) => <Money value={n(r.gateway_fees as number)} tone="danger" /> },
+        { key: 'revenue', header: t.reportsUi.revenue, numeric: true, render: (r) => <Money value={n(r.revenue as number)} tone="ok" /> },
+        { key: 'payments', header: t.reportsUi.count, numeric: true, render: (r) => formatNumber(n(r.payments as number), locale) },
+      ],
+    },
+    tracks: {
+      label: t.reportsUi.tabTracks,
+      loading: byTrack.loading, error: byTrack.error,
+      rows: flat(collapse(byTrack.data ?? [], (r) => r.track_name,
+        (r) => ({
+          student_payments: n(r.student_payments), gateway_fees: n(r.gateway_fees),
+          revenue: n(r.revenue), payments: n(r.payments),
+        })), 'revenue'),
+      csv: ['label', 'student_payments', 'gateway_fees', 'revenue', 'payments'],
+      columns: [
+        { key: 'label', header: t.reportsUi.track, render: (r) => String(r.label) },
         { key: 'paid', header: t.reportsUi.studentPayments, numeric: true, render: (r) => <Money value={n(r.student_payments as number)} tone="plain" /> },
         { key: 'fees', header: t.reportsUi.fees, numeric: true, render: (r) => <Money value={n(r.gateway_fees as number)} tone="danger" /> },
         { key: 'revenue', header: t.reportsUi.revenue, numeric: true, render: (r) => <Money value={n(r.revenue as number)} tone="ok" /> },

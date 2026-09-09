@@ -152,6 +152,9 @@ export type Student = {
   group_name: string | null;
   university: string | null;
   university_id: string | null;
+  track_id: string | null;
+  /** True once an admin set the university or track by hand — see below. */
+  classification_locked: boolean;
   is_active: boolean;
   notes: string | null;
   created_at: string;
@@ -176,6 +179,15 @@ export type StudentFinancials = {
   last_payment_at: string | null;
   courses: string | null;
   payment_status: PaymentStatus;
+  track_id: string | null;
+  track_name: string | null;
+  /**
+   * The university and specialisation are read out of the courses a student
+   * bought, but only until an admin touches either — from then on they are the
+   * admin's, and the classifier leaves the student alone. That is what makes a
+   * deliberately cleared field stay cleared.
+   */
+  classification_locked: boolean;
   /** Open instalment plans, and what is still to collect on them. */
   installment_plans: number;
   installment_remaining: number;
@@ -227,6 +239,9 @@ export type SubscriptionListRow = {
   section: string | null;
   class_year: number | null;
   track: string | null;
+  track_id: string | null;
+  track_name: string | null;
+  university_name: string | null;
   package_kind: PackageKind | null;
   installment_seq: number | null;
   chapter_name: string | null;
@@ -276,6 +291,13 @@ export type University = {
 };
 
 /**
+ * التخصص — Clinical, Pharm D and the rest. Same shape as a university on
+ * purpose: they are the two things a course title classifies a student by, and
+ * every screen that offers one offers the other.
+ */
+export type Track = University;
+
+/**
  * Course titles arrive from ukkera as one string —
  * "ORGANIC 1 - Azhar Cairo - Girls - 2027 - Clinical" — and are taken apart
  * into these columns on write. A null means that part was not recognised, not
@@ -293,7 +315,9 @@ export type Course = {
   level: number | null;
   section: string | null;
   class_year: number | null;
+  /** The specialisation as the title spelled it, before alias resolution. */
   track: string | null;
+  track_id: string | null;
   /** The university as ukkera spelled it, before alias resolution. */
   university_label: string | null;
   ukkera_course_id: string | null;
@@ -318,6 +342,8 @@ export type CourseCatalogueRow = {
   university_label: string | null;
   enrolled_students: number;
   installment_plans: number;
+  track_id: string | null;
+  track_name: string | null;
 };
 
 export type Package = {
@@ -639,6 +665,16 @@ export type RevenueByUniversity = {
   month: string;
   university_id: string | null;
   university_name: string;
+  revenue: number;
+  payments: number;
+  student_payments: number;
+  gateway_fees: number;
+};
+
+export type RevenueByTrack = {
+  month: string;
+  track_id: string | null;
+  track_name: string;
   revenue: number;
   payments: number;
   student_payments: number;
