@@ -49,7 +49,7 @@ cd web && npm install && npm run dev      # http://localhost:3000
 
 # edge functions
 cd supabase
-deno task test     # 72 tests
+deno task test     # 79 tests
 deno task check
 deno task lint
 ```
@@ -57,6 +57,18 @@ deno task lint
 `web/.env.local` needs `NEXT_PUBLIC_SUPABASE_URL` and
 `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Both are public by design — RLS protects the
 data. **The service role key must never appear in `web/`.**
+
+### Putting it online
+
+Vercel, with **Root Directory `web`** — the repository root is not the Next app.
+Two environment variables, and two things afterwards that fail silently if
+missed: Supabase's Site URL / Redirect URLs, and `DASHBOARD_ORIGINS` for the
+sync button's CORS. Custom domain, DNS and the platform comparison are in
+[`docs/deploy.md`](docs/deploy.md).
+
+The database, auth, webhooks, Edge Functions and the 15-minute payout cron all
+stay on Supabase. Vercel serves the dashboard and nothing else, so neither
+Kashier nor ukkera has any URL to change.
 
 ---
 
@@ -560,7 +572,9 @@ supabase functions deploy ukkera-webhook       --no-verify-jwt
 supabase functions deploy kashier-sync-payouts --no-verify-jwt
 ```
 
-Dashboard → Vercel, root directory `web`.
+Dashboard → Vercel, root directory `web`. The whole procedure — environment,
+the two settings that fail silently afterwards, a custom domain and why Vercel
+rather than the alternatives — is [`docs/deploy.md`](docs/deploy.md).
 
 See [`docs/FEATURES.md`](docs/FEATURES.md) for what every page does,
 [`docs/kashier-payouts.md`](docs/kashier-payouts.md) for how you actually get
