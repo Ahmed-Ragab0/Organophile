@@ -152,6 +152,15 @@ export const IconImport = (p: IconProps) => (
   </Svg>
 );
 
+/** Staff — two people, one behind the other. */
+export const IconStaff = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="9.5" cy="8" r="3.2" />
+    <path d="M3.5 19.5a6 6 0 0 1 12 0" />
+    <path d="M16 5.6a3.2 3.2 0 0 1 0 6.3M17.4 14.2a6 6 0 0 1 3.1 5.3" />
+  </Svg>
+);
+
 /**
  * Lists & settings — three rows with a handle on one of them.
  *
@@ -262,6 +271,7 @@ export const NAV_ICONS = {
   reconciliation: IconReconciliation,
   import: IconImport,
   settings: IconSettings,
+  staff: IconStaff,
   health: IconHealth,
 } as const;
 

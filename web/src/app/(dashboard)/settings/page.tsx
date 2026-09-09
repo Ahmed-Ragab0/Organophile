@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useI18n } from '@/lib/i18n/context';
+import { useAccess } from '@/lib/access/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { formatMoney, formatNumber } from '@/lib/format';
 import { Badge, Button, Card, CardHeader, Notice, PageHeader } from '@/components/ui/primitives';
@@ -27,12 +28,14 @@ import type { ExpenseCategoryRow, PlanKindRow } from '@/types/database';
 
 /** One row of a list. Extracted so the two lists cannot drift apart. */
 function ListRow({
-  name, meta, badge, onEdit, onDelete, archived,
+  name, meta, badge, mayWrite, onEdit, onDelete, archived,
 }: {
   name: string;
   meta: string;
   badge?: string;
   archived?: boolean;
+  /** Read-only roles see the list; the verbs are simply not there. */
+  mayWrite: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -45,13 +48,17 @@ function ListRow({
         </p>
         <p className="mt-0.5 text-xs text-ink-faint tnum">{meta}</p>
       </div>
-      <RecordActions archived={archived} onEdit={onEdit} onDelete={onDelete} />
+      <RecordActions
+        archived={archived}
+        onEdit={mayWrite ? onEdit : undefined}
+        onDelete={mayWrite ? onDelete : undefined}
+      />
     </li>
   );
 }
 
 function ListCard({
-  title, hint, addLabel, empty, loading, count, onAdd, children,
+  title, hint, addLabel, empty, loading, count, mayWrite, onAdd, children,
 }: {
   title: string;
   hint: string;
@@ -59,6 +66,7 @@ function ListCard({
   empty: string;
   loading: boolean;
   count: number;
+  mayWrite: boolean;
   onAdd: () => void;
   children: React.ReactNode;
 }) {
@@ -68,7 +76,9 @@ function ListCard({
       <CardHeader
         title={title}
         hint={hint}
-        action={<Button size="sm" variant="secondary" onClick={onAdd}>{addLabel}</Button>}
+        action={mayWrite
+          ? <Button size="sm" variant="secondary" onClick={onAdd}>{addLabel}</Button>
+          : undefined}
       />
       <ul className="divide-y divide-border">
         {children}
@@ -84,6 +94,8 @@ function ListCard({
 
 export default function SettingsPage() {
   const { t, locale } = useI18n();
+  const { can } = useAccess();
+  const mayWrite = can('settings.write');
   const [creating, setCreating] = useState<RecordKind | null>(null);
   const [editing, setEditing] = useState<
     { kind: RecordKind; id: string; values: Record<string, unknown> } | null>(null);
@@ -131,6 +143,7 @@ export default function SettingsPage() {
           empty={t.settings.emptyCategories}
           loading={categories.loading}
           count={categoryRows.length}
+          mayWrite={mayWrite}
           onAdd={() => setCreating('expense_category')}
         >
           {categoryRows.map((c) => (
@@ -138,6 +151,7 @@ export default function SettingsPage() {
               key={c.id}
               name={c.name}
               archived={!c.is_active}
+              mayWrite={mayWrite}
               /* The count and the total together: one says whether it can be
                  removed, the other says whether it matters. */
               meta={`${formatNumber(c.entries, locale)} ${t.settings.entriesCount}`
@@ -158,6 +172,7 @@ export default function SettingsPage() {
           empty={t.settings.emptyPlanKinds}
           loading={kinds.loading}
           count={kindRows.length}
+          mayWrite={mayWrite}
           onAdd={() => setCreating('plan_kind')}
         >
           {kindRows.map((k) => (
@@ -166,6 +181,7 @@ export default function SettingsPage() {
               name={locale === 'en' ? (k.name_en ?? k.name) : k.name}
               badge={k.is_system ? t.settings.systemBadge : undefined}
               archived={!k.is_active}
+              mayWrite={mayWrite}
               meta={`${formatNumber(k.packages, locale)} ${t.settings.packagesCount}`
                 + ` · ${formatNumber(k.subscriptions, locale)} ${t.settings.subscriptionsCount}`}
               onEdit={() => setEditing({

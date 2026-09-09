@@ -934,6 +934,56 @@ export type PayoutsMonthly = {
   failed: number;
 };
 
+/** `permissions` — the fixed catalogue the code checks. */
+export type PermissionRow = {
+  code: string;
+  domain: string;
+  action: 'read' | 'write';
+  name: string;
+  name_en: string | null;
+  sort_order: number;
+};
+
+/** `v_roles` — a role, who holds it, and what it may do. */
+export type RoleRow = {
+  id: string;
+  code: string;
+  name: string;
+  name_en: string | null;
+  description: string | null;
+  /** Holds every permission implicitly, including ones added later. */
+  is_superuser: boolean;
+  is_system: boolean;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  members: number;
+  permissions: string[];
+};
+
+/** `v_staff` — one person's access. */
+export type StaffRow = {
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  phone: string | null;
+  is_active: boolean;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+  created_by_email: string | null;
+  role_id: string;
+  role_code: string;
+  role_name: string;
+  role_name_en: string | null;
+  is_superuser: boolean;
+  role_is_active: boolean;
+  /** Whether this row is the person looking at it. */
+  is_me: boolean;
+};
+
 /** The `expense_categories` table — what a picker needs and nothing more. */
 export type ExpenseCategory = {
   id: string;

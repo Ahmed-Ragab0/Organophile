@@ -8,6 +8,8 @@ import { createClient } from '@/lib/supabase/client';
 import { useI18n } from '@/lib/i18n/context';
 import { useMode } from '@/lib/mode/context';
 import { useTheme } from '@/lib/theme/context';
+import { useAccess } from '@/lib/access/context';
+import { permissionForPath } from '@/lib/access/routes';
 import { cx } from './ui/primitives';
 import {
   IconClose, IconDark, IconLanguage, IconLight, IconLive, IconMenu, IconSignOut,
@@ -49,6 +51,7 @@ const NAV_GROUPS = [
       { href: '/reconciliation', key: 'reconciliation' },
       { href: '/import', key: 'import' },
       { href: '/settings', key: 'settings' },
+      { href: '/staff', key: 'staff' },
       { href: '/health', key: 'health' },
     ],
   },
@@ -164,8 +167,9 @@ function ThemeButton() {
 }
 
 export function Shell({ email, children }: { email: string | null; children: React.ReactNode }) {
-  const { t, toggleLocale } = useI18n();
+  const { t, locale, toggleLocale } = useI18n();
   const { isTest } = useMode();
+  const { can, role } = useAccess();
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -176,9 +180,25 @@ export function Shell({ email, children }: { email: string | null; children: Rea
     router.refresh();
   }
 
+  /*
+   * A link to a page the middleware would refuse is worse than no link: it
+   * looks like a broken page rather than a boundary. Both read the same map,
+   * so the sidebar and the router cannot disagree — and a group that empties
+   * out drops its heading with it rather than leaving a label over nothing.
+   */
+  const groups = NAV_GROUPS
+    .map((group) => ({
+      key: group.key,
+      items: group.items.filter((item) => {
+        const needed = permissionForPath(item.href);
+        return needed === null || can(needed);
+      }),
+    }))
+    .filter((group) => group.items.length > 0);
+
   const nav = (
     <nav className="space-y-6">
-      {NAV_GROUPS.map((group) => (
+      {groups.map((group) => (
         <div key={group.key}>
           <p className="mb-1.5 px-3 text-[0.625rem] font-semibold tracking-[0.14em] text-ink-faint uppercase">
             {t.navGroups[group.key]}
@@ -277,7 +297,17 @@ export function Shell({ email, children }: { email: string | null; children: Rea
             >
               {email.slice(0, 1).toUpperCase()}
             </span>
-            <p className="min-w-0 truncate text-xs text-ink-muted" dir="ltr">{email}</p>
+            {/* The role sits under the address because "what am I allowed
+                to do here" is the question a shared system raises, and the
+                answer should not require opening a page to find. */}
+            <div className="min-w-0">
+              <p className="truncate text-xs text-ink-muted" dir="ltr">{email}</p>
+              {role && (
+                <p className="truncate text-[0.6875rem] text-ink-faint">
+                  {locale === 'en' ? (role.name_en ?? role.name) : role.name}
+                </p>
+              )}
+            </div>
           </div>
         )}
       </aside>

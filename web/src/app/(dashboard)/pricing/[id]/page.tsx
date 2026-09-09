@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { use, useState } from 'react';
 import { useI18n } from '@/lib/i18n/context';
+import { useAccess } from '@/lib/access/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { createClient } from '@/lib/supabase/client';
 import { formatDate, formatDateTime, formatMoney, toCairoDateKey } from '@/lib/format';
@@ -71,6 +72,8 @@ export default function SubscriptionPricingPage(
 ) {
   const { id } = use(params);
   const { t, locale } = useI18n();
+  const { can } = useAccess();
+  const mayWrite = can('subscriptions.write');
   const [nonce, setNonce] = useState(0);
   const reload = () => setNonce((n) => n + 1);
 
@@ -189,8 +192,9 @@ export default function SubscriptionPricingPage(
       </section>
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <TermsCard subscription={sub} onSaved={reload} />
+        <TermsCard subscription={sub} mayWrite={mayWrite} onSaved={reload} />
         <ScheduleCard
+          mayWrite={mayWrite}
           // Remounting on a change to the SAVED schedule is what resets the
           // draft. Keying on the saved content means typing never resets it,
           // but a save — or a change made elsewhere — always does.
@@ -207,6 +211,7 @@ export default function SubscriptionPricingPage(
 
       <div className="mt-5">
         <PaymentsCard
+          mayRecord={can('money.write')}
           subscription={sub}
           entries={entries.data ?? []}
           loading={entries.loading}
@@ -222,8 +227,8 @@ export default function SubscriptionPricingPage(
 /* ── price and terms ────────────────────────────────────────────────────── */
 
 function TermsCard({
-  subscription, onSaved,
-}: { subscription: SubscriptionDetail; onSaved: () => void }) {
+  subscription, mayWrite, onSaved,
+}: { subscription: SubscriptionDetail; mayWrite: boolean; onSaved: () => void }) {
   const { t, locale } = useI18n();
   const [totalDue, setTotalDue] = useState(
     subscription.total_due === null ? '' : String(subscription.total_due),
@@ -317,7 +322,7 @@ function TermsCard({
         {result && <Notice tone={result.tone}>{result.text}</Notice>}
 
         <div className="flex justify-end">
-          <Button type="submit" disabled={busy}>
+          <Button type="submit" disabled={busy || !mayWrite}>
             {busy ? t.common.saving : t.common.save}
           </Button>
         </div>
@@ -329,8 +334,9 @@ function TermsCard({
 /* ── the collection plan ────────────────────────────────────────────────── */
 
 function ScheduleCard({
-  subscriptionId, price, installmentCount, dueDate, rows, loading, onSaved,
+  subscriptionId, price, installmentCount, dueDate, rows, loading, mayWrite, onSaved,
 }: {
+  mayWrite: boolean;
   subscriptionId: string;
   price: number;
   installmentCount: number;
@@ -424,10 +430,10 @@ function ScheduleCard({
         hint={t.pricing.scheduleHint}
         action={
           <>
-            <Button size="sm" variant="secondary" onClick={autoSplit}>
+            <Button size="sm" variant="secondary" disabled={!mayWrite} onClick={autoSplit}>
               {t.pricing.autoSplit}
             </Button>
-            <Button size="sm" variant="ghost" onClick={addRow}>
+            <Button size="sm" variant="ghost" disabled={!mayWrite} onClick={addRow}>
               {t.pricing.addInstallment}
             </Button>
           </>
@@ -493,7 +499,7 @@ function ScheduleCard({
           {result && <Notice tone={result.tone}>{result.text}</Notice>}
 
           <div className="flex justify-end">
-            <Button onClick={save} disabled={busy}>
+            <Button onClick={save} disabled={busy || !mayWrite}>
               {busy ? t.common.saving : t.pricing.saveSchedule}
             </Button>
           </div>
@@ -506,8 +512,9 @@ function ScheduleCard({
 /* ── what actually came in ──────────────────────────────────────────────── */
 
 function PaymentsCard({
-  subscription, entries, loading, error, wallets, onChanged,
+  subscription, entries, loading, error, wallets, mayRecord, onChanged,
 }: {
+  mayRecord: boolean;
   subscription: SubscriptionDetail;
   entries: LedgerEntry[];
   loading: boolean;
@@ -526,7 +533,11 @@ function PaymentsCard({
         title={t.pricing.payments}
         hint={t.pricing.paymentsHint}
         action={
-          <Button size="sm" onClick={() => setRecording(true)} disabled={wallets.length === 0}>
+          <Button
+            size="sm"
+            onClick={() => setRecording(true)}
+            disabled={wallets.length === 0 || !mayRecord}
+          >
             {t.pricing.recordPayment}
           </Button>
         }
@@ -579,7 +590,7 @@ function PaymentsCard({
                 <Button size="sm" variant="secondary" onClick={() => setDetail(e)}>
                   {t.ledgerDetail.open}
                 </Button>
-                {!e.voided_at && (
+                {mayRecord && !e.voided_at && (
                   <Button size="sm" variant="ghost" onClick={() => setVoiding(e)}>
                     {t.pricing.void}
                   </Button>

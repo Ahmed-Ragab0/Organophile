@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useI18n } from '@/lib/i18n/context';
+import { useAccess } from '@/lib/access/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { Button, Card, CardHeader, Notice, PageHeader } from '@/components/ui/primitives';
 import {
@@ -26,13 +27,15 @@ type Counted = University & { courses: number; students: number };
  * and React remounts it.
  */
 function ClassificationList({
-  title, rows, addLabel, empty, loading, onAdd, onEdit, onDelete,
+  title, rows, addLabel, empty, loading, mayWrite, onAdd, onEdit, onDelete,
 }: {
   title: string;
   rows: Counted[];
   addLabel: string;
   empty: string;
   loading: boolean;
+  /** Read-only roles see the list; the verbs are simply not there. */
+  mayWrite: boolean;
   onAdd: () => void;
   onEdit: (row: Counted) => void;
   onDelete: (row: Counted) => void;
@@ -43,7 +46,9 @@ function ClassificationList({
       <CardHeader
         title={title}
         hint={`${rows.length} ${t.common.rows}`}
-        action={<Button size="sm" variant="secondary" onClick={onAdd}>{addLabel}</Button>}
+        action={mayWrite
+          ? <Button size="sm" variant="secondary" onClick={onAdd}>{addLabel}</Button>
+          : undefined}
       />
       <ul className="divide-y divide-border">
         {rows.map((r) => (
@@ -58,8 +63,8 @@ function ClassificationList({
             </div>
             <RecordActions
               archived={!r.is_active}
-              onEdit={() => onEdit(r)}
-              onDelete={() => onDelete(r)}
+              onEdit={mayWrite ? () => onEdit(r) : undefined}
+              onDelete={mayWrite ? () => onDelete(r) : undefined}
             />
           </li>
         ))}
@@ -75,6 +80,8 @@ function ClassificationList({
 
 export default function ClassificationPage() {
   const { t } = useI18n();
+  const { can } = useAccess();
+  const mayWrite = can('courses.write');
   const [creating, setCreating] = useState<RecordKind | null>(null);
   const [editing, setEditing] = useState<
     { kind: RecordKind; id: string; values: Record<string, unknown> } | null>(null);
@@ -138,6 +145,7 @@ export default function ClassificationPage() {
           addLabel={t.classification.addUniversity}
           empty={t.classification.emptyUniversities}
           loading={universities.loading}
+          mayWrite={mayWrite}
           onAdd={() => setCreating('university')}
           onEdit={(r) => setEditing({
             kind: 'university', id: r.id, values: r as unknown as Record<string, unknown>,
@@ -150,6 +158,7 @@ export default function ClassificationPage() {
           addLabel={t.classification.addTrack}
           empty={t.classification.emptyTracks}
           loading={tracks.loading}
+          mayWrite={mayWrite}
           onAdd={() => setCreating('track')}
           onEdit={(r) => setEditing({
             kind: 'track', id: r.id, values: r as unknown as Record<string, unknown>,

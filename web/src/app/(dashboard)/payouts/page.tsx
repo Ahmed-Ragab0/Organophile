@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useI18n } from '@/lib/i18n/context';
+import { useAccess } from '@/lib/access/context';
 import { useMode } from '@/lib/mode/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { createClient } from '@/lib/supabase/client';
@@ -31,6 +32,8 @@ import type { MoneyPosition, Payout } from '@/types/database';
  */
 export default function PayoutsPage() {
   const { t, locale } = useI18n();
+  const { can } = useAccess();
+  const mayWrite = can('system.write');
   const { mode } = useMode();
   const [syncing, setSyncing] = useState(false);
   const [result, setResult] = useState<{ tone: 'ok' | 'danger' | 'warn'; text: string } | null>(null);
@@ -166,7 +169,7 @@ export default function PayoutsPage() {
         title={t.payouts.title}
         subtitle={t.payouts.subtitle}
         action={
-          <Button onClick={sync} disabled={syncing}>
+          <Button onClick={sync} disabled={syncing || !mayWrite}>
             <IconRefresh className={syncing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
             {syncing ? t.payouts.syncing : t.finance.syncNow}
           </Button>

@@ -18,6 +18,7 @@
 import {
   badRequest,
   duplicate,
+  extractBearerToken,
   failure,
   log,
   MAX_BODY_BYTES,
@@ -31,7 +32,6 @@ import {
 import { recordRejection, serviceClient } from '../_shared/db.ts';
 import { optionalEnv } from '../_shared/env.ts';
 import { timingSafeEqual } from '../_shared/kashier-signature.ts';
-import { extractBearerToken } from '../_shared/webhook-parsing.ts';
 
 const ENDPOINT = 'ukkera-webhook';
 

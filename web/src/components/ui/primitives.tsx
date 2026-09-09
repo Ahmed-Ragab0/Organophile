@@ -192,13 +192,27 @@ export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
 
 /** A checkbox with a real hit target — the native 13px box is not one. */
 export function Checkbox({
-  checked, onChange, label,
-}: { checked: boolean; onChange: (next: boolean) => void; label: ReactNode }) {
+  checked, onChange, label, disabled,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  label: ReactNode;
+  /** Shown, dimmed, and inert — for a choice that exists but is not yours. */
+  disabled?: boolean;
+}) {
   return (
-    <label className="flex cursor-pointer items-center gap-2.5 rounded-chip px-1 py-1.5 text-xs text-ink-muted transition-colors hover:text-ink">
+    <label
+      className={cx(
+        'flex items-center gap-2.5 rounded-chip px-1 py-1.5 text-xs transition-colors',
+        disabled
+          ? 'cursor-not-allowed text-ink-faint'
+          : 'cursor-pointer text-ink-muted hover:text-ink',
+      )}
+    >
       <input
         type="checkbox"
         checked={checked}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
         className="h-4 w-4 shrink-0 rounded-[0.3rem] accent-[var(--color-accent)]"
       />

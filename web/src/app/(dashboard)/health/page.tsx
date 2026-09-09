@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useI18n } from '@/lib/i18n/context';
+import { useAccess } from '@/lib/access/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { useMode } from '@/lib/mode/context';
 import { createClient } from '@/lib/supabase/client';
@@ -17,6 +18,8 @@ type StateKey = 'pending' | 'processed' | 'failed' | 'ignored';
 
 export default function HealthPage() {
   const { t, locale } = useI18n();
+  const { can } = useAccess();
+  const mayWrite = can('system.write');
   const { mode } = useMode();
   const [sweeping, setSweeping] = useState(false);
   const [sweepResult, setSweepResult] = useState<string | null>(null);
@@ -100,7 +103,7 @@ export default function HealthPage() {
         title={t.health.title}
         subtitle={t.health.subtitle}
         action={
-          <Button variant="secondary" onClick={sweep} disabled={sweeping}>
+          <Button variant="secondary" onClick={sweep} disabled={sweeping || !mayWrite}>
             {sweeping ? t.common.loading : t.health.sweep}
           </Button>
         }

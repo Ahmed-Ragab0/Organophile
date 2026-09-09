@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useI18n } from '@/lib/i18n/context';
+import { useAccess } from '@/lib/access/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { createClient } from '@/lib/supabase/client';
 import { formatMoney, formatNumber } from '@/lib/format';
@@ -110,6 +111,8 @@ function PriceCell({
 
 export default function PricingPage() {
   const { t, locale } = useI18n();
+  const { can } = useAccess();
+  const mayWrite = can('subscriptions.write');
   const [search, setSearch] = useState('');
   const [onlyUnpriced, setOnlyUnpriced] = useState(false);
   const [saveNonce, setSaveNonce] = useState(0);
@@ -310,8 +313,8 @@ export default function PricingPage() {
       header: '',
       render: (p) => (
         <RecordActions
-          onEdit={() => setEditingPackage(p)}
-          onDelete={() => setDeletingPackage(p.id)}
+          onEdit={mayWrite ? () => setEditingPackage(p) : undefined}
+          onDelete={mayWrite ? () => setDeletingPackage(p.id) : undefined}
         />
       ),
     },

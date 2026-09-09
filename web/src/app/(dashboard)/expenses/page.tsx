@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useI18n } from '@/lib/i18n/context';
+import { useAccess } from '@/lib/access/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { createClient } from '@/lib/supabase/client';
 import { downloadCsv, formatDate, formatMoney, toCsv } from '@/lib/format';
@@ -19,6 +20,8 @@ import type {
 
 export default function ExpensesPage() {
   const { t, locale } = useI18n();
+  const { can } = useAccess();
+  const mayWrite = can('money.write');
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<LedgerEntry | null>(null);
 
@@ -155,7 +158,7 @@ export default function ExpensesPage() {
           {/* Void, not delete: the ledger is append-only, and an expense that
               was recorded and then reversed is a different fact from one that
               never existed. Already voided is not voidable again. */}
-          {!r.voided_at && (
+          {mayWrite && !r.voided_at && (
             <Button size="sm" variant="ghost" onClick={() => voidEntry(r.id)}>
               {t.ledger.voidAction}
             </Button>
@@ -194,7 +197,9 @@ export default function ExpensesPage() {
             >
               {t.settings.expenseCategories} →
             </Link>
-            <Button onClick={() => setOpen(true)}>+ {t.expenses.addTitle}</Button>
+            {mayWrite && (
+              <Button onClick={() => setOpen(true)}>+ {t.expenses.addTitle}</Button>
+            )}
           </div>
         }
       />

@@ -102,45 +102,83 @@ These are not style preferences. Breaking one causes a real, specific bug.
 8. **Direct writes to `ledger_entries` are denied by RLS.** Everything goes
    through `add_expense`, `add_manual_revenue`, `transfer_between_wallets`,
    `void_ledger_entry`.
-9. **Signing in and being allowed in are two different things.** Supabase Auth
-   proves who you are; `public.admin_users` decides whether that person may see
-   anything. Every policy in the database goes through `app.is_admin()`, and
-   `src/lib/supabase/middleware.ts` makes the same check before rendering a
-   page, so an account that is not on the list gets `/login?denied=1` and the
-   database would refuse it every row anyway.
+9. **Signing in, being let in, and being allowed to do a thing are three
+   different questions.** Supabase Auth proves who you are; `public.staff`
+   decides whether you may see anything at all; `roles` + `role_permissions`
+   decide what. Every policy goes through **`app.can('<domain>.<action>')`**,
+   and `src/lib/supabase/middleware.ts` asks `my_access()` before rendering, so
+   a page you cannot use is a redirect rather than an empty screen. The
+   redirect goes to the first page you CAN use, never to `/login` — that would
+   be a loop for any role without the overview.
+10. **One role holds everything and cannot be emptied.** `roles.is_superuser`
+   is true for exactly one row, enforced by a partial unique index. It holds
+   every permission implicitly, including ones added by later migrations, so
+   adding a permission can never lock the owner out of what it guards. Three
+   more rails, all triggers: the last active admin cannot be removed or
+   demoted, you cannot change your own role or switch yourself off, and the
+   superuser role cannot be given explicit permission rows (which would go
+   stale).
 
 ---
 
-### Letting an account in
+### Staff, roles and permissions
 
-**The allowlist is deliberately read-only from the app.** An admin can see the
-list and can never edit it, so a stolen session cannot promote itself or add an
-accomplice. That is why there is no "add admin" screen and should not be one.
+Four seeded roles, and the owner can add more:
 
-Membership is granted out of band, in the Supabase SQL editor, after the person
-has signed up and confirmed their email:
+| Role | Holds |
+|---|---|
+| **مدير** (`admin`) | everything, implicitly and permanently |
+| **محاسب** (`accountant`) | money read+write, payments/reports/students/subscriptions read |
+| **سيلز** (`sales`) | students and subscriptions read+write, courses/reports read |
+| **مشاهدة** (`viewer`) | every `.read` except staff |
+
+Permissions are `<domain>.<action>` with action ∈ {read, write}, over ten
+domains: overview, students, courses, subscriptions, money, payments, reports,
+settings, staff, system. The **catalogue is seeded and not editable from the
+app** — a permission nobody's code checks is worse than no permission — but
+which of them a role holds is entirely up to the owner.
+
+Three things are readable by any staff member regardless of role, because they
+are the contents of every dropdown in the app and gating them produces empty
+selects on screens the person is allowed to use: universities, tracks, and the
+two settings lists. They carry no money and no personal data.
+
+**Creating a login goes through the `staff-admin` Edge Function**, because
+`auth.admin.createUser` needs the service role key and that key must never be
+in `web/`. The function re-checks the caller through `my_access()` using the
+caller's own token, does the one privileged step, and then writes the `staff`
+row **as the caller** — so the last-admin and no-editing-yourself triggers stay
+in force. Removing a person is the same in reverse: the `staff` row goes first,
+so a refusal leaves the account untouched.
+
+**This is a deliberate change of posture, and it has a cost.** The allowlist
+used to be editable only in the SQL console, which meant a stolen session could
+not create an accomplice. It can now, if it belongs to someone with
+`staff.write`. What limits it: only the admin role holds that permission by
+default, every row records `created_by`, and account creation is a logged call
+to a function that re-verifies the caller.
+
+**Break-glass**, if nobody can get in — in the Supabase SQL editor:
 
 ```sql
-insert into public.admin_users (user_id, email)
-select u.id, u.email from auth.users u
+insert into public.staff (user_id, email, role_id)
+select u.id, u.email, (select id from public.roles where code = 'admin')
+  from auth.users u
  where lower(u.email) = lower('someone@example.com')
-on conflict (user_id) do update set email = excluded.email;
+on conflict (user_id) do update
+  set role_id = excluded.role_id, is_active = true;
 ```
 
-Revoking is the same statement as a `delete`. There is no partial access: a row
-in that table is the whole system, so treat adding one as handing over the
-books.
-
-**A new account that logs in and bounces straight back to the login page with
+**A new account that logs in and bounces back to the login page with
 "الحساب ده مش مصرّح له بالدخول" is this working, not failing.** It happened on
 9 Sep 2026 with a second owner account and looked like a bug for exactly as long
 as it took to read the table.
 
-**Public signup should be off.** This console has no self-service tier —
-`Authentication → Sign In / Providers → Email → "Allow new users to sign up"`
-belongs unchecked. Leaving it on lets anyone create an `auth.users` row and make
-the project send confirmation emails; RLS still shows them nothing, but an
-allowlist works better when the queue in front of it is empty.
+**Public signup should be off.** Accounts are created from the Staff page now,
+so `Authentication → Sign In / Providers → Email → "Allow new users to sign up"`
+belongs unchecked. Leaving it on lets anyone create an `auth.users` row; RLS
+still shows them nothing, but a staff list works better when the queue in front
+of it is empty.
 
 ---
 
@@ -156,6 +194,11 @@ allowlist works better when the queue in front of it is empty.
 - `students`, `universities`, `courses`, `packages`, `subscriptions`
 - `payments` (Kashier transactions), `payouts` (Kashier transfers),
   `kashier_account` (balance from the API)
+
+**Access**
+- `staff` — who may use the system. One row per person; there is no second list.
+- `roles`, `permissions`, `role_permissions` — what each of them may do.
+  `permissions` is seeded by migration and SELECT-only at the grant level.
 
 **Lists the owner edits** — every dropdown in the app comes from one of these,
 and each is managed on a screen rather than in a deploy.
@@ -192,6 +235,7 @@ estimate), `v_revenue_by_method`, `v_fees_monthly`, `v_payouts_monthly`,
 `v_unmatched_payments`, `v_unpaid_subscriptions`, `v_ingest_health`
 
 **Functions the app calls**
+`my_access` (who am I and what may I do — the one call the middleware makes),
 `describe_record` / `delete_record` / `archive_record`,
 `add_expense`, `add_manual_revenue`, `transfer_between_wallets`,
 `void_ledger_entry`, `search_students`, `import_students`,
@@ -213,7 +257,8 @@ not. `public.normalize_phone` is the DEFINER wrapper that exists for this.
 | Kashier transactions (test) | `…/functions/v1/kashier-webhook?mode=test` |
 | Kashier transactions (live) | `…/functions/v1/kashier-webhook?mode=live` |
 | ukkera | `…/functions/v1/ukkera-webhook` |
-| Payout sync (POST, admin or service key) | `…/functions/v1/kashier-sync-payouts?mode=live` |
+| Payout sync (POST, `system.write` or service key) | `…/functions/v1/kashier-sync-payouts?mode=live` |
+| Staff accounts (POST, `staff.write`) | `…/functions/v1/staff-admin` |
 
 `kashier-sync-payouts` is the only function a browser calls, so it is the only
 one with CORS. Origins are reflected from an allowlist — localhost plus

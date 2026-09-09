@@ -2,11 +2,11 @@ import { assertEquals } from 'jsr:@std/assert@1';
 import {
   classifyEvent,
   classifyPayload,
-  extractBearerToken,
   isCombinedEnvelope,
   parseMode,
   signedDataFor,
 } from '../functions/_shared/webhook-parsing.ts';
+import { extractBearerToken } from '../functions/_shared/http.ts';
 import {
   buildSignaturePayload,
   hmacSha256Hex,

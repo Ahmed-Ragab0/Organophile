@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useI18n } from '@/lib/i18n/context';
+import { useAccess } from '@/lib/access/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { formatDateTime, formatMoney } from '@/lib/format';
 import {
@@ -17,6 +18,8 @@ import type { WalletBalance } from '@/types/database';
 
 export default function WalletsPage() {
   const { t, locale } = useI18n();
+  const { can } = useAccess();
+  const mayWrite = can('money.write');
   const [modal, setModal] = useState<'expense' | 'transfer' | 'revenue' | null>(null);
   const [editing, setEditing] = useState<WalletBalance | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -63,13 +66,13 @@ export default function WalletsPage() {
         subtitle={t.wallets.subtitle}
         action={
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => setModal('revenue')}>
+            <Button variant="secondary" disabled={!mayWrite} onClick={() => setModal('revenue')}>
               + {t.ledger.types.addManual}
             </Button>
-            <Button variant="secondary" onClick={() => setModal('expense')}>
+            <Button variant="secondary" disabled={!mayWrite} onClick={() => setModal('expense')}>
               + {t.ledger.types.expense}
             </Button>
-            <Button variant="accent" onClick={() => setModal('transfer')}>
+            <Button variant="accent" disabled={!mayWrite} onClick={() => setModal('transfer')}>
               {t.transfer.title}
             </Button>
           </div>
@@ -142,8 +145,8 @@ export default function WalletsPage() {
 
                 <div className="mt-3 border-t border-border pt-3">
                   <RecordActions
-                    onEdit={() => setEditing(w)}
-                    onDelete={() => setDeleting(w.id)}
+                    onEdit={mayWrite ? () => setEditing(w) : undefined}
+                    onDelete={mayWrite ? () => setDeleting(w.id) : undefined}
                   />
                 </div>
               </Card>

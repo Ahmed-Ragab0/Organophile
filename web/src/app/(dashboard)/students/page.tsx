@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n/context';
+import { useAccess } from '@/lib/access/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { downloadCsv, formatDate, toCsv } from '@/lib/format';
 import {
@@ -23,6 +24,8 @@ const PAGE_SIZE = 200;
 
 export default function StudentsPage() {
   const { t, locale } = useI18n();
+  const { can } = useAccess();
+  const mayWrite = can('students.write');
   const router = useRouter();
 
   const [search, setSearch] = useState('');
@@ -165,8 +168,8 @@ export default function StudentsPage() {
         <RecordActions
           archived={!r.is_active}
           onView={() => router.push(`/students/${r.student_id}`)}
-          onEdit={() => setEditing(r)}
-          onDelete={() => setDeleting(r.student_id)}
+          onEdit={mayWrite ? () => setEditing(r) : undefined}
+          onDelete={mayWrite ? () => setDeleting(r.student_id) : undefined}
         />
       ),
     },

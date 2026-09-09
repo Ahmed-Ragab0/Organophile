@@ -73,14 +73,3 @@ export function classifyPayload(payload: Record<string, unknown>): Resource {
 export function signedDataFor(payload: Record<string, unknown>): unknown {
   return payload.data !== undefined ? payload.data : payload;
 }
-
-/**
- * Accepts `Bearer <token>` and, defensively, a bare token — some senders omit
- * the scheme. Returns null when nothing usable is present.
- */
-export function extractBearerToken(header: string | null): string | null {
-  if (!header) return null;
-  const trimmed = header.trim();
-  const match = /^Bearer\s+(.+)$/i.exec(trimmed);
-  return (match ? match[1] : trimmed).trim() || null;
-}

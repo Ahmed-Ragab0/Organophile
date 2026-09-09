@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n/context';
+import { useAccess } from '@/lib/access/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { useMode } from '@/lib/mode/context';
 import { createClient } from '@/lib/supabase/client';
@@ -24,6 +25,8 @@ const TYPES: LedgerEntryType[] = [
 
 export default function LedgerPage() {
   const { t, locale } = useI18n();
+  const { can } = useAccess();
+  const mayWrite = can('money.write');
   const { isTest } = useMode();
 
   const [type, setType] = useState('');
@@ -181,7 +184,7 @@ export default function LedgerPage() {
           </Button>
           {r.voided_at
             ? <span className="text-xs text-ink-faint">{t.ledger.voided}</span>
-            : (
+            : mayWrite && (
               <Button size="sm" variant="danger" onClick={() => voidEntry(r.id)}>
                 {t.ledger.voidAction}
               </Button>

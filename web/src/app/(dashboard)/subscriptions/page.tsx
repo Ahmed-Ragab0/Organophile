@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n/context';
+import { useAccess } from '@/lib/access/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { downloadCsv, formatDate, formatMoney, formatNumber, toCsv } from '@/lib/format';
 import {
@@ -37,6 +38,8 @@ function sanitize(term: string): string {
 
 export default function SubscriptionsPage() {
   const { t, locale } = useI18n();
+  const { can } = useAccess();
+  const mayWrite = can('subscriptions.write');
   const router = useRouter();
 
   const [search, setSearch] = useState('');
@@ -334,8 +337,8 @@ export default function SubscriptionsPage() {
       render: (r) => (
         <RecordActions
           onView={() => router.push(`/pricing/${r.subscription_id}`)}
-          onEdit={() => setEditing(r)}
-          onDelete={() => setDeleting(r.subscription_id)}
+          onEdit={mayWrite ? () => setEditing(r) : undefined}
+          onDelete={mayWrite ? () => setDeleting(r.subscription_id) : undefined}
         />
       ),
     },

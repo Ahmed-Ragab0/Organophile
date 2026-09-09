@@ -1,18 +1,21 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { firstAllowedPath, permissionForPath } from '@/lib/access/routes';
 
 const PUBLIC_PATHS = ['/login', '/auth'];
 
 /**
  * Refreshes the auth session on every request and gates the app.
  *
- * Two separate checks, both required:
- *   1. Is there a valid Supabase session?  -> otherwise /login
- *   2. Is that user in `admin_users`?      -> otherwise /login?denied=1
+ * Three checks, in order:
+ *   1. Is there a valid Supabase session?     -> otherwise /login
+ *   2. Is that user on the staff list?        -> otherwise /login?denied=1
+ *   3. Do they hold this page's permission?   -> otherwise their first page
  *
- * The second check is defence in depth, not the real boundary: RLS already
- * returns zero rows to a non-admin. This just avoids showing an empty shell to
- * someone who has an account but no business being here.
+ * None of this is the real boundary: RLS refuses the same rows whatever the
+ * router does. It exists so that someone who cannot use a screen never has to
+ * look at an empty one — and so the third case lands them somewhere they CAN
+ * use rather than on a dead end.
  */
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -48,26 +51,48 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && !isPublic) {
-    const { data: admin } = await supabase
-      .from('admin_users')
-      .select('user_id')
-      .eq('user_id', user.id)
-      .maybeSingle();
+  if (user) {
+    // One round trip answers both questions. `my_access` takes no argument and
+    // reports only on the caller, so it cannot be aimed at anyone else.
+    const { data } = await supabase.rpc('my_access');
+    const access = (data ?? null) as
+      { is_staff?: boolean; permissions?: string[] } | null;
+    const permissions = access?.is_staff ? (access.permissions ?? []) : [];
+    const landing = firstAllowedPath(permissions);
 
-    if (!admin) {
+    if (path === '/login') {
+      /*
+       * Signed in, so the login page has nothing to offer — unless there is
+       * nowhere to send them. A staff row whose role holds nothing would
+       * otherwise bounce between /login and the first gated page forever, so
+       * that case stays here and reads the denial message.
+       */
+      if (landing === null) return response;
       const url = request.nextUrl.clone();
-      url.pathname = '/login';
-      url.searchParams.set('denied', '1');
+      url.pathname = landing;
+      url.search = '';
       return NextResponse.redirect(url);
     }
-  }
 
-  if (user && path === '/login') {
-    const url = request.nextUrl.clone();
-    url.pathname = '/';
-    url.search = '';
-    return NextResponse.redirect(url);
+    if (!isPublic) {
+      if (!access?.is_staff || landing === null) {
+        const url = request.nextUrl.clone();
+        url.pathname = '/login';
+        url.searchParams.set('denied', '1');
+        return NextResponse.redirect(url);
+      }
+
+      const needed = permissionForPath(path);
+      if (needed && !permissions.includes(needed)) {
+        const url = request.nextUrl.clone();
+        // Somewhere they can actually use. A dead end would be worse, and
+        // sending them to /login would be a loop for anyone whose role does
+        // not happen to include the overview.
+        url.pathname = landing;
+        url.search = '';
+        return NextResponse.redirect(url);
+      }
+    }
   }
 
   return response;

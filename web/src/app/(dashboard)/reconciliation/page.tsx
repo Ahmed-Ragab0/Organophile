@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useI18n } from '@/lib/i18n/context';
+import { useAccess } from '@/lib/access/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { useMode } from '@/lib/mode/context';
 import { createClient } from '@/lib/supabase/client';
@@ -24,6 +25,8 @@ import type {
  */
 export default function ReconciliationPage() {
   const { t, locale } = useI18n();
+  const { can } = useAccess();
+  const mayWrite = can('payments.write');
   const { mode } = useMode();
   const [linking, setLinking] = useState<string | null>(null);
   const [pickedSubscription, setPickedSubscription] = useState('');
@@ -84,7 +87,12 @@ export default function ReconciliationPage() {
       key: 'action',
       header: '',
       render: (r) => (
-        <Button size="sm" variant="secondary" onClick={() => { setLinking(r.id); setActionError(null); }}>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!mayWrite}
+          onClick={() => { setLinking(r.id); setActionError(null); }}
+        >
           {t.reconciliation.linkManually}
         </Button>
       ),

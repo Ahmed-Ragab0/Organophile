@@ -19,12 +19,20 @@
  * accept the public anon key. Authorisation is done properly below: either the
  * service role key (for cron) or a signed-in admin.
  */
-import { badRequest, failure, log, methodNotAllowed, ok, unauthorized } from '../_shared/http.ts';
+import {
+  badRequest,
+  extractBearerToken,
+  failure,
+  log,
+  methodNotAllowed,
+  ok,
+  unauthorized,
+} from '../_shared/http.ts';
 import { preflight, withCors } from '../_shared/cors.ts';
 import { serviceClient } from '../_shared/db.ts';
 import { type KashierMode, optionalEnv, requiredEnv } from '../_shared/env.ts';
 import { timingSafeEqual } from '../_shared/kashier-signature.ts';
-import { extractBearerToken, parseMode } from '../_shared/webhook-parsing.ts';
+import { parseMode } from '../_shared/webhook-parsing.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 const BASE_URL: Record<KashierMode, string> = {
@@ -63,11 +71,14 @@ async function authorise(req: Request): Promise<{ ok: true } | { ok: false; reas
   const { data: { user }, error } = await asUser.auth.getUser();
   if (error || !user) return { ok: false, reason: 'invalid_token' };
 
-  // RLS already limits admin_users to admins, so a row coming back IS the check.
-  const { data: admin } = await asUser
-    .from('admin_users').select('user_id').eq('user_id', user.id).maybeSingle();
-
-  return admin ? { ok: true } : { ok: false, reason: 'not_admin' };
+  // Pulling money data from Kashier is a system operation, not an
+  // administrative one — so it asks for the permission rather than for the
+  // role, and the database is what decides who holds it.
+  const { data } = await asUser.rpc('my_access');
+  const access = (data ?? null) as { permissions?: string[] } | null;
+  return access?.permissions?.includes('system.write')
+    ? { ok: true }
+    : { ok: false, reason: 'not_admin' };
 }
 
 /**

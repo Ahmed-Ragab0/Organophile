@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n/context';
+import { useAccess } from '@/lib/access/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { formatMoney } from '@/lib/format';
 import {
@@ -24,6 +25,8 @@ import type { CourseCatalogueRow, StudentFinancials, University } from '@/types/
  */
 export default function CoursesPage() {
   const { t, locale } = useI18n();
+  const { can } = useAccess();
+  const mayWrite = can('courses.write');
   const [universityId, setUniversityId] = useState<string | null>(null);
   const [courseId, setCourseId] = useState<string | null>(null);
   // Track and year come out of the course title, so they can narrow the list
@@ -256,9 +259,11 @@ export default function CoursesPage() {
             hint={t.classification.subtitle}
             action={
               <div className="flex items-center gap-2">
-                <Button size="sm" variant="secondary" onClick={() => setCreating('university')}>
-                  {t.classification.addUniversity}
-                </Button>
+                {mayWrite && (
+                  <Button size="sm" variant="secondary" onClick={() => setCreating('university')}>
+                    {t.classification.addUniversity}
+                  </Button>
+                )}
                 <Link
                   href="/classification"
                   className="text-xs text-ink-muted hover:text-accent-strong"
@@ -286,11 +291,11 @@ export default function CoursesPage() {
                   <div className="mt-3">
                     <RecordActions
                       archived={!u.is_active}
-                      onEdit={() => setEditing({
+                      onEdit={!mayWrite ? undefined : () => setEditing({
                         kind: 'university', id: u.id,
                         values: u as unknown as Record<string, unknown>,
                       })}
-                      onDelete={() => setDeleting({ kind: 'university', id: u.id })}
+                      onDelete={mayWrite ? () => setDeleting({ kind: 'university', id: u.id }) : undefined}
                     />
                   </div>
                 </div>
@@ -344,11 +349,11 @@ export default function CoursesPage() {
               <div className="mt-3">
                 <RecordActions
                   archived={!c.is_active}
-                  onEdit={() => setEditing({
+                  onEdit={!mayWrite ? undefined : () => setEditing({
                     kind: 'course', id: c.course_id,
                     values: { name: c.course_name, is_active: c.is_active },
                   })}
-                  onDelete={() => setDeleting({ kind: 'course', id: c.course_id })}
+                  onDelete={mayWrite ? () => setDeleting({ kind: 'course', id: c.course_id }) : undefined}
                 />
               </div>
               </div>
