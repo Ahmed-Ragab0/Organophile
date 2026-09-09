@@ -38,6 +38,8 @@ export function FeeSchedulePanel({
   const [editing, setEditing] = useState(false);
   const [amount, setAmount] = useState('');
   const [from, setFrom] = useState('');
+  const [openedWith, setOpenedWith] =
+    useState<{ bank_fee_flat: string; effective_from: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,8 +56,24 @@ export function FeeSchedulePanel({
   function beginEdit() {
     if (!current) return;
     setAmount(String(current.bank_fee_flat));
-    // datetime-local wants a naive local string; the stored value is UTC.
-    setFrom(new Date(current.effective_from).toISOString().slice(0, 16));
+    /*
+     * datetime-local wants a naive LOCAL string, and toISOString() produces a
+     * UTC one — the comment that used to sit here said the first part and the
+     * code did the second. So the box showed UTC as though it were Cairo, and
+     * save() read it back AS Cairo: opening the form and pressing save with
+     * nothing changed walked the date three hours earlier. Every time. On an
+     * effective-dated fee, that silently changes which payments it applies to.
+     */
+    const d = new Date(current.effective_from);
+    setFrom(
+      new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16),
+    );
+    // What the row said when the form opened, so a save cannot overwrite a
+    // change made elsewhere since.
+    setOpenedWith({
+      bank_fee_flat: String(current.bank_fee_flat),
+      effective_from: current.effective_from,
+    });
     setError(null);
     setEditing(true);
   }
@@ -69,7 +87,32 @@ export function FeeSchedulePanel({
     }
     setSaving(true);
     setError(null);
-    const { error: err } = await createClient()
+    const sb = createClient();
+
+    /*
+     * This one number restates every financial figure in the app, and a form
+     * left open is a loaded gun: on 9 Sep 2026 a page opened before the fee was
+     * corrected to zero was saved afterwards and put 5.00 back, silently, with
+     * nothing to say it had happened. So the row is re-read and the save is
+     * refused if it moved.
+     */
+    const { data: fresh } = await sb
+      .from('kashier_fee_schedule').select('bank_fee_flat, effective_from')
+      .eq('id', current.id).single();
+    const live = fresh as { bank_fee_flat: number; effective_from: string } | null;
+    if (
+      live && openedWith
+      && (String(live.bank_fee_flat) !== openedWith.bank_fee_flat
+        || live.effective_from !== openedWith.effective_from)
+    ) {
+      setSaving(false);
+      setError(t.feeSchedule.changedElsewhere);
+      setNonce((v) => v + 1);
+      setEditing(false);
+      return;
+    }
+
+    const { error: err } = await sb
       .from('kashier_fee_schedule')
       .update({
         bank_fee_flat: value,

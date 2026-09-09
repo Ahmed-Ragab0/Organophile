@@ -303,6 +303,8 @@ export const ar = {
     differs: 'مختلف',
     none: 'مفيش رسم بنك مسجّل — الحسابات هتمشي من غير أي خصم إضافي',
     invalidAmount: 'المبلغ لازم يكون رقم موجب',
+    changedElsewhere:
+      'الرسوم اتغيّرت من مكان تاني وانت فاتح الفورم. حدّثنالك القيمة — بصّ عليها وعدّل تاني لو لسه عايز.',
   },
   position: {
     title: 'موقف الفلوس',
@@ -1126,6 +1128,8 @@ export const en: Dict = {
     differs: 'Differs',
     none: 'No bank fee recorded — the accounts run with no extra deduction',
     invalidAmount: 'The amount must be a positive number',
+    changedElsewhere:
+      'The fee changed elsewhere while this form was open. It has been reloaded — check it and edit again if you still want to.',
   },
   position: {
     title: 'Money position',

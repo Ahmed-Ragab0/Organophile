@@ -114,6 +114,12 @@ type AccountRow = {
   accountId?: string;
   merchantId?: string;
   type?: string;
+  lastTransfer?: number | string;
+  lastTransferId?: number | string;
+  lastTransferDate?: string;
+  lastTransferReference?: string;
+  totalBalanceBeforeLastTransfer?: number | string;
+  payoutMethod?: { method?: string };
   totalBalance?: number | string;
   availableBalance?: number | string;
   onHoldBalance?: number | string;
@@ -145,6 +151,7 @@ async function handle(req: Request): Promise<Response> {
   const summary = {
     mode, account: false, accountsReturned: 0,
     fetched: 0, ingested: 0, duplicates: 0, failed: 0,
+    settlement: null as string | null,
     transfersOk: false,
     transfersError: null as { status: number; detail: string | null } | null,
     transfersTried: null as Array<
@@ -191,6 +198,72 @@ async function handle(req: Request): Promise<Response> {
         summary.accountsReturned = list.length;
         merchantId = typeof chosen.merchantId === 'string' ? chosen.merchantId : null;
         accountId = typeof chosen.accountId === 'string' ? chosen.accountId : null;
+
+        /*
+         * The settlement Kashier will not list anywhere else.
+         *
+         * /v2/transfers is the bulk-transfer API — money a merchant sends to
+         * recipients — and answers `pagination.total: 0` for this account while
+         * the very same response reports a transfer of 100.57 out to the bank.
+         * These lastTransfer* fields are the ONLY record of it, so they are
+         * what the payout row is built from.
+         *
+         * It is a snapshot of the LAST one, which is why this runs on a
+         * schedule: two settlements between two syncs and the first is gone
+         * for good.
+         */
+        const lastId = chosen.lastTransferId;
+        if (lastId !== undefined && lastId !== null && String(lastId) !== '') {
+          const settlement = {
+            id: String(lastId),
+            status: 'TRANSFERRED',
+            amount: chosen.lastTransfer ?? null,
+            currency: 'EGP',
+            date: chosen.lastTransferDate ?? null,
+            reference: chosen.lastTransferReference ?? null,
+            method: chosen.payoutMethod?.method ?? null,
+            // Provenance, kept on the row: this did not come from a transfer
+            // record, because there is no transfer record.
+            _source: 'kashier_account.lastTransfer',
+            _balanceBefore: chosen.totalBalanceBeforeLastTransfer ?? null,
+            _balanceAfter: chosen.totalBalance ?? null,
+          };
+
+          const digest = await crypto.subtle.digest(
+            'SHA-256',
+            new TextEncoder().encode(
+              `account_last_transfer:${mode}:${settlement.id}:${settlement.amount ?? ''}`,
+            ),
+          );
+          const settlementHash = Array.from(new Uint8Array(digest))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('');
+
+          const { error: settleErr } = await client.rpc('ingest_kashier_event', {
+            p_payload: settlement,
+            p_body_sha256: settlementHash,
+            // Fetched by us over TLS with our own Secret Key, not signed by an
+            // inbound request — recorded as what it is.
+            p_signature_valid: true,
+            p_mode: mode,
+            p_resource_type: 'transfer',
+            // `source` is a closed set on kashier_events_raw and this is an API
+            // sync like any other. Which endpoint it came out of is the part
+            // that matters, and that is what signature_note carries.
+            p_source: 'api_sync',
+            p_signature_note: `account_last_transfer:${mode}`,
+          });
+          if (settleErr) {
+            log('error', 'settlement_ingest_failed', {
+              mode, id: settlement.id, message: settleErr.message,
+            });
+          } else {
+            summary.settlement = settlement.id;
+            log('info', 'settlement_recorded', {
+              mode, id: settlement.id, amount: settlement.amount,
+            });
+          }
+        }
       }
 
       log('info', 'account_selected', {

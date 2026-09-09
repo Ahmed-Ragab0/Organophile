@@ -225,6 +225,21 @@ signed Kashier traffic.**
   `lastTransferReference`, `totalBalanceBeforeLastTransfer`. That is a snapshot
   of the LAST one — two settlements between two syncs and the first is gone.
 
+  Those fields become the payout row (0039), and the sync runs every 15 minutes
+  on `pg_cron` so the window in which a settlement can be missed stays small.
+  `app.sync_kashier_payouts()` reads the service role key from Vault — never a
+  migration, a repo or a log — and returns `{ok:false,
+  reason:"no_service_role_key"}` rather than failing when it is not stored.
+
+- **Kashier's opening balance is not yours to attribute.** It was already
+  holding 100.57 before this system recorded a payment, and the 9 Sep transfer
+  moved exactly that: 292.08 − 100.57 = 191.51, which is 95.84 + 95.67, the two
+  settled payments, untouched. Recorded once on
+  `kashier_account.opening_balance` with that arithmetic as its note.
+  `app.transferred_ours()` takes it off the top, so FIFO attribution and
+  `awaiting_payout` never report a student's money as banked because Kashier
+  moved money that was never ours.
+
 **`payoutFees` is per TRANSFER, not per payment (0038).** 0022 read the account
 endpoint's `payoutFees: 5` as a flat bank fee on every transaction and applied
 it everywhere. Kashier's own balance disproves it to the piastre:
