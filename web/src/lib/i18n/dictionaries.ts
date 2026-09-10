@@ -777,6 +777,12 @@ export const ar = {
     activate: 'رجّعه',
     savedPassword: 'اتغيّرت',
     createdOk: 'الحساب اتعمل',
+    onRoster: 'في فريق الشغل',
+    notOnRoster: 'مش في فريق الشغل',
+    notOnRosterHint:
+      'الحساب ده مينفعش تديله مهام ولا يشغّل تايمر لحد ما يبقى موظف. دوسة واحدة وخلاص.',
+    addToRoster: 'ضيفه لفريق الشغل',
+    addingToRoster: 'جارٍ الإضافة…',
     byDomain: {
       overview: 'النظرة العامة',
       students: 'الطلاب',
@@ -1251,6 +1257,8 @@ export const ar = {
 
     notLinkedNotice:
       'حسابك مش مربوط بموظف، فالتايمر مش هيشتغل. اربطه من المرتبات ← الموظفين.',
+    notLinkedForYou:
+      'التايمر لسه مش متفعّل على حسابك — كلّم المسؤول عشان يضيفك لفريق الشغل.',
     greetingMorning: 'صباح الخير',
     greetingAfternoon: 'نهارك سعيد',
     greetingEvening: 'مساء الخير',
@@ -2039,6 +2047,12 @@ export const en: Dict = {
     activate: 'Restore',
     savedPassword: 'Changed',
     createdOk: 'Account created',
+    onRoster: 'On the work roster',
+    notOnRoster: 'Not on the work roster',
+    notOnRosterHint:
+      'This account cannot be given tasks or run a timer until it belongs to a person. One click.',
+    addToRoster: 'Add to the roster',
+    addingToRoster: 'Adding…',
     byDomain: {
       overview: 'Overview',
       students: 'Students',
@@ -2518,6 +2532,8 @@ export const en: Dict = {
 
     notLinkedNotice:
       'Your account is not linked to a person, so the timer will not run. Link it in Payroll → People.',
+    notLinkedForYou:
+      'The timer is not switched on for your account yet — ask whoever set it up to add you.',
     greetingMorning: 'Good morning',
     greetingAfternoon: 'Good afternoon',
     greetingEvening: 'Good evening',

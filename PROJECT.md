@@ -714,7 +714,7 @@ cd supabase && deno task test        # 72 Deno tests
 # SQL regression suites (both roll themselves back; safe against live):
 psql "$DATABASE_URL" -f supabase/tests/projections.test.sql
 psql "$DATABASE_URL" -f supabase/tests/payroll.test.sql   # 32 assertions
-psql "$DATABASE_URL" -f supabase/tests/tasks.test.sql     # 35 assertions
+psql "$DATABASE_URL" -f supabase/tests/tasks.test.sql     # 40 assertions
 cd web && npm run lint && npm run build
 ```
 
@@ -1014,6 +1014,40 @@ the midpoint of its neighbours — **one row**, not a renumbering of everything
 below it. On a board two people are dragging at once, renumbering is how you
 get an order neither of them chose. `move_task` does that arithmetic inside one
 statement rather than in the browser, for the same reason.
+
+### A login and a person are one click apart
+
+An account and a roster row are two records on purpose (section 13). Crossing
+between them used to be a four-step dance the OWNER had to do, while the
+EMPLOYEE got nagged about it — the first version of the board told an account
+with no roster row to "link it from Payroll → People", a page that needs
+`payroll.write`, which that account does not have. **It told somebody to fix a
+gap they are not allowed to touch, that somebody else left.**
+
+Three changes, in the order they matter:
+
+1. **The link makes itself.** A new `staff` row adopts the `employees` row
+   carrying the same email, case and whitespace ignored. The ordinary sequence
+   is join → payroll → account, and in that sequence the link is not a decision
+   anybody needs to make. It picks exactly ONE row — the oldest match — and
+   only when the account has nobody yet: `employees.user_id` is unique, so two
+   roster rows sharing an address would otherwise abort the whole staff insert
+   with a constraint error nobody could read.
+2. **The staff list says who has nobody behind them**, and offers the one
+   click. That is the screen where the role was granted, so it is the screen
+   where the consequence belongs. The row is created bare — a name, an email,
+   a link, no wage — because being on the roster is about doing work, and pay
+   is a separate decision on a separate screen.
+3. **The board's message is rewritten by who is reading it.** A manager is
+   told nothing (the Start button needs a roster row and is simply not
+   offered). Somebody who can fix it is told where. Somebody who cannot is
+   told the fact and who to ask, and never sent to a page that would refuse
+   them.
+
+`v_staff.employee_id` comes through `app.employee_id_for()` — SECURITY
+DEFINER, because `employees` is gated on `payroll.read` and this question is
+asked from the staff screen by somebody who may hold nothing about salaries.
+What it returns is an id, not a wage.
 
 ### The board is somebody's whole app
 

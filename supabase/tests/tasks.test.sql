@@ -273,6 +273,66 @@ begin
   assert (select cancelled from public.v_projects where id = v_proj) = 1,
     'T35: the cancelled task was not counted as cancelled';
 
+  --------------------------------------------- a login and a person (0053)
+  -- T36: the staff list says whether there is a person behind each login.
+  -- Without this the owner grants a tasks role, the account works for
+  -- nothing, and the only place that says so is the employee's own board.
+  assert (select employee_id from public.v_staff where user_id = v_other) = e_me,
+    'T36: v_staff does not report the employee behind a login';
+
+  -- T37: an account with no person behind it says so
+  assert (select employee_id from public.v_staff where user_id = v_admin) is null
+      or (select count(*) from public.employees where user_id = v_admin) = 1,
+    'T37: v_staff invented an employee for an unlinked account';
+
+  /*
+   * T38: payroll first, account afterwards — the ordinary sequence — links
+   * itself. Somebody joins, is added to the roster, and is given a login some
+   * days later; the email is the same person and that is not a decision
+   * anybody should have to remember to make.
+   *
+   * The staff row is deleted and re-created rather than invented, because
+   * `staff.user_id` has to be a real auth user.
+   */
+  declare
+    v_role  uuid;
+    v_email text;
+  begin
+    select email, role_id into v_email, v_role from public.staff where user_id = v_other;
+    -- Removing the account nulls `employees.user_id` (ON DELETE SET NULL), so
+    -- the salesperson's row is unlinked but still there — which is also the
+    -- case the trigger has to not break: it carries no email, so it must not
+    -- be the row that gets adopted.
+    delete from public.staff where user_id = v_other;
+
+    insert into public.employees (full_name, email) values ('TSTT late hire', lower(v_email));
+    -- Written carelessly on purpose: a different case and a trailing space.
+    insert into public.staff (user_id, email, role_id)
+    values (v_other, upper(v_email) || ' ', v_role);
+
+    assert (select user_id from public.employees where full_name = 'TSTT late hire') = v_other,
+      'T38: the account did not adopt the employee row carrying its email';
+    assert (select user_id from public.employees where id = e_me) is null,
+      'T38b: it adopted a row that carries no email at all';
+
+    -- T38c: two roster rows with one address must not both be handed the
+    -- account. `employees.user_id` is unique, so the second would abort the
+    -- whole staff insert with a constraint error nobody could read.
+    delete from public.staff where user_id = v_other;
+    insert into public.employees (full_name, email) values ('TSTT duplicate', lower(v_email));
+    insert into public.staff (user_id, email, role_id) values (v_other, v_email, v_role);
+    select count(*) into n from public.employees where user_id = v_other;
+    assert n = 1, 'T38c: ' || n || ' roster rows were linked to one account';
+
+    -- T39: and an employee already spoken for is not stolen by a second
+    -- account with the same address.
+    delete from public.staff where user_id = v_other;
+    insert into public.staff (user_id, email, role_id) values (v_other, v_email, v_role);
+    select count(*) into n
+      from public.employees where lower(email) = lower(v_email) and user_id = v_other;
+    assert n = 1, 'T39: a repeat insert produced ' || n || ' linked rows';
+  end;
+
   raise notice 'ALL TASK TESTS PASSED';
 end $$;
 

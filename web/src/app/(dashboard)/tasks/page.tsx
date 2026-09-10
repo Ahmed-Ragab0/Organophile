@@ -139,17 +139,28 @@ export default function TasksPage() {
       <TaskTabs maySeeTeam={maySeeTeam} />
 
       {/*
-        * Shown only to somebody who is meant to be timing work.
+        * A message about a gap somebody else has to close.
         *
-        * A manager watches the team; they do not necessarily have a payroll
-        * row of their own, and telling them every single day that their
-        * timer will not run is nagging them about a thing they did not ask
-        * for. If one of them does want a clock, linking themselves is the
-        * same one field — and the Start button, which needs an employee row,
-        * simply is not offered until then.
+        * This account has no `employees` row, so it can neither be given a
+        * task nor run a timer. Three different people can be reading that
+        * sentence, and only one of them can do anything about it:
+        *
+        *   - a manager watching the team, who does not need a payroll row at
+        *     all. Told nothing; the Start button needs one and is simply not
+        *     offered, and nagging them daily about a thing they never asked
+        *     for is noise.
+        *   - the owner, who can fix it. Told where to go.
+        *   - the employee, who CANNOT — Payroll needs `payroll.write`. The
+        *     first version of this sent them to a page they cannot open,
+        *     which is worse than saying nothing. They get the fact and who to
+        *     ask, and the real fix is one click on the Staff screen.
         */}
-      {mayWork && !maySeeTeam && me === null && (
-        <div className="mb-4"><Notice tone="warn">{t.tasks.notLinkedNotice}</Notice></div>
+      {mayWork && me === null && !maySeeTeam && (
+        <div className="mb-4">
+          <Notice tone={can('payroll.write') ? 'warn' : 'info'}>
+            {can('payroll.write') ? t.tasks.notLinkedNotice : t.tasks.notLinkedForYou}
+          </Notice>
+        </div>
       )}
 
       {me && <MyDay me={me} name={full_name ?? email ?? null} />}

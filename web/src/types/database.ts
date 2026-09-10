@@ -1004,6 +1004,14 @@ export type StaffRow = {
   role_is_active: boolean;
   /** Whether this row is the person looking at it. */
   is_me: boolean;
+  /**
+   * The person behind this login, if there is one.
+   *
+   * Null means the account cannot be given a task or run a timer, because
+   * both belong to an `employees` row. That is a gap for whoever GRANTS the
+   * role to close, not for the account holder to discover.
+   */
+  employee_id: string | null;
 };
 
 /** The `expense_categories` table — what a picker needs and nothing more. */
