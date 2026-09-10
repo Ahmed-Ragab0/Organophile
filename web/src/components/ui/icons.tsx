@@ -72,6 +72,15 @@ export const IconPayroll = (p: IconProps) => (
   </Svg>
 );
 
+/** Tasks — a checklist. Two done, one still open. */
+export const IconTasks = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m3 6.5 1.6 1.6L8 4.8M3 13l1.6 1.6L8 11.3" />
+    <rect x="3" y="17.4" width="3.4" height="3.4" rx="1" />
+    <path d="M11 6.5h10M11 13h10M11 19.1h10" />
+  </Svg>
+);
+
 export const IconReports = (p: IconProps) => (
   <Svg {...p}>
     <path d="M4 20V4" />
@@ -269,6 +278,7 @@ export const NAV_ICONS = {
   ledger: IconLedger,
   expenses: IconExpenses,
   payroll: IconPayroll,
+  tasks: IconTasks,
   reports: IconReports,
   students: IconStudents,
   courses: IconCourses,

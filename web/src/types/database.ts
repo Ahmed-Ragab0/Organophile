@@ -1091,6 +1091,8 @@ export type EmployeeRow = {
   paid_count: number;
   paid_total: number;
   last_paid_at: string | null;
+  /** How long this person's working day is. What the task target measures against. */
+  daily_target_minutes: number;
 };
 
 /** `v_salary_components` — the lines a payslip can carry. */
@@ -1201,4 +1203,147 @@ export type PayrollResult = {
   amount?: number;
   wallet_id?: string;
   paid_at?: string;
+};
+
+// --- Tasks -------------------------------------------------------------------
+
+/** The four columns a task can be in. The board IS this union. */
+export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'cancelled';
+
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+/** Where a stretch of time came from: the app watched it, or somebody typed it. */
+export type SessionSource = 'timer' | 'manual';
+
+/**
+ * What a time entry is worth.
+ *
+ * `tracked` and `approved` count towards every total; `pending` is a claim
+ * nobody has agreed to yet and `rejected` is one somebody refused. The
+ * database decides this in `app.session_counts`, and nothing here recomputes it.
+ */
+export type SessionStatus = 'tracked' | 'pending' | 'approved' | 'rejected';
+
+/** The card stripe, as a design-system token rather than a hex. */
+export type ProjectColour =
+  'brand' | 'accent' | 'ok' | 'warn' | 'danger' | 'info' | 'neutral';
+
+/** `v_projects` — a body of work and how far through it is. */
+export type ProjectRow = {
+  id: string;
+  name: string;
+  /** The short code printed on every card. Derived if not given. */
+  key: string;
+  description: string | null;
+  colour: ProjectColour;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  tasks: number;
+  todo: number;
+  in_progress: number;
+  done: number;
+  cancelled: number;
+  /** Cancelled work leaves the denominator rather than capping this below 100. */
+  percent_done: number;
+  overdue: number;
+  minutes: number;
+};
+
+/** `v_tasks` — one card, with everything it needs to draw itself. */
+export type TaskRow = {
+  id: string;
+  project_id: string | null;
+  project_name: string | null;
+  project_key: string | null;
+  project_colour: ProjectColour | null;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  assignee_id: string | null;
+  assignee_name: string | null;
+  assignee_role: string | null;
+  due_on: string | null;
+  /** Late, decided by the database against the Cairo day. */
+  is_overdue: boolean;
+  position: number;
+  estimate_minutes: number | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Counted time only — a running clock is not in here until it stops. */
+  minutes: number;
+  sessions: number;
+  running_since: string | null;
+  is_running: boolean;
+};
+
+/** `v_task_sessions` — a stretch of time, with where it came from. */
+export type TaskSessionRow = {
+  id: string;
+  task_id: string;
+  task_title: string;
+  project_id: string | null;
+  project_name: string | null;
+  project_key: string | null;
+  employee_id: string;
+  employee_name: string | null;
+  started_at: string;
+  ended_at: string | null;
+  minutes: number | null;
+  source: SessionSource;
+  status: SessionStatus;
+  /** Whether this one is in the totals. Decided once, in the database. */
+  counts: boolean;
+  /** The Cairo day it belongs to. */
+  day: string;
+  note: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * `v_team_productivity` — one row per person.
+ *
+ * Everybody's rows for somebody with `team.read`; just your own otherwise,
+ * because "how is my day going" is a question about yourself.
+ */
+export type ProductivityRow = {
+  id: string;
+  full_name: string;
+  job_title: string | null;
+  is_active: boolean;
+  user_id: string | null;
+  /** What `minutes_today` is a fraction OF. Per person, not global. */
+  daily_target_minutes: number;
+  open_tasks: number;
+  in_progress: number;
+  overdue: number;
+  done_total: number;
+  done_week: number;
+  minutes_today: number;
+  minutes_week: number;
+  minutes_month: number;
+  pending_reviews: number;
+  last_activity_at: string | null;
+  running_task_id: string | null;
+  running_task_title: string | null;
+  running_since: string | null;
+};
+
+/** What the task verbs answer with. */
+export type TaskResult = {
+  ok: boolean;
+  reason?: string;
+  session_id?: string;
+  stopped_previous?: number;
+  minutes?: number;
+  status?: string;
+  position?: number;
 };

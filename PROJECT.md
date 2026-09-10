@@ -131,13 +131,19 @@ Four seeded roles, and the owner can add more:
 | Role | Holds |
 |---|---|
 | **مدير** (`admin`) | everything, implicitly and permanently |
-| **محاسب** (`accountant`) | money read+write, payroll read+write, payments/reports/students/subscriptions read |
-| **سيلز** (`sales`) | students and subscriptions read+write, courses/reports read |
+| **محاسب** (`accountant`) | money read+write, payroll read+write, own tasks, payments/reports/students/subscriptions read |
+| **سيلز** (`sales`) | students and subscriptions read+write, courses/reports read, own tasks |
 | **مشاهدة** (`viewer`) | every `.read` except staff |
 
-Permissions are `<domain>.<action>` with action ∈ {read, write}, over eleven
+Permissions are `<domain>.<action>` with action ∈ {read, write}, over thirteen
 domains: overview, students, courses, subscriptions, money, **payroll**,
-payments, reports, settings, staff, system.
+**tasks**, **team**, payments, reports, settings, staff, system.
+
+**`tasks` and `team` are two domains rather than three levels of one.** Every
+other domain here is all-or-nothing, which was right while every domain was
+about the business. Tasks are about people: a salesperson must be able to work
+their own board without reading their colleagues'. So `tasks.*` means yours and
+`team.*` means everybody's — and the two-action rule survives intact.
 
 `payroll` is the one domain deliberately kept out of `viewer`. "Every `.read`
 except staff" was written before salaries existed, and a list of what your
@@ -215,6 +221,12 @@ of it is empty.
 - `salary_components` — the vocabulary those lines are filed under.
 - `payroll_settings` — one row: company name, thank-you template, where
   salaries land in the books.
+
+**Work**
+- `projects` — what tasks are filed under, and where progress is measured.
+- `tasks` — one thing, assigned to one EMPLOYEE, in one of four states.
+- `task_sessions` — a stretch of time on a task, timed by the app or typed in
+  and reviewed. Their sum is every hour figure in the system.
 
 **Access**
 - `staff` — who may use the system. One row per person; there is no second list.
@@ -702,6 +714,7 @@ cd supabase && deno task test        # 72 Deno tests
 # SQL regression suites (both roll themselves back; safe against live):
 psql "$DATABASE_URL" -f supabase/tests/projections.test.sql
 psql "$DATABASE_URL" -f supabase/tests/payroll.test.sql   # 32 assertions
+psql "$DATABASE_URL" -f supabase/tests/tasks.test.sql     # 35 assertions
 cd web && npm run lint && npm run build
 ```
 
@@ -899,3 +912,125 @@ getting it wrong is the tell of a generated document.
 - **Self-service.** An employee cannot read their own payslip, because an
   employee is not necessarily a login at all. The link exists for the day that
   changes.
+
+---
+
+## 14. Tasks and productivity
+
+`/tasks` is a board, a team report, and a project list. It answers the question
+payroll cannot: **section 13 says what a person cost; this says what they did.**
+
+### A board that opens on your own work
+
+Even for the owner. A board that opens on forty cards belonging to five people
+is a report you have to filter before you can use it; a board that opens on
+yours is a place to start the day. "الفريق كله" is one click away for anybody
+holding `team.read`.
+
+The switch is a **filter on rows the database already agreed to send**. It is
+not the security boundary — RLS is — so somebody without `team.read` who
+somehow flipped it would see exactly what they saw before.
+
+### Working a task and managing it are different jobs
+
+RLS is row-level and cannot say *which columns* somebody may change, so
+`app.guard_task` says it:
+
+| Anyone assigned a task may | Only `team.write` may |
+|---|---|
+| move it across the board | reassign it |
+| reorder it in a column | change its due date, priority or estimate |
+| add a task **for themselves** | assign work to somebody else |
+| log their own time | approve or reject time |
+| | delete a task or a project |
+
+Without that trigger, a salesperson could hand their own overdue work to a
+colleague and the board would look perfectly tidy afterwards.
+
+### The clock
+
+One clock per person, enforced by a partial unique index as well as by
+`start_task_timer` — starting a second task ends the first, because the honest
+reading of "I started something else" is that the previous thing stopped, not
+that the request was invalid. A forgotten Monday timer plus a fresh Tuesday one
+is how every hour after that gets counted twice.
+
+Session boundaries use **`clock_timestamp()`, not `now()`**. `now()` is the
+transaction's start time and does not move while it runs, so a start and a stop
+inside one transaction land on the same instant — a zero-length session the
+check constraint then refuses. This was a real failure, caught by the first
+probe run against the live database.
+
+### Typed-in time is a claim, not a fact
+
+| | counts immediately | needs agreement |
+|---|---|---|
+| **timer** | ✅ the app watched it | |
+| **manual** | | ✅ `pending` until `review_time_entry` |
+
+`app.session_counts(status)` is the single definition of "counts", written once
+and read by every view. Hours appearing with two different definitions on two
+screens is the fastest way to lose trust in both.
+
+`log_manual_time` refuses overlaps outright. Two claims covering the same hour
+is the one error a reviewer cannot catch by reading, because each entry looks
+perfectly reasonable on its own. Back-to-back work is not an overlap — the
+comparison is half-open, so 14:00–15:00 sits happily after 13:00–14:00.
+
+### Names are not salaries
+
+`employees` is gated on `payroll.read`, because that table holds what everybody
+earns. But a card has to say "assigned to Mariam", and a sales manager who may
+see the team's work has no business seeing the team's pay.
+
+Joining `employees` into the task views would have forced the choice: grant
+payroll to everyone with a board, or show every card as unassigned. So the join
+goes through **`app.team_members()`** — SECURITY DEFINER, and the columns it
+returns are the whole of its promise: name, job title, whether they are active,
+and how long their working day is. No salary, no phone, no wallet.
+
+`v_team_productivity` then adds `where app.can('team.read') or e.id =
+app.my_employee_id()`, so somebody with only `tasks.read` sees exactly one row —
+their own. Without that line they would have seen the whole roster with every
+figure zeroed, which leaks the shape of the team while appearing not to.
+
+### A task belongs to an employee, not to a login
+
+`employees` is already this system's answer to "who works here" (section 13),
+and it is the list the owner maintains. Somebody with no login can still be
+given tasks and still appears in the productivity report; they just cannot open
+the app to see them. Assigning to `staff` instead would force the roster of
+people who do work and the roster of people who can sign in to be the same
+list — which they already are not.
+
+The consequence worth knowing: **a login that is not linked to an employee row
+cannot start a timer.** The board says so in a notice rather than failing
+silently, and the fix is one field on Payroll → الموظفين.
+
+### Card positions are fractional
+
+`tasks.position` is `numeric`, and dropping a card between two others writes
+the midpoint of its neighbours — **one row**, not a renumbering of everything
+below it. On a board two people are dragging at once, renumbering is how you
+get an order neither of them chose. `move_task` does that arithmetic inside one
+statement rather than in the browser, for the same reason.
+
+### What is deliberately not built
+
+The reference product (PeakTime) also takes **automatic screenshots** of
+employees' screens and logs **every website and application** they use. Neither
+is here, and neither is a small omission:
+
+- Both need a **desktop agent installed on each machine** with screen-recording
+  permission. That is a signed native app per platform, not a page in this
+  dashboard — no web app can capture the screen of a machine it is not running
+  on.
+- Continuous screen capture and app logging carry consent and notice
+  obligations that vary by jurisdiction, and they collect far more than work
+  data — the reference product's own UI has a "delete this screenshot if it
+  contains personal content" button, which tells you what it captures.
+
+The productivity numbers here come from work: hours against tasks, tasks
+finished, what is overdue, and who is carrying what. If screen monitoring is
+wanted later it is a separate product decision and a separate build, not an
+extension of this one.

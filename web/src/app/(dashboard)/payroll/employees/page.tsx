@@ -81,6 +81,12 @@ export default function PayrollPeoplePage() {
         .filter((w) => w.is_active)
         .map((w) => ({ value: w.id, label: w.name })),
     },
+    {
+      name: 'daily_target_minutes',
+      label: t.tasks.targetMinutes,
+      type: 'number',
+      hint: t.tasks.target,
+    },
     { name: 'hired_on', label: t.payroll.hiredOn, type: 'date', hint: t.payroll.datesHint },
     { name: 'ended_on', label: t.payroll.endedOn, type: 'date' },
     ...(maySeeStaff

@@ -36,6 +36,7 @@ const NAV_GROUPS = [
   {
     key: 'people' as const,
     items: [
+      { href: '/tasks', key: 'tasks' },
       { href: '/students', key: 'students' },
       { href: '/courses', key: 'courses' },
       { href: '/subscriptions', key: 'subscriptions' },
