@@ -962,6 +962,60 @@ insert into public.tasks (title, assignee_id) values ('x', '…');
 rollback;
 ```
 
+### How an hour is counted
+
+| | |
+|---|---|
+| **A session** | one row in `task_sessions`: a task, a person, a start, an end |
+| **Its length** | `minutes`, a STORED GENERATED column — whole minutes, floored. Null while it runs. |
+| **The timer** | `start_task_timer` stops whatever was running for that person first, then opens a new session and moves the task to In Progress. One clock per person, enforced by a partial unique index. |
+| **What counts** | `app.session_counts(status)` — `tracked` (the app watched it) and `approved` (a manager agreed to it). Written once and read by every view. |
+| **What does not** | a running clock (its `minutes` is null until it stops), a `pending` claim, a `rejected` one |
+| **Which day** | the day it STARTED, in Cairo. A session across midnight counts wholly on the starting day. |
+| **The target** | `employees.daily_target_minutes`, per person, default 480. |
+
+Rounding is downward to the whole minute, so a start and a stop inside the same
+minute is a zero — deliberately allowed rather than refused, because a misclick
+should be a row you delete, not an error on screen.
+
+The live counter above the board ticks in the browser from `running_since`. It
+is display only; nothing has been counted until the timer stops.
+
+### A week that started at three in the morning
+
+Found while answering the question above, which is the only reason it was found:
+
+```sql
+date_trunc('week', now() at time zone 'Africa/Cairo')   -- ← naive
+```
+
+`now() at time zone 'Africa/Cairo'` returns a timestamp WITHOUT a time zone —
+the wall clock in Cairo, with no memory of where it came from. `date_trunc`
+hands back Monday 00:00, still naive. Comparing that against a `timestamptz`
+makes Postgres cast it using the SESSION's zone, and this database runs in UTC.
+**Monday 00:00 Cairo became Monday 00:00 UTC — three hours late**, so anything
+worked between midnight and 3am on the first day of a week or month was counted
+in the previous one.
+
+`app.cairo_week_start()` and `app.cairo_month_start()` apply `at time zone
+'Africa/Cairo'` a second time, which is what turns the wall clock back into an
+instant. Named functions rather than the expression repeated at each site,
+because the expression already says "Cairo" once and that is exactly what makes
+the missing second application easy to overlook.
+
+**The same pattern is still present in three money views**, all predating this
+work, all with the same three-hour skew at a month boundary:
+
+| Where | Figure |
+|---|---|
+| `0005_views.sql:212` | `revenue_this_month` |
+| `0015_financial_system.sql:727` | the money position's month window |
+| `0031_installment_plans.sql:566` | `in_month` on instalment plans |
+
+Grouping keys of the form `date_trunc('month', col at time zone 'Africa/Cairo')`
+are fine — both sides are naive Cairo. It is only the COMPARISON against a
+`timestamptz` column that skews.
+
 ### A cycle waits for money, not for rows
 
 Related, and found the same day: somebody added to the roster from the Staff

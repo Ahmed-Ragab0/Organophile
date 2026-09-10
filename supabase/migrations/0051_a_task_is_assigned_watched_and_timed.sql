@@ -694,8 +694,7 @@ select e.id, e.full_name, e.job_title, e.is_active, e.user_id,
                                                                          as overdue,
            count(*) filter (where tk.status = 'done')                    as done_total,
            count(*) filter (where tk.status = 'done'
-                              and tk.completed_at
-                                  >= date_trunc('week', now() at time zone 'Africa/Cairo'))
+                              and tk.completed_at >= app.cairo_week_start())
                                                                          as done_week
       from public.tasks tk where tk.assignee_id = e.id
   ) t on true
@@ -706,11 +705,11 @@ select e.id, e.full_name, e.job_title, e.is_active, e.user_id,
                    = (now() at time zone 'Africa/Cairo')::date)          as minutes_today,
            sum(ts.minutes) filter (
              where app.session_counts(ts.status)
-               and ts.started_at >= date_trunc('week', now() at time zone 'Africa/Cairo'))
+               and ts.started_at >= app.cairo_week_start())
                                                                          as minutes_week,
            sum(ts.minutes) filter (
              where app.session_counts(ts.status)
-               and ts.started_at >= date_trunc('month', now() at time zone 'Africa/Cairo'))
+               and ts.started_at >= app.cairo_month_start())
                                                                          as minutes_month,
            count(*) filter (where ts.status = 'pending')                 as pending,
            max(ts.started_at)                                            as last_activity_at

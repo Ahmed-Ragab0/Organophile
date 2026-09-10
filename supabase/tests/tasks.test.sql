@@ -25,6 +25,30 @@ begin;
  */
 select app.assert_guards_can_run();
 
+/*
+ * And do the week and the month start at midnight in Cairo?
+ *
+ * `date_trunc('week', now() at time zone 'Africa/Cairo')` has no time zone on
+ * it any more, so comparing it against a timestamptz makes Postgres read the
+ * Cairo wall clock as if it were the session's zone — UTC here. "This week"
+ * began at 3am for as long as that was in the view.
+ */
+do $$
+begin
+  assert extract(hour   from app.cairo_week_start()  at time zone 'Africa/Cairo') = 0
+     and extract(minute from app.cairo_week_start()  at time zone 'Africa/Cairo') = 0,
+    'W1: the week does not start at midnight in Cairo: '
+      || (app.cairo_week_start() at time zone 'Africa/Cairo')::text;
+
+  assert extract(hour from app.cairo_month_start() at time zone 'Africa/Cairo') = 0
+     and extract(day  from app.cairo_month_start() at time zone 'Africa/Cairo') = 1,
+    'W2: the month does not start at midnight on the 1st in Cairo: '
+      || (app.cairo_month_start() at time zone 'Africa/Cairo')::text;
+
+  assert extract(isodow from app.cairo_week_start() at time zone 'Africa/Cairo') = 1,
+    'W3: the week does not start on a Monday';
+end $$;
+
 do $$
 declare
   v_admin  uuid;
