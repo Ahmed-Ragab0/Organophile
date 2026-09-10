@@ -17,11 +17,12 @@ import {
 } from '@/components/record-actions';
 import { DataTable, type Column } from '@/components/ui/table';
 import {
-  InstallmentPips, LedgerTypeBadge, Money, Mono, PaymentStatusBadge, PlanStatusBadge,
-  SignedMoney, StatCard,
+  InstallmentPips, LedgerTypeBadge, LevelBadge, Money, Mono, PaymentStatusBadge,
+  PlanStatusBadge, SignedMoney, StatCard,
 } from '@/components/domain';
 import type {
-  InstallmentPlan, LedgerEntry, StudentFinancials, SubscriptionFinancials, Track, University,
+  InstallmentPlan, LedgerEntry, LevelRow, StudentFinancials, SubscriptionFinancials,
+  Track, University,
 } from '@/types/database';
 
 type SubscriptionRow = SubscriptionFinancials & {
@@ -61,6 +62,11 @@ export default function StudentDetailPage() {
     [],
   );
 
+  const levels = useSupabaseQuery<LevelRow[]>(
+    (sb) => sb.from('v_levels').select('*'),
+    [],
+  );
+
   const plans = useSupabaseQuery<InstallmentPlan[]>(
     (sb) =>
       sb.from('v_installment_plans').select('*')
@@ -91,8 +97,15 @@ export default function StudentDetailPage() {
     { name: 'name', label: t.students.name, type: 'text', required: true },
     { name: 'phone', label: t.students.phone, type: 'text' },
     { name: 'email', label: t.students.email, type: 'text' },
-    { name: 'group_name', label: t.students.group, type: 'text',
-      hint: t.students.groupHint },
+    {
+      name: 'level', label: t.students.group, type: 'select', numeric: true,
+      hint: t.students.groupHint,
+      options: (levels.data ?? []).map((l) => ({
+        value: String(l.level), label: `${t.courseInfo.subjectOrganic} ${l.level}`,
+      })),
+    },
+    { name: 'group_name', label: t.students.ukkeraGroup, type: 'text',
+      hint: t.students.ukkeraGroupHint },
     {
       name: 'university_id', label: t.students.university, type: 'lookup',
       lookupTable: 'universities', lookupPrompt: t.classification.universityName,
@@ -180,9 +193,11 @@ export default function StudentDetailPage() {
         title={s.name}
         subtitle={[s.phone, s.group_name].filter(Boolean).join(' · ')}
         action={(
-          <div className="flex items-center gap-2">
-            {/* Where the classification came from, because it decides whether
-                the next payment may still change it. */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* The level leads, because it is the one thing you sort a roster
+                by. Where the classification came from follows, because it
+                decides whether the next payment may still change it. */}
+            <LevelBadge level={s.level} />
             <Badge tone={s.university_name || s.track_name ? 'info' : 'neutral'}>
               {[s.university_name, s.track_name].filter(Boolean).join(' · ')
                 || t.students.unclassified}

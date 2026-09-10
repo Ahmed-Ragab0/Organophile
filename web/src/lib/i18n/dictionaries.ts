@@ -66,7 +66,7 @@ export const ar = {
     pricing: 'الأسعار والدفعات',
     journey: 'رحلة الطلب',
     classification: 'الجامعات والتخصصات',
-    settings: 'القوايم والإعدادات',
+    settings: 'القوائم والإعدادات',
     staff: 'الموظفين',
   },
   navGroups: {
@@ -134,10 +134,14 @@ export const ar = {
     subtitle: 'قائمة الطلاب وبياناتهم',
     name: 'الاسم',
     phone: 'الموبايل',
-    group: 'المجموعة (الجروب)',
+    group: 'المجموعة',
     groupHint:
-      'الجروب اللي الطالب بيحضر معاه، زي ما هو مكتوب في يوكيرا. مش الكورس ومش '
-      + 'المستوى — Organic 1/2/3/4 بيتقرا من اسم الكورس نفسه وبيبان جنب كل اشتراك.',
+      'بتتقرا لوحدها من اسم الكورس — «ORGANIC 3 - Azhar Asyut - 2027 - Ph-D» '
+      + 'يعني أورجانيك ٣. أول ما تحددها بإيدك تبقى بتاعتك والسيستم مبيغيّرهاش.',
+    ukkeraGroup: 'جروب يوكيرا',
+    ukkeraGroupHint: 'الخانة النصّية اللي جاية من إكسبورت يوكيرا. مش المستوى.',
+    levelUnknown: 'مش محدد',
+    levelMixed: 'أكتر من مستوى',
     university: 'الجامعة',
     track: 'التخصص',
     unclassified: 'من غير تحديد',
@@ -612,7 +616,7 @@ export const ar = {
     isMoney: 'فلوس',
     blockedByMoney:
       'فيه فلوس مسجّلة على السجل ده ({amount}) — الحذف هيسيبها من غير صاحب. '
-      + 'أرشفه بدل كده: هيختفي من القوايم والتاريخ يفضل زي ما هو.',
+      + 'أرشفه بدل كده: هيختفي من القوائم والتاريخ يفضل زي ما هو.',
     detachWarning: 'الحاجات دي مش هتتمسح، بس هتفضل من غير ارتباط بالسجل ده.',
     nothingAttached: 'مفيش حاجة مرتبطة بيه — الحذف آمن.',
     blockedShort: 'مينفعش يتمسح',
@@ -768,7 +772,7 @@ export const ar = {
       money: 'الفلوس والدفتر',
       payments: 'المدفوعات والتحويلات',
       reports: 'التقارير',
-      settings: 'القوايم والإعدادات',
+      settings: 'القوائم والإعدادات',
       staff: 'الموظفين',
       system: 'النظام والاستيراد',
     },
@@ -783,7 +787,7 @@ export const ar = {
     },
   },
   settings: {
-    title: 'القوايم والإعدادات',
+    title: 'القوائم والإعدادات',
     subtitle: 'الاختيارات اللي بتظهر في السيستم كله — من هنا بتتضاف وتتعدّل',
     expenseCategories: 'بنود المصروفات',
     expenseCategoriesHint: 'اللي بتختار منه وانت بتسجّل مصروف',
@@ -815,6 +819,8 @@ export const ar = {
   },
   courseInfo: {
     university: 'الجامعة',
+    /** Rendered as `{subject} {n}` — "أورجانيك ٣". */
+    subjectOrganic: 'أورجانيك',
     level: 'المستوى',
     section: 'القسم',
     classYear: 'سنة التخرج',
@@ -1080,11 +1086,14 @@ export const en: Dict = {
     subtitle: 'Roster and contact details',
     name: 'Name',
     phone: 'Phone',
-    group: 'Group (class)',
+    group: 'Group',
     groupHint:
-      "The class the student attends, as ukkera spells it. Not the course and "
-      + 'not the level — Organic 1/2/3/4 is read from the course title and shows '
-      + 'beside each subscription.',
+      'Read from the course title — "ORGANIC 3 - Azhar Asyut - 2027 - Ph-D" '
+      + 'means Organic 3. Set it by hand and it stays yours.',
+    ukkeraGroup: 'ukkera group',
+    ukkeraGroupHint: "The free-text column from ukkera's export. Not the level.",
+    levelUnknown: 'Not set',
+    levelMixed: 'More than one level',
     university: 'University',
     track: 'Track',
     unclassified: 'Not set',
@@ -1763,6 +1772,8 @@ export const en: Dict = {
   },
   courseInfo: {
     university: 'University',
+    /** Rendered as `{subject} {n}` — "Organic 3". */
+    subjectOrganic: 'Organic',
     level: 'Level',
     section: 'Section',
     classYear: 'Class of',

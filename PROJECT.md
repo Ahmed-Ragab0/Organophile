@@ -200,6 +200,11 @@ of it is empty.
 - `roles`, `permissions`, `role_permissions` — what each of them may do.
   `permissions` is seeded by migration and SELECT-only at the grant level.
 
+**Derived onto the student** — `students.university_id`, `students.track_id`,
+`students.level`, all filled by `app.classify_student` and frozen by
+`students.classification_locked`. `v_levels` lists which levels exist at all,
+so a filter's options come from the data rather than from a hard-coded 1..4.
+
 **Lists the owner edits** — every dropdown in the app comes from one of these,
 and each is managed on a screen rather than in a deploy.
 - `universities`, `tracks` — on the Classification page.
@@ -433,6 +438,16 @@ recognised yields nothing rather than inventing one. `public.university_aliases`
 binds spellings to names so "Azhar Cairo" and "الأزهر – القاهرة" do not become
 two reporting groups.
 
+**The track vocabulary is a list, and a spelling that is not on it is dropped
+silently.** This account writes `Ph-D`; the parser knew `Pharm D`, `PharmD` and
+`PHARM-D`, so every `Ph-D` course had no track — and therefore every student on
+one had no track either. Nothing errored; the filter was simply empty. Fixed in
+`0048`, where the `Ph-D` pattern is **anchored** (`^PH\s*-?\s*D$`) unlike the
+`PHARM` ones beside it: `PHD` inside a longer word is not a track, but a token
+that is exactly that is nothing else. When a new spelling appears, this is the
+list to add it to — and the symptom to watch for is a filter that returns
+nothing rather than an error.
+
 #### Packages and instalments
 
 `app.parse_package_name` classifies a package as `full`, `chapter`,
@@ -520,16 +535,35 @@ The rename looked fine right up until the next payment.
 **A student's classification is read out of the courses they bought**, by
 `app.classify_student`, under two rules:
 
+Three fields are read down: **university**, **track**, and — since `0048` —
+**level**, the "Organic 1/2/3/4" that the course title already carried and the
+student never inherited. All three follow the same two rules:
+
 * *Unanimity or nothing.* A student on two universities' courses has no one
-  university, and a guess only beats a blank until somebody believes it.
+  university, and a guess only beats a blank until somebody believes it. Level
+  is deliberately the same: someone taking Organic 1 and Organic 3 at once is
+  not "in" either, and picking the higher would be a guess that reads as a fact.
 * *The admin wins, permanently.* `students.classification_locked` is set by a
-  trigger the moment either field is changed by hand — including changed to
+  trigger the moment any of the three is changed by hand — including changed to
   **empty**. That is what makes a deliberately cleared field stay cleared
   instead of reappearing after the next payment.
+
+**But the filter is broader than the field.** `v_student_financials` also
+carries `course_levels`, `course_track_ids` and `course_university_ids` — every
+value the student's enrolments actually hold — and `search_students` matches
+*either*. Without that, a student whose own track went blank because their
+courses disagreed was invisible under a track filter while being enrolled on a
+course of exactly that track. The question a person is asking is "who is in
+this", not "who has this written on them".
 
 Filters follow the id, never the word: `Clinical` and `CLINICAL` in two course
 titles are one specialisation and must narrow a list as one. Reports gain
 **التخصصات** beside **الجامعات**, both net of the gateway's cut.
+
+`students.group_name` is **not** the level and never was: it is ukkera's
+free-text "group" column, and calling it *المجموعة* on screen is what made the
+two look like one field for as long as they did. المجموعة is the level now;
+that column is labelled *جروب يوكيرا*.
 
 Deleting either is allowed — no money points at a classification — but the
 dialog says what it un-labels first. The foreign keys are SET NULL, so courses

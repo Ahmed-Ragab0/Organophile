@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n/context';
 import { useAccess } from '@/lib/access/context';
 import { useSupabaseQuery } from '@/lib/use-query';
-import { downloadCsv, formatDate, formatMoney, formatNumber, toCsv } from '@/lib/format';
+import { downloadCsv, formatDate, formatMoney, toCsv } from '@/lib/format';
 import {
   ActiveFilters, Button, Card, CardHeader, Field, Input, PageHeader, Select,
 } from '@/components/ui/primitives';
@@ -17,9 +17,9 @@ import {
 } from '@/components/record-actions';
 import { Money, Mono, PaymentStatusBadge, StatCard } from '@/components/domain';
 import { PriceSourceBadge } from '@/components/pricing';
-import { NextDueCell } from '@/components/domain';
+import { LevelBadge, NextDueCell } from '@/components/domain';
 import type {
-  Course, Package, PaymentStatus, PlanKindRow, SubscriptionListRow,
+  Course, LevelRow, Package, PaymentStatus, PlanKindRow, SubscriptionListRow,
 } from '@/types/database';
 
 const STATUSES: PaymentStatus[] = ['paid', 'partial', 'unpaid', 'overdue', 'unknown'];
@@ -54,6 +54,7 @@ export default function SubscriptionsPage() {
   // The id, not the word: the same specialisation spelled two ways in two
   // course titles is one row, and must filter as one.
   const [trackId, setTrackId] = useState('');
+  const [level, setLevel] = useState('');
   const [editing, setEditing] = useState<SubscriptionListRow | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [enrolledFrom, setEnrolledFrom] = useState('');
@@ -80,6 +81,11 @@ export default function SubscriptionsPage() {
   // this build has never heard of.
   const planKinds = useSupabaseQuery<PlanKindRow[]>(
     (sb) => sb.from('plan_kinds').select('*').order('sort_order').order('name'),
+    [],
+  );
+
+  const levels = useSupabaseQuery<LevelRow[]>(
+    (sb) => sb.from('v_levels').select('*'),
     [],
   );
   const kindLabel = (code: string | null | undefined) => {
@@ -123,6 +129,7 @@ export default function SubscriptionsPage() {
       if (priceSource) q = q.eq('price_source', priceSource);
       if (planKind) q = q.eq('plan_kind', planKind);
       if (trackId) q = q.eq('track_id', trackId);
+      if (level) q = q.eq('level', Number(level));
       if (enrolledFrom) q = q.gte('enrolled_at', enrolledFrom);
       // The end date is inclusive: `lte` on a timestamp would cut the day off
       // at midnight and quietly drop everything enrolled that day.
@@ -133,7 +140,7 @@ export default function SubscriptionsPage() {
         error: { message: string } | null;
       }>;
     },
-    [search, courseId, packageId, status, priceSource, planKind, trackId,
+    [search, courseId, packageId, status, priceSource, planKind, trackId, level,
      enrolledFrom, enrolledTo, page],
   );
 
@@ -156,7 +163,7 @@ export default function SubscriptionsPage() {
   function resetFilters() {
     setPage(0);
     setSearch(''); setCourseId(''); setPackageId(''); setStatus('');
-    setPriceSource(''); setPlanKind(''); setTrackId('');
+    setPriceSource(''); setPlanKind(''); setTrackId(''); setLevel('');
     setEnrolledFrom(''); setEnrolledTo('');
   }
 
@@ -207,6 +214,11 @@ export default function SubscriptionsPage() {
       value: tracks.find((tr) => tr.value === trackId)?.label ?? trackId,
       onRemove: () => change(setTrackId)(''),
     },
+    level && {
+      key: 'level', label: t.students.group,
+      value: `${t.courseInfo.subjectOrganic} ${level}`,
+      onRemove: () => change(setLevel)(''),
+    },
     enrolledFrom && {
       key: 'from', label: t.common.from, value: enrolledFrom,
       onRemove: () => change(setEnrolledFrom)(''),
@@ -240,12 +252,8 @@ export default function SubscriptionsPage() {
           <p className="truncate text-ink">{r.course_name ?? '—'}</p>
           {r.package_name && <p className="truncate text-xs text-ink-faint">{r.package_name}</p>}
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <LevelBadge level={r.level} />
             <PackageKindBadge kind={r.package_kind} label={kindLabel(r.package_kind)} />
-            {r.level !== null && (
-              <span className="text-xs text-ink-faint">
-                {t.courseInfo.level} {formatNumber(r.level, locale)}
-              </span>
-            )}
             {(r.track_name ?? r.track) && (
               <span className="text-xs text-ink-faint">{r.track_name ?? r.track}</span>
             )}
@@ -466,6 +474,17 @@ export default function SubscriptionsPage() {
               {(planKinds.data ?? []).map((k) => (
                 <option key={k.code} value={k.code}>
                   {locale === 'en' ? (k.name_en ?? k.name) : k.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label={t.students.group}>
+            <Select value={level} onChange={(e) => change(setLevel)(e.target.value)}>
+              <option value="">{t.common.all}</option>
+              {(levels.data ?? []).map((l) => (
+                <option key={l.level} value={String(l.level)}>
+                  {`${t.courseInfo.subjectOrganic} ${l.level}`}
                 </option>
               ))}
             </Select>

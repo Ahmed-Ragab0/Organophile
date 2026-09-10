@@ -165,7 +165,9 @@ export type Student = {
   university: string | null;
   university_id: string | null;
   track_id: string | null;
-  /** True once an admin set the university or track by hand — see below. */
+  /** Which Organic they are in. Null means unknown, never "level zero". */
+  level: number | null;
+  /** True once an admin set the university, track or level by hand. */
   classification_locked: boolean;
   is_active: boolean;
   notes: string | null;
@@ -203,6 +205,26 @@ export type StudentFinancials = {
   /** Open instalment plans, and what is still to collect on them. */
   installment_plans: number;
   installment_remaining: number;
+  /** Which Organic they are in. Null when their courses disagree. */
+  level: number | null;
+  /**
+   * What their courses say, as opposed to what is written on them.
+   *
+   * The three fields above hold one answer each and go null the moment a
+   * student's enrolments disagree — correct, and useless for a filter. These
+   * carry every value the enrolments actually hold, and the search matches
+   * either.
+   */
+  course_levels: number[];
+  course_track_ids: string[];
+  course_university_ids: string[];
+};
+
+/** `v_levels` — which Organic levels exist, and how much is on each. */
+export type LevelRow = {
+  level: number;
+  courses: number;
+  students: number;
 };
 
 /** `v_subscriptions_list` — the subscriptions list, flattened for search. */

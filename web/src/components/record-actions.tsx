@@ -42,6 +42,14 @@ export type FieldSpec = {
   type: 'text' | 'number' | 'date' | 'select' | 'checkbox' | 'textarea' | 'lookup';
   options?: Array<{ value: string; label: string }>;
   /**
+   * `select` only: send the chosen option as a number.
+   *
+   * A <select> value is always a string, and an integer column that receives
+   * "3" is relying on the database to guess. Saying so here costs one flag and
+   * removes the guess.
+   */
+  numeric?: boolean;
+  /**
    * `lookup` only: the table a missing option is created in, on the spot. A
    * student whose university is not in the list is the normal case, not an
    * error, and sending someone to another screen to fix it loses the form.
@@ -286,7 +294,7 @@ function RecordFormModal<T extends Record<string, unknown>>({
         if (f.readOnly) continue;
         const v = draft[f.name];
         if (v === '' || v === undefined) continue;
-        row[f.name] = f.type === 'number' ? Number(v) : v;
+        row[f.name] = f.type === 'number' || f.numeric ? Number(v) : v;
       }
       const { data, error: err } = await sb.from(table).insert(row).select('id').single();
       setBusy(false);
@@ -303,7 +311,9 @@ function RecordFormModal<T extends Record<string, unknown>>({
       const before = values[f.name] ?? blank(f);
       if (String(next ?? '') === String(before ?? '')) continue;
       // An emptied box means "no value", not the empty string.
-      patch[f.name] = next === '' ? null : f.type === 'number' ? Number(next) : next;
+      patch[f.name] = next === '' ? null
+        : f.type === 'number' || f.numeric ? Number(next)
+        : next;
     }
 
     if (Object.keys(patch).length === 0) { setBusy(false); onClose(); return; }

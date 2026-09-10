@@ -34,6 +34,7 @@ export default function CoursesPage() {
   // The track filters on the row's id, not its spelling: two courses written
   // "Clinical" and "CLINICAL" are one specialisation and must filter as one.
   const [trackId, setTrackId] = useState('');
+  const [level, setLevel] = useState('');
   const [classYear, setClassYear] = useState('');
   const [creating, setCreating] = useState<RecordKind | null>(null);
   // One pair of dialogs for both levels of the drill-down: a course and a
@@ -58,6 +59,7 @@ export default function CoursesPage() {
         p_search: null,
         p_university_id: universityId,
         p_track_id: trackId || null,
+        p_level: level === '' ? null : Number(level),
         p_course_id: courseId,
         p_payment_status: null,
         p_active: null,
@@ -76,6 +78,7 @@ export default function CoursesPage() {
   const courses = allCourses.filter((c) =>
     (!universityId || c.university_id === universityId)
     && (!trackId || c.track_id === trackId)
+    && (!level || String(c.level ?? '') === level)
     && (!classYear || String(c.class_year ?? '') === classYear));
 
   /** Every value actually present, so a filter never offers an empty result. */
@@ -85,6 +88,8 @@ export default function CoursesPage() {
       .map((c) => [c.track_id as string, c.track_name ?? c.track ?? '—']),
   )].map(([value, label]) => ({ value, label }));
   const years = [...new Set(allCourses.map((c) => c.class_year).filter(Boolean))]
+    .sort((a, b) => Number(a) - Number(b)) as number[];
+  const levels = [...new Set(allCourses.map((c) => c.level).filter((l) => l !== null))]
     .sort((a, b) => Number(a) - Number(b)) as number[];
 
   const selectedCourse = courseId ? allCourses.find((c) => c.course_id === courseId) : null;
@@ -190,9 +195,24 @@ export default function CoursesPage() {
 
       {/* Only shown once there is something to narrow: two filters over three
           courses is furniture, not help. */}
-      {(tracks.length > 1 || years.length > 1) && (
+      {(tracks.length > 1 || years.length > 1 || levels.length > 1) && (
         <Card className="mb-4 p-4">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {levels.length > 1 && (
+              <Field label={t.students.group}>
+                <Select
+                  value={level}
+                  onChange={(e) => { setLevel(e.target.value); setCourseId(null); }}
+                >
+                  <option value="">{t.common.all}</option>
+                  {levels.map((l) => (
+                    <option key={l} value={String(l)}>
+                      {`${t.courseInfo.subjectOrganic} ${l}`}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )}
             {tracks.length > 1 && (
               <Field label={t.courseInfo.track}>
                 <Select
@@ -221,6 +241,11 @@ export default function CoursesPage() {
           <div className="mt-3">
             <ActiveFilters
               filters={[
+                level && {
+                  key: 'level', label: t.students.group,
+                  value: `${t.courseInfo.subjectOrganic} ${level}`,
+                  onRemove: () => setLevel(''),
+                },
                 trackId && {
                   key: 'track', label: t.courseInfo.track,
                   value: tracks.find((tr) => tr.value === trackId)?.label ?? trackId,
@@ -233,7 +258,7 @@ export default function CoursesPage() {
               ].filter(Boolean) as Array<{
                 key: string; label: string; value: string; onRemove: () => void;
               }>}
-              onClear={() => { setTrackId(''); setClassYear(''); }}
+              onClear={() => { setTrackId(''); setLevel(''); setClassYear(''); }}
               label={t.subscriptions.activeFilters}
               clearAllLabel={t.subscriptions.clearFilters}
             />

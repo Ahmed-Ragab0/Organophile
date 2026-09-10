@@ -11,12 +11,12 @@ import {
   Button, Card, CardHeader, Checkbox, Field, Input, PageHeader, Select,
 } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
-import { Money, PaymentStatusBadge, StatCard } from '@/components/domain';
+import { LevelBadge, Money, PaymentStatusBadge, StatCard } from '@/components/domain';
 import {
   DeleteRecordDialog, EditRecordModal, RecordActions, type FieldSpec,
 } from '@/components/record-actions';
 import type {
-  Course, PaymentStatus, StudentFinancials, Track, University,
+  Course, LevelRow, PaymentStatus, StudentFinancials, Track, University,
 } from '@/types/database';
 
 const STATUSES: PaymentStatus[] = ['paid', 'partial', 'unpaid', 'overdue', 'unknown'];
@@ -31,6 +31,7 @@ export default function StudentsPage() {
   const [search, setSearch] = useState('');
   const [universityId, setUniversityId] = useState('');
   const [trackId, setTrackId] = useState('');
+  const [level, setLevel] = useState('');
   const [courseId, setCourseId] = useState('');
   const [status, setStatus] = useState('');
   const [active, setActive] = useState('');
@@ -52,6 +53,14 @@ export default function StudentsPage() {
     [],
   );
 
+  // The options come from the data, not from a hard-coded 1..4: the day this
+  // business teaches an Organic 5 the dropdown already knows.
+  const levels = useSupabaseQuery<LevelRow[]>(
+    (sb) => sb.from('v_levels').select('*'),
+    [],
+  );
+  const levelOptions = (levels.data ?? []).map((l) => l.level);
+
   // Courses narrow to the chosen university, so the two selects cannot
   // combine into a filter that returns nothing.
   const courses = useSupabaseQuery<Course[]>(
@@ -69,6 +78,7 @@ export default function StudentsPage() {
         p_search: search || null,
         p_university_id: universityId || null,
         p_track_id: trackId || null,
+        p_level: level === '' ? null : Number(level),
         p_course_id: courseId || null,
         p_payment_status: status || null,
         p_active: active === '' ? null : active === 'true',
@@ -80,8 +90,8 @@ export default function StudentsPage() {
         p_limit: PAGE_SIZE,
         p_offset: page * PAGE_SIZE,
       }),
-    [search, universityId, trackId, courseId, status, active, registeredFrom, registeredTo,
-     onlyDebt, onlyPaid, page],
+    [search, universityId, trackId, level, courseId, status, active,
+     registeredFrom, registeredTo, onlyDebt, onlyPaid, page],
   );
 
   const rows = data ?? [];
@@ -100,7 +110,8 @@ export default function StudentsPage() {
 
   function resetFilters() {
     setPage(0);
-    setSearch(''); setUniversityId(''); setTrackId(''); setCourseId(''); setStatus(''); setActive('');
+    setSearch(''); setUniversityId(''); setTrackId(''); setLevel('');
+    setCourseId(''); setStatus(''); setActive('');
     setRegisteredFrom(''); setRegisteredTo(''); setOnlyDebt(false); setOnlyPaid(false);
   }
 
@@ -116,14 +127,27 @@ export default function StudentsPage() {
       ),
     },
     {
-      key: 'university',
-      header: t.students.university,
+      key: 'group',
+      header: t.students.group,
+      /* One cell for the three facts that answer "which group is this
+         student in": the level, then the university and specialisation under
+         it. Split across three columns they would be scanned three times. */
       render: (r) => (
         <div className="min-w-0">
-          <p className="truncate">
-            {r.university_name ?? <span className="text-ink-faint">—</span>}
+          {r.level !== null
+            ? <LevelBadge level={r.level} />
+            : r.course_levels.length > 1
+              // Their courses disagree, so no single level is written on them.
+              // Showing the ones they are actually enrolled in beats a dash.
+              ? (
+                <span className="flex flex-wrap items-center gap-1">
+                  {r.course_levels.map((l) => <LevelBadge key={l} level={l} tone="neutral" />)}
+                </span>
+              )
+              : <span className="text-ink-faint">{t.students.levelUnknown}</span>}
+          <p className="mt-1 truncate text-xs text-ink-faint">
+            {[r.university_name, r.track_name].filter(Boolean).join(' · ') || '—'}
           </p>
-          {r.track_name && <p className="truncate text-xs text-ink-faint">{r.track_name}</p>}
         </div>
       ),
     },
@@ -182,8 +206,18 @@ export default function StudentsPage() {
     { name: 'name', label: t.students.name, type: 'text', required: true },
     { name: 'phone', label: t.students.phone, type: 'text' },
     { name: 'email', label: t.students.email, type: 'text' },
-    { name: 'group_name', label: t.students.group, type: 'text',
-      hint: t.students.groupHint },
+    {
+      name: 'level', label: t.students.group, type: 'select', numeric: true,
+      hint: t.students.groupHint,
+      options: levelOptions.map((l) => ({
+        value: String(l), label: `${t.courseInfo.subjectOrganic} ${l}`,
+      })),
+    },
+    // Kept, and finally labelled as what it is. ukkera's export has a free-text
+    // "group" column; it is not the level, and calling it المجموعة is what
+    // made the two look like one field for as long as they did.
+    { name: 'group_name', label: t.students.ukkeraGroup, type: 'text',
+      hint: t.students.ukkeraGroupHint },
     {
       name: 'university_id', label: t.students.university, type: 'lookup',
       lookupTable: 'universities', lookupPrompt: t.classification.universityName,
@@ -213,7 +247,8 @@ export default function StudentsPage() {
                 downloadCsv(
                   `students-${new Date().toISOString().slice(0, 10)}.csv`,
                   toCsv(rows as unknown as Array<Record<string, unknown>>, [
-                    'name', 'phone', 'university_name', 'track_name', 'group_name', 'courses',
+                    'name', 'phone', 'level', 'university_name', 'track_name', 'group_name',
+                    'courses',
                     'total_due', 'total_paid', 'remaining', 'payment_status', 'registered_at',
                   ]),
                 )}
@@ -252,6 +287,17 @@ export default function StudentsPage() {
               <option value="">{t.courses.allUniversities}</option>
               {(universities.data ?? []).map((u) => (
                 <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label={t.students.group} hint={t.students.groupHint}>
+            <Select value={level} onChange={(e) => change(setLevel)(e.target.value)}>
+              <option value="">{t.common.all}</option>
+              {levelOptions.map((l) => (
+                <option key={l} value={String(l)}>
+                  {`${t.courseInfo.subjectOrganic} ${l}`}
+                </option>
               ))}
             </Select>
           </Field>

@@ -255,6 +255,39 @@ export function PackageKindBadge({
 }
 
 /**
+ * Which Organic a student or a course is: "أورجانيك ٣".
+ *
+ * The subject is spelled out rather than shown as a bare number, because "٣"
+ * on its own beside a university and a year is one more thing the reader has
+ * to decode. This business teaches one subject, so naming it costs a word and
+ * saves the decoding.
+ */
+export function LevelBadge({
+  level, tone = 'brand',
+}: {
+  level: number | null | undefined;
+  tone?: 'brand' | 'neutral';
+}) {
+  const { t, locale } = useI18n();
+  if (level === null || level === undefined) return null;
+  return (
+    <Badge tone={tone}>
+      {`${t.courseInfo.subjectOrganic} ${formatNumber(level, locale)}`}
+    </Badge>
+  );
+}
+
+/** The same words, unwrapped — for a line of sub-text rather than a badge. */
+export function levelLabel(
+  level: number | null | undefined,
+  subject: string,
+  locale: 'ar' | 'en',
+): string | null {
+  if (level === null || level === undefined) return null;
+  return `${subject} ${formatNumber(level, locale)}`;
+}
+
+/**
  * The next payment owed on a row: how much, when, and how close that is.
  *
  * Three lines rather than a date, because a date alone makes the reader do the
