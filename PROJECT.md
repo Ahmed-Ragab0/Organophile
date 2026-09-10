@@ -101,7 +101,10 @@ These are not style preferences. Breaking one causes a real, specific bug.
    synthetic 100 EGP as real revenue — fixed in `0017`.
 8. **Direct writes to `ledger_entries` are denied by RLS.** Everything goes
    through `add_expense`, `add_manual_revenue`, `transfer_between_wallets`,
-   `void_ledger_entry`.
+   `void_ledger_entry`, `pay_payslip`, `unpay_payslip`. Payroll extends the
+   same rule to its own document: `payslips.paid_at` is refused to a client
+   too, so "paid" cannot be written without money moving in the same
+   transaction.
 9. **Signing in, being let in, and being allowed to do a thing are three
    different questions.** Supabase Auth proves who you are; `public.staff`
    decides whether you may see anything at all; `roles` + `role_permissions`
@@ -128,13 +131,19 @@ Four seeded roles, and the owner can add more:
 | Role | Holds |
 |---|---|
 | **مدير** (`admin`) | everything, implicitly and permanently |
-| **محاسب** (`accountant`) | money read+write, payments/reports/students/subscriptions read |
+| **محاسب** (`accountant`) | money read+write, payroll read+write, payments/reports/students/subscriptions read |
 | **سيلز** (`sales`) | students and subscriptions read+write, courses/reports read |
 | **مشاهدة** (`viewer`) | every `.read` except staff |
 
-Permissions are `<domain>.<action>` with action ∈ {read, write}, over ten
-domains: overview, students, courses, subscriptions, money, payments, reports,
-settings, staff, system. The **catalogue is seeded and not editable from the
+Permissions are `<domain>.<action>` with action ∈ {read, write}, over eleven
+domains: overview, students, courses, subscriptions, money, **payroll**,
+payments, reports, settings, staff, system.
+
+`payroll` is the one domain deliberately kept out of `viewer`. "Every `.read`
+except staff" was written before salaries existed, and a list of what your
+colleagues earn is not a report. It is also the one permission whose name does
+not contain the word money and yet spends it — `payroll.write` includes paying,
+so granting it is a money decision. The **catalogue is seeded and not editable from the
 app** — a permission nobody's code checks is worse than no permission — but
 which of them a role holds is entirely up to the owner.
 
@@ -194,6 +203,18 @@ of it is empty.
 - `students`, `universities`, `courses`, `packages`, `subscriptions`
 - `payments` (Kashier transactions), `payouts` (Kashier transfers),
   `kashier_account` (balance from the API)
+
+**Payroll**
+- `employees` — who is PAID. Not the same list as `staff`, which is who may
+  SIGN IN; the link between them is one nullable column.
+- `payroll_periods` — one month, moving draft → review → approved → closed.
+- `payslips` — one person's month. Snapshots the name and job title, keeps its
+  own totals, and freezes the moment it is paid.
+- `payslip_items` — what the figure is made of. Their sum IS the payslip's
+  totals, kept by trigger.
+- `salary_components` — the vocabulary those lines are filed under.
+- `payroll_settings` — one row: company name, thank-you template, where
+  salaries land in the books.
 
 **Access**
 - `staff` — who may use the system. One row per person; there is no second list.
@@ -678,8 +699,9 @@ three places to keep in sync, and native controls would still follow the OS.
 
 ```bash
 cd supabase && deno task test        # 72 Deno tests
-# SQL regression suite:
+# SQL regression suites (both roll themselves back; safe against live):
 psql "$DATABASE_URL" -f supabase/tests/projections.test.sql
+psql "$DATABASE_URL" -f supabase/tests/payroll.test.sql   # 32 assertions
 cd web && npm run lint && npm run build
 ```
 
@@ -761,3 +783,119 @@ Payments recorded here go through `add_manual_revenue`, never a direct insert:
 RLS denies writes to `ledger_entries`, so the revenue entry and the wallet
 movement stay one transaction the database controls. Nothing is deleted, only
 voided.
+
+---
+
+## 13. Payroll
+
+`/payroll` is three screens behind one tab bar: the monthly **cycles**, the
+**people** who get paid, and the **settings** that decide what the thank-you
+message says and where a salary lands in the books.
+
+### A salary is a document before it is a payment
+
+That order is the whole design. The old way of paying a salary was one line in
+the expenses screen — "مرتبات، 6000، من فودافون كاش" — which keeps the books
+balanced and answers nothing else: not who was paid, not what the figure was
+made of, not whether anybody agreed to it first.
+
+```
+employee → period (draft → review → approved → closed) → payslip → items
+                                        ↓
+                                   pay_payslip
+                                        ↓
+                            one expense in the ledger
+```
+
+Nothing is paid before the cycle is **approved**, and nothing changes after it
+is **paid**. `pay_payslip` writes the ledger entry and stamps the payslip in
+one transaction, so there is no window where a payslip says paid and a wallet
+disagrees.
+
+### The six rails
+
+Each of these is a trigger, and each has a regression test in
+`supabase/tests/payroll.test.sql`:
+
+| Rail | Why |
+|---|---|
+| `paid_at` is refused to clients | otherwise anyone with `payroll.write` marks a salary paid with a plain PostgREST `UPDATE` and no money ever moves |
+| a paid payslip cannot be edited or deleted | a document that changes after the money left records nothing |
+| its lines cannot be added to or removed | same reason, one level down |
+| its ledger entry cannot be voided from the ledger screen | the payslip would still say paid, and two records of one fact would disagree — reverse the payslip instead |
+| deductions cannot exceed the salary | a negative net is not a payroll, it is a bug |
+| a cycle with paid salaries cannot go back to draft, or be deleted | the money has already gone |
+
+`pay_payslip` and `unpay_payslip` are the two doors, and both set a
+transaction-local `app.payroll_paying` flag — the same trick `0048` uses for
+autoclassification. The guards read it, which is how they tell a write of
+their own from a client writing the same column.
+
+### Reversal, not deletion
+
+`unpay_payslip` **voids** the ledger entry (rule 6), returns the money to the
+wallet, reopens the cycle, and makes the payslip editable again. The payslip
+lets go of `ledger_entry_id` because the constraint says paid and entry are one
+fact — but the voided entry still carries the payslip's id in its metadata, so
+"what was this reversal about" stays answerable from the books alone.
+
+### The message
+
+The thank-you note lives in `payroll_settings.thanks_template`, not in the
+code, because it is the owner's voice and the wording of a message about
+somebody's salary should not need a deploy. `{placeholders}` are filled from
+the payslip; an unknown one is left standing rather than blanked, so a typo
+shows up in the preview instead of going out.
+
+`{bonus}` is defined as **every earning that is not a commission**, not as the
+lines filed under the component called حافز. That is what makes the arithmetic
+in the message close exactly:
+
+```
+baseSalary + commissions + bonus − deductions = net
+```
+
+It is sent through a `wa.me` link, so it goes out from the owner's own WhatsApp
+as a person writing to a colleague. Egyptian numbers are written four
+different ways in a phone book (`01012345678`, `+20 10 …`, `0020 …`,
+`1012345678`) and `whatsappNumber()` normalises all of them.
+
+### The printed payslip
+
+`/payslip/[id]` sits **outside** the dashboard shell, because it is a sheet of
+paper and a sheet of paper has no sidebar. It is still gated: the middleware
+asks `payroll.read` for `/payslip`, and RLS refuses the row regardless.
+
+PDF comes from the browser's own print dialog, not a library. That is not a
+shortcut — Arabic needs contextual letter shaping and RTL runs, and the
+client-side PDF libraries either get that wrong or need a shaping engine plus
+an embedded font shipped to every visitor. The browser has both already.
+
+The print stylesheet's first line does most of the work:
+
+```css
+@media print { :root { color-scheme: light !important; } }
+```
+
+Every colour in this system is declared once as `light-dark(…)`, so pinning
+the scheme flips the whole palette back to ink-on-white in one declaration.
+Without it, somebody working in dark mode prints white text on black.
+
+The net is printed twice — in figures and **in words** (تفقيط,
+`lib/number-words.ts`). That is not decoration: every payslip and receipt in
+Egypt carries both, because a digit can be altered after signing and a
+sentence cannot. Arabic number grammar is correctness there, not polish —
+"مائة ألف" and "خمسة وعشرون ألفًا" take different forms of the same word, and
+getting it wrong is the tell of a generated document.
+
+### What is deliberately not built
+
+- **Automatic commission.** Computing "5% of what this person sold" needs
+  sales attributed to a person, and nothing in this database attributes them
+  yet. A commission is a typed line with a note until that exists. The shape is
+  ready for it; the arithmetic is not invented.
+- **A pay grade / contract table.** One base figure per person is what this
+  business has.
+- **Self-service.** An employee cannot read their own payslip, because an
+  employee is not necessarily a login at all. The link exists for the day that
+  changes.

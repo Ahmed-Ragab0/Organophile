@@ -63,6 +63,15 @@ export const IconExpenses = (p: IconProps) => (
   </Svg>
 );
 
+/** Payroll — a banknote. The one thing that leaves the business every month. */
+export const IconPayroll = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
+    <circle cx="12" cy="12" r="2.6" />
+    <path d="M6 9.6v4.8M18 9.6v4.8" />
+  </Svg>
+);
+
 export const IconReports = (p: IconProps) => (
   <Svg {...p}>
     <path d="M4 20V4" />
@@ -259,6 +268,7 @@ export const NAV_ICONS = {
   wallets: IconWallet,
   ledger: IconLedger,
   expenses: IconExpenses,
+  payroll: IconPayroll,
   reports: IconReports,
   students: IconStudents,
   courses: IconCourses,

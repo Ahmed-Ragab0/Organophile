@@ -1048,3 +1048,157 @@ export type PlanKindRow = {
   packages: number;
   subscriptions: number;
 };
+
+// --- Payroll -----------------------------------------------------------------
+
+/** Which way a salary line moves the total. */
+export type SalaryDirection = 'earning' | 'deduction';
+
+/**
+ * Where a month of payroll is up to.
+ *
+ * Every one of these is branched on here and in the database, which is why it
+ * is a fixed union and not a table the owner can extend.
+ */
+export type PayrollStatus = 'draft' | 'review' | 'approved' | 'closed';
+
+/** `v_employees` — who is on the payroll, and what they have been paid. */
+export type EmployeeRow = {
+  id: string;
+  full_name: string;
+  job_title: string | null;
+  phone: string | null;
+  email: string | null;
+  user_id: string | null;
+  /**
+   * Whether this person can sign in — read off `employees.user_id`, not off
+   * the staff join, which needs `staff.read` and would otherwise report "no
+   * login" to somebody who simply cannot see the staff list.
+   */
+  has_login: boolean;
+  base_salary: number;
+  wallet_id: string | null;
+  wallet_name: string | null;
+  hired_on: string | null;
+  ended_on: string | null;
+  is_active: boolean;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+  role_name: string | null;
+  role_name_en: string | null;
+  payslips: number;
+  paid_count: number;
+  paid_total: number;
+  last_paid_at: string | null;
+};
+
+/** `v_salary_components` — the lines a payslip can carry. */
+export type SalaryComponentRow = {
+  id: string;
+  code: string;
+  name: string;
+  name_en: string | null;
+  direction: SalaryDirection;
+  /** `commission` and `bonus`: read by name when the message is built. */
+  is_system: boolean;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  lines: number;
+  total: number;
+};
+
+/** `v_payroll_periods` — one month, and how far through it payroll is. */
+export type PayrollPeriodRow = {
+  id: string;
+  /** Always the first of the month. */
+  period_month: string;
+  status: PayrollStatus;
+  note: string | null;
+  approved_at: string | null;
+  approved_by: string | null;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  slips: number;
+  paid_count: number;
+  gross_total: number;
+  net_total: number;
+  paid_total: number;
+};
+
+/** One line of a payslip, as `v_payslips` embeds it. */
+export type PayslipItem = {
+  id: string;
+  component_id: string;
+  code: string;
+  /** What this line is for — the component's name unless something better was typed. */
+  label: string;
+  component_name: string;
+  component_name_en: string | null;
+  direction: SalaryDirection;
+  amount: number;
+};
+
+/** `v_payslips` — one person's month, with everything a document needs. */
+export type PayslipRow = {
+  id: string;
+  period_id: string;
+  period_month: string;
+  period_status: PayrollStatus;
+  employee_id: string;
+  /** Snapshotted when the payslip was created, so a rename cannot rewrite it. */
+  employee_name: string;
+  job_title: string | null;
+  phone: string | null;
+  employee_active: boolean | null;
+  base_salary: number;
+  earnings_total: number;
+  deductions_total: number;
+  gross_amount: number;
+  net_amount: number;
+  /**
+   * The two the thank-you message names separately. Defined so that
+   * `base + commissions + bonus − deductions = net`, exactly.
+   */
+  commissions_total: number;
+  bonus_total: number;
+  note: string | null;
+  paid_at: string | null;
+  paid_wallet_id: string | null;
+  paid_wallet_name: string | null;
+  ledger_entry_id: string | null;
+  message_sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+  items: PayslipItem[];
+};
+
+/** `payroll_settings` — one row, forever. */
+export type PayrollSettingsRow = {
+  id: boolean;
+  company_name: string;
+  /** The thank-you note, with {placeholders} this app fills in. */
+  thanks_template: string;
+  invoice_note: string | null;
+  default_wallet_id: string | null;
+  expense_category_id: string | null;
+  updated_at: string;
+};
+
+/** What `pay_payslip` / `unpay_payslip` / `open_payroll_period` answer with. */
+export type PayrollResult = {
+  ok: boolean;
+  reason?: string;
+  id?: string;
+  status?: string;
+  added?: number;
+  period_month?: string;
+  ledger_entry_id?: string;
+  voided_entry_id?: string;
+  amount?: number;
+  wallet_id?: string;
+  paid_at?: string;
+};

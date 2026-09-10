@@ -297,3 +297,53 @@ input[type='number'] {
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Printing.
+ *
+ * One document in this app is meant to leave the screen: the payslip. These
+ * rules exist so that "Save as PDF" produces a sheet of paper rather than a
+ * screenshot of a dashboard.
+ *
+ * The first line does the most work. Every colour in this system is declared
+ * once as `light-dark(…)`, so pinning `color-scheme: light` for print flips
+ * the entire palette back to ink-on-white in a single declaration — without
+ * it, somebody working in dark mode prints white text on a black rectangle,
+ * or, worse, gets a page the browser has silently dropped the background from
+ * and cannot read at all.
+ */
+@media print {
+  :root {
+    color-scheme: light !important;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  /* Controls, navigation, anything that can only be pressed. */
+  .print-hide {
+    display: none !important;
+  }
+
+  /* The sheet stops pretending to be a card floating on a canvas. */
+  .print-sheet {
+    max-width: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  /* A table row split across two pages is a payslip nobody will accept. */
+  tr,
+  .print-keep {
+    break-inside: avoid;
+  }
+
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+}

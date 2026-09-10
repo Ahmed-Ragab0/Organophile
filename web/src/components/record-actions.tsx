@@ -12,7 +12,8 @@ import {
 export type RecordKind =
   | 'student' | 'course' | 'package' | 'subscription'
   | 'university' | 'track' | 'wallet' | 'installment_plan'
-  | 'expense_category' | 'plan_kind';
+  | 'expense_category' | 'plan_kind'
+  | 'employee' | 'salary_component';
 
 type LinkRow = { what: string; count: number; money: boolean };
 

@@ -186,8 +186,18 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...props} className={cx(FIELD, 'pe-9', props.className)} />;
 }
 
-export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea {...props} className={cx(FIELD, 'min-h-20 resize-y', props.className)} />;
+/**
+ * `ref` is declared rather than left to the spread: React 19 passes it through
+ * props for function components, but the HTML attribute types do not include
+ * it, so a caller that needs the element — to insert text at the cursor, say —
+ * cannot ask for it without this.
+ */
+export function Textarea({
+  ref, ...props
+}: React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
+  ref?: React.Ref<HTMLTextAreaElement>;
+}) {
+  return <textarea ref={ref} {...props} className={cx(FIELD, 'min-h-20 resize-y', props.className)} />;
 }
 
 /** A checkbox with a real hit target — the native 13px box is not one. */
