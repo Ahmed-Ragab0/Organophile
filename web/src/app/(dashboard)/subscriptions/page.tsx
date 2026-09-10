@@ -17,7 +17,7 @@ import {
 } from '@/components/record-actions';
 import { Money, Mono, PaymentStatusBadge, StatCard } from '@/components/domain';
 import { PriceSourceBadge } from '@/components/pricing';
-import { LevelBadge, NextDueCell } from '@/components/domain';
+import { LevelBadge, levelName, NextDueCell } from '@/components/domain';
 import type {
   Course, LevelRow, Package, PaymentStatus, PlanKindRow, SubscriptionListRow,
 } from '@/types/database';
@@ -216,7 +216,7 @@ export default function SubscriptionsPage() {
     },
     level && {
       key: 'level', label: t.students.group,
-      value: `${t.courseInfo.subjectOrganic} ${level}`,
+      value: levelName(Number(level), t.courseInfo.subjectOrganic, locale),
       onRemove: () => change(setLevel)(''),
     },
     enrolledFrom && {
@@ -484,7 +484,7 @@ export default function SubscriptionsPage() {
               <option value="">{t.common.all}</option>
               {(levels.data ?? []).map((l) => (
                 <option key={l.level} value={String(l.level)}>
-                  {`${t.courseInfo.subjectOrganic} ${l.level}`}
+                  {levelName(l.level, t.courseInfo.subjectOrganic, locale)}
                 </option>
               ))}
             </Select>

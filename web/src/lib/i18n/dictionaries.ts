@@ -139,7 +139,8 @@ export const ar = {
       'بتتقرا لوحدها من اسم الكورس — «ORGANIC 3 - Azhar Asyut - 2027 - Ph-D» '
       + 'يعني أورجانيك ٣. أول ما تحددها بإيدك تبقى بتاعتك والسيستم مبيغيّرهاش.',
     ukkeraGroup: 'جروب يوكيرا',
-    ukkeraGroupHint: 'الخانة النصّية اللي جاية من إكسبورت يوكيرا. مش المستوى.',
+    ukkeraGroupHint:
+      'الخانة النصّية اللي جاية من إكسبورت يوكيرا. دي مش المجموعة.',
     levelUnknown: 'مش محدد',
     levelMixed: 'أكتر من مستوى',
     university: 'الجامعة',
@@ -821,7 +822,6 @@ export const ar = {
     university: 'الجامعة',
     /** Rendered as `{subject} {n}` — "أورجانيك ٣". */
     subjectOrganic: 'أورجانيك',
-    level: 'المستوى',
     section: 'القسم',
     classYear: 'سنة التخرج',
     track: 'التخصص',
@@ -1091,7 +1091,7 @@ export const en: Dict = {
       'Read from the course title — "ORGANIC 3 - Azhar Asyut - 2027 - Ph-D" '
       + 'means Organic 3. Set it by hand and it stays yours.',
     ukkeraGroup: 'ukkera group',
-    ukkeraGroupHint: "The free-text column from ukkera's export. Not the level.",
+    ukkeraGroupHint: "The free-text column from ukkera's export. Not the group.",
     levelUnknown: 'Not set',
     levelMixed: 'More than one level',
     university: 'University',
@@ -1774,7 +1774,6 @@ export const en: Dict = {
     university: 'University',
     /** Rendered as `{subject} {n}` — "Organic 3". */
     subjectOrganic: 'Organic',
-    level: 'Level',
     section: 'Section',
     classYear: 'Class of',
     track: 'Track',

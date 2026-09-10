@@ -10,7 +10,9 @@ import {
   ActiveFilters, Badge, Button, Card, CardHeader, cx, Field, PageHeader, Select,
 } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
-import { Money, PaymentStatusBadge, StatCard } from '@/components/domain';
+import {
+  LevelBadge, levelName, Money, PaymentStatusBadge, StatCard,
+} from '@/components/domain';
 import {
   CreateRecordModal, DeleteRecordDialog, EditRecordModal, RecordActions,
   type FieldSpec, type RecordKind,
@@ -207,7 +209,7 @@ export default function CoursesPage() {
                   <option value="">{t.common.all}</option>
                   {levels.map((l) => (
                     <option key={l} value={String(l)}>
-                      {`${t.courseInfo.subjectOrganic} ${l}`}
+                      {levelName(l, t.courseInfo.subjectOrganic, locale)}
                     </option>
                   ))}
                 </Select>
@@ -243,7 +245,7 @@ export default function CoursesPage() {
               filters={[
                 level && {
                   key: 'level', label: t.students.group,
-                  value: `${t.courseInfo.subjectOrganic} ${level}`,
+                  value: levelName(Number(level), t.courseInfo.subjectOrganic, locale),
                   onRemove: () => setLevel(''),
                 },
                 trackId && {
@@ -349,9 +351,7 @@ export default function CoursesPage() {
                 <p className="truncate font-medium text-ink hover:text-accent-strong">{c.course_name}</p>
                 <p className="mt-0.5 text-xs text-ink-faint">{c.university_name}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  {c.level !== null && (
-                    <Badge tone="brand">{`${t.courseInfo.level} ${c.level}`}</Badge>
-                  )}
+                  <LevelBadge level={c.level} />
                   {(c.track_name ?? c.track) && (
                     <Badge tone="info">{c.track_name ?? c.track}</Badge>
                   )}

@@ -17,8 +17,8 @@ import {
 } from '@/components/record-actions';
 import { DataTable, type Column } from '@/components/ui/table';
 import {
-  InstallmentPips, LedgerTypeBadge, LevelBadge, Money, Mono, PaymentStatusBadge,
-  PlanStatusBadge, SignedMoney, StatCard,
+  InstallmentPips, LedgerTypeBadge, LevelBadge, levelName, Money, Mono,
+  PaymentStatusBadge, PlanStatusBadge, SignedMoney, StatCard,
 } from '@/components/domain';
 import type {
   InstallmentPlan, LedgerEntry, LevelRow, StudentFinancials, SubscriptionFinancials,
@@ -101,7 +101,7 @@ export default function StudentDetailPage() {
       name: 'level', label: t.students.group, type: 'select', numeric: true,
       hint: t.students.groupHint,
       options: (levels.data ?? []).map((l) => ({
-        value: String(l.level), label: `${t.courseInfo.subjectOrganic} ${l.level}`,
+        value: String(l.level), label: levelName(l.level, t.courseInfo.subjectOrganic, locale),
       })),
     },
     { name: 'group_name', label: t.students.ukkeraGroup, type: 'text',

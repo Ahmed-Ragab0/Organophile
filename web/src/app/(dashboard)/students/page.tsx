@@ -11,7 +11,9 @@ import {
   Button, Card, CardHeader, Checkbox, Field, Input, PageHeader, Select,
 } from '@/components/ui/primitives';
 import { DataTable, type Column } from '@/components/ui/table';
-import { LevelBadge, Money, PaymentStatusBadge, StatCard } from '@/components/domain';
+import {
+  LevelBadge, levelName, Money, PaymentStatusBadge, StatCard,
+} from '@/components/domain';
 import {
   DeleteRecordDialog, EditRecordModal, RecordActions, type FieldSpec,
 } from '@/components/record-actions';
@@ -210,7 +212,7 @@ export default function StudentsPage() {
       name: 'level', label: t.students.group, type: 'select', numeric: true,
       hint: t.students.groupHint,
       options: levelOptions.map((l) => ({
-        value: String(l), label: `${t.courseInfo.subjectOrganic} ${l}`,
+        value: String(l), label: levelName(l, t.courseInfo.subjectOrganic, locale),
       })),
     },
     // Kept, and finally labelled as what it is. ukkera's export has a free-text
@@ -296,7 +298,7 @@ export default function StudentsPage() {
               <option value="">{t.common.all}</option>
               {levelOptions.map((l) => (
                 <option key={l} value={String(l)}>
-                  {`${t.courseInfo.subjectOrganic} ${l}`}
+                  {levelName(l, t.courseInfo.subjectOrganic, locale)}
                 </option>
               ))}
             </Select>

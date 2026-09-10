@@ -255,13 +255,28 @@ export function PackageKindBadge({
 }
 
 /**
- * Which Organic a student or a course is: "أورجانيك ٣".
+ * What this business calls a level: "أورجانيك 3", never "المستوى 3".
  *
- * The subject is spelled out rather than shown as a bare number, because "٣"
- * on its own beside a university and a year is one more thing the reader has
- * to decode. This business teaches one subject, so naming it costs a word and
- * saves the decoding.
+ * Nobody here says "level 3" — the courses are named Organic 1 to Organic 4
+ * and that is the whole vocabulary. A label the staff would not use out loud
+ * is a label they have to translate every time they read it.
+ *
+ * The digit stays Latin because every number in this app does: the locale tag
+ * is `ar-EG-u-nu-latn`, so 300.00 and 2027 read the same way here as they do
+ * on the Kashier dashboard being reconciled against.
+ *
+ * Exported unwrapped as well as as a badge, because the same words have to
+ * appear inside a <select> option and an active-filter chip, and three
+ * spellings of one name is how a screen stops reading as one thing.
  */
+export function levelName(
+  level: number,
+  subject: string,
+  locale: 'ar' | 'en',
+): string {
+  return `${subject} ${formatNumber(level, locale)}`;
+}
+
 export function LevelBadge({
   level, tone = 'brand',
 }: {
@@ -270,21 +285,7 @@ export function LevelBadge({
 }) {
   const { t, locale } = useI18n();
   if (level === null || level === undefined) return null;
-  return (
-    <Badge tone={tone}>
-      {`${t.courseInfo.subjectOrganic} ${formatNumber(level, locale)}`}
-    </Badge>
-  );
-}
-
-/** The same words, unwrapped — for a line of sub-text rather than a badge. */
-export function levelLabel(
-  level: number | null | undefined,
-  subject: string,
-  locale: 'ar' | 'en',
-): string | null {
-  if (level === null || level === undefined) return null;
-  return `${subject} ${formatNumber(level, locale)}`;
+  return <Badge tone={tone}>{levelName(level, t.courseInfo.subjectOrganic, locale)}</Badge>;
 }
 
 /**
