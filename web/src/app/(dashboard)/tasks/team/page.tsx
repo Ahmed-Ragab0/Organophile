@@ -168,7 +168,7 @@ export default function TeamPage() {
   return (
     <>
       <PageHeader
-        eyebrow={t.navGroups.people}
+        eyebrow={t.navGroups.work}
         title={t.tasks.title}
         subtitle={t.tasks.subtitle}
       />

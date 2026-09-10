@@ -34,9 +34,22 @@ const NAV_GROUPS = [
     ],
   },
   {
-    key: 'people' as const,
+    /*
+     * Its own group, and not folded into "الأكاديمية".
+     *
+     * For the owner that is a matter of tidiness. For somebody given tasks and
+     * nothing else it is the whole sidebar — and a lone "المهام" filed under
+     * "الأكاديمية" tells them they are looking at a corner of somebody else's
+     * system rather than at their own screen.
+     */
+    key: 'work' as const,
     items: [
       { href: '/tasks', key: 'tasks' },
+    ],
+  },
+  {
+    key: 'people' as const,
+    items: [
       { href: '/students', key: 'students' },
       { href: '/courses', key: 'courses' },
       { href: '/subscriptions', key: 'subscriptions' },

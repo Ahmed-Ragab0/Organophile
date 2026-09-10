@@ -6,11 +6,13 @@ import { useAccess } from '@/lib/access/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { createClient } from '@/lib/supabase/client';
 import {
-  Button, ErrorState, Input, Notice, PageHeader, PageSkeleton, Select, cx,
+  Button, Card, EmptyState, ErrorState, Input, Notice, PageHeader, PageSkeleton,
+  Select, cx,
 } from '@/components/ui/primitives';
 import { TaskTabs, useTaskReason } from '@/components/tasks/parts';
 import { TaskBoard, TimerStrip } from '@/components/tasks/board';
 import { NewTaskModal, TaskModal } from '@/components/tasks/dialogs';
+import { MyDay } from '@/components/tasks/summary';
 import type {
   ProductivityRow, ProjectRow, TaskResult, TaskRow, TaskSessionRow, TaskStatus,
 } from '@/types/database';
@@ -30,7 +32,7 @@ import type {
  */
 export default function TasksPage() {
   const { t } = useI18n();
-  const { can, user_id } = useAccess();
+  const { can, user_id, full_name, email } = useAccess();
   const mayWork = can('tasks.write') || can('team.write');
   const mayManage = can('team.write');
   const maySeeTeam = can('team.read');
@@ -127,7 +129,7 @@ export default function TasksPage() {
   return (
     <>
       <PageHeader
-        eyebrow={t.navGroups.people}
+        eyebrow={t.navGroups.work}
         title={t.tasks.title}
         subtitle={t.tasks.subtitle}
         action={mayWork
@@ -136,9 +138,21 @@ export default function TasksPage() {
       />
       <TaskTabs maySeeTeam={maySeeTeam} />
 
-      {mayWork && me === null && (
+      {/*
+        * Shown only to somebody who is meant to be timing work.
+        *
+        * A manager watches the team; they do not necessarily have a payroll
+        * row of their own, and telling them every single day that their
+        * timer will not run is nagging them about a thing they did not ask
+        * for. If one of them does want a clock, linking themselves is the
+        * same one field — and the Start button, which needs an employee row,
+        * simply is not offered until then.
+        */}
+      {mayWork && !maySeeTeam && me === null && (
         <div className="mb-4"><Notice tone="warn">{t.tasks.notLinkedNotice}</Notice></div>
       )}
+
+      {me && <MyDay me={me} name={full_name ?? email ?? null} />}
 
       {me && (
         <TimerStrip
@@ -196,6 +210,16 @@ export default function TasksPage() {
 
       {error && <div className="mb-3"><Notice tone="danger">{error}</Notice></div>}
 
+      {allTasks.length === 0 ? (
+        <Card>
+          <EmptyState
+            message={mayManage ? t.tasks.emptyBoardManager : t.tasks.emptyBoard}
+            action={mayWork
+              ? <Button onClick={() => setAdding('todo')}>{t.tasks.addTask}</Button>
+              : undefined}
+          />
+        </Card>
+      ) : (
       <TaskBoard
         tasks={visible}
         showAssignee={scope === 'all'}
@@ -204,6 +228,7 @@ export default function TasksPage() {
         onMove={(task, status, after) => void move(task, status, after)}
         onAdd={(status) => setAdding(status)}
       />
+      )}
 
       {openTask && (
         <TaskModal

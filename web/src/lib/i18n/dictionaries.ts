@@ -73,6 +73,7 @@ export const ar = {
   },
   navGroups: {
     money: 'المالية',
+    work: 'الشغل',
     people: 'الأكاديمية',
     ops: 'التشغيل',
   },
@@ -786,6 +787,9 @@ export const ar = {
       reports: 'التقارير',
       settings: 'القوائم والإعدادات',
       staff: 'الموظفين',
+      payroll: 'المرتبات',
+      tasks: 'المهام (بتاعته هو)',
+      team: 'متابعة الفريق',
       system: 'النظام والاستيراد',
     },
     errors: {
@@ -1247,6 +1251,12 @@ export const ar = {
 
     notLinkedNotice:
       'حسابك مش مربوط بموظف، فالتايمر مش هيشتغل. اربطه من المرتبات ← الموظفين.',
+    greetingMorning: 'صباح الخير',
+    greetingAfternoon: 'نهارك سعيد',
+    greetingEvening: 'مساء الخير',
+    nothingLate: 'كله في معاده',
+    emptyBoard: 'مفيش مهام عندك دلوقتي',
+    emptyBoardManager: 'ابدأ بمشروع، وبعدها وزّع المهام على الفريق',
   },
 } as const;
 
@@ -1327,6 +1337,7 @@ export const en: Dict = {
   },
   navGroups: {
     money: 'Finance',
+    work: 'Work',
     people: 'Academy',
     ops: 'Operations',
   },
@@ -2038,6 +2049,9 @@ export const en: Dict = {
       reports: 'Reports',
       settings: 'Lists & settings',
       staff: 'Staff',
+      payroll: 'Payroll',
+      tasks: 'Tasks (their own)',
+      team: 'Team oversight',
       system: 'System & import',
     },
     errors: {
@@ -2504,6 +2518,12 @@ export const en: Dict = {
 
     notLinkedNotice:
       'Your account is not linked to a person, so the timer will not run. Link it in Payroll → People.',
+    greetingMorning: 'Good morning',
+    greetingAfternoon: 'Good afternoon',
+    greetingEvening: 'Good evening',
+    nothingLate: 'Nothing late',
+    emptyBoard: 'Nothing on your board right now',
+    emptyBoardManager: 'Start with a project, then hand the work out',
   },
 };
 

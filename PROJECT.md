@@ -1015,6 +1015,36 @@ below it. On a board two people are dragging at once, renumbering is how you
 get an order neither of them chose. `move_task` does that arithmetic inside one
 statement rather than in the browser, for the same reason.
 
+### The board is somebody's whole app
+
+Somebody given `tasks.*` and nothing else sees one sidebar group, one screen,
+and no overview — `/` needs `overview.read`, so `firstAllowedPath` lands them
+on `/tasks`. For that person the board IS the product, and three empty columns
+with no context reads as a corner of somebody else's system.
+
+So the board opens with **their own day**: a greeting, four figures — open,
+overdue, finished this week, and hours today against their own target — and
+the running clock. Shown to everybody, not only to restricted accounts: a
+screen that changes shape depending on your role is a screen nobody can be
+told how to use.
+
+Three details that only matter for restricted accounts, and all three were
+wrong first time:
+
+- **Tasks is its own sidebar group** (`الشغل`), not filed under `الأكاديمية`.
+  For the owner that is tidiness; for a salesperson it is the whole sidebar.
+- **The "link your account" notice is not shown to managers.** It is a
+  setup warning for somebody who is meant to be timing work. A manager watches
+  the team and may have no payroll row at all; telling them daily that their
+  timer will not run is nagging about something they never asked for. The
+  Start button needs an employee row and simply is not offered without one.
+- **The Team tab is absent, not disabled**, for anybody without `team.read` —
+  a tab that bounces you is worse than no tab.
+
+Granting oversight to somebody else is one role edit: Staff → the role →
+**متابعة الفريق**, which holds `team.read` (see everybody's board and the
+productivity table) and `team.write` (assign work, approve time).
+
 ### What is deliberately not built
 
 The reference product (PeakTime) also takes **automatic screenshots** of

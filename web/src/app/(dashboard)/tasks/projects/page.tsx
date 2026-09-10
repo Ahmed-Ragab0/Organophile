@@ -63,7 +63,7 @@ export default function ProjectsPage() {
   return (
     <>
       <PageHeader
-        eyebrow={t.navGroups.people}
+        eyebrow={t.navGroups.work}
         title={t.tasks.title}
         subtitle={t.tasks.subtitle}
         action={mayWrite
