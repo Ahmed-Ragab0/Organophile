@@ -274,6 +274,12 @@ export function PayDialog({
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /*
+   * Paying a salary is the same call for everybody and does not always pay.
+   * Somebody who cannot authorise spending raises a request instead, and the
+   * dialog has to say which happened rather than closing identically on both.
+   */
+  const [sent, setSent] = useState(false);
 
   const wallet = wallets.find((w) => w.id === walletId);
   const balance = Number(wallet?.balance ?? 0);
@@ -295,6 +301,7 @@ export function PayDialog({
     const result = data as PayrollResult | null;
     if (!result?.ok) { setError(reasonText(result?.reason)); return; }
     onPaid();
+    if (result.pending) { setSent(true); return; }
     onClose();
   }
 
@@ -313,6 +320,13 @@ export function PayDialog({
       )}
     >
       <div className="space-y-4">
+        {sent && (
+          <Notice tone="ok">
+            <strong className="block">{t.approvals.sentTitle}</strong>
+            {t.approvals.sentPayslip}
+          </Notice>
+        )}
+
         <dl className="space-y-1.5 rounded-field bg-surface-2 px-3.5 py-3 text-sm">
           <Row label={t.payroll.employee} value={<span className="text-ink">{slip.employee_name}</span>} />
           <Row label={t.payroll.forMonth} value={<MonthName value={slip.period_month} />} />

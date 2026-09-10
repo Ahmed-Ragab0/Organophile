@@ -1202,6 +1202,15 @@ export type PayrollSettingsRow = {
 export type PayrollResult = {
   ok: boolean;
   reason?: string;
+  /**
+   * True when the call raised a spend request instead of paying.
+   *
+   * `pay_payslip` is the same call for everybody; whether it moves money
+   * depends on whether the caller may authorise spending, and only the
+   * database knows that.
+   */
+  pending?: boolean;
+  request_id?: string;
   id?: string;
   status?: string;
   added?: number;
@@ -1363,4 +1372,67 @@ export type TaskResult = {
   minutes?: number;
   status?: string;
   position?: number;
+};
+
+// --- Spend approvals ---------------------------------------------------------
+
+/** What a spend request is for. The code branches on both. */
+export type SpendKind = 'expense' | 'payslip';
+
+export type SpendStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+/**
+ * `v_spend_requests` — money somebody wants to send, waiting for somebody who
+ * may authorise it.
+ *
+ * Everybody's rows for a person holding `approvals.*`; your own otherwise,
+ * because a request that vanishes the moment it is sent is worse than none.
+ */
+export type SpendRequestRow = {
+  id: string;
+  kind: SpendKind;
+  status: SpendStatus;
+  /** Frozen when the request was raised: the approver agrees to this figure. */
+  amount: number;
+  occurred_at: string;
+  description: string;
+  note: string | null;
+  wallet_id: string;
+  wallet_name: string;
+  category_id: string | null;
+  category_name: string | null;
+  payslip_id: string | null;
+  employee_name: string | null;
+  period_month: string | null;
+  requested_by: string | null;
+  requested_by_name: string | null;
+  decided_by: string | null;
+  decided_by_name: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+  /** The ledger entry approving it produced. Null until then, always. */
+  result_entry_id: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Nobody decides their own. */
+  is_mine: boolean;
+};
+
+/**
+ * What a spending call answers with.
+ *
+ * `pending` is the whole point: the same call either moved money or raised a
+ * request, and only the database knows which — so it says.
+ */
+export type SpendResult = {
+  ok: boolean;
+  reason?: string;
+  pending?: boolean;
+  request_id?: string;
+  entry_id?: string;
+  ledger_entry_id?: string;
+  status?: string;
+  amount?: number;
+  requested?: number;
+  now?: number;
 };

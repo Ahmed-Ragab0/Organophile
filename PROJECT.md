@@ -101,7 +101,8 @@ These are not style preferences. Breaking one causes a real, specific bug.
    synthetic 100 EGP as real revenue — fixed in `0017`.
 8. **Direct writes to `ledger_entries` are denied by RLS.** Everything goes
    through `add_expense`, `add_manual_revenue`, `transfer_between_wallets`,
-   `void_ledger_entry`, `pay_payslip`, `unpay_payslip`. Payroll extends the
+   `void_ledger_entry`, `pay_payslip`, `unpay_payslip`,
+   `decide_spend_request`. Payroll extends the
    same rule to its own document: `payslips.paid_at` is refused to a client
    too, so "paid" cannot be written without money moving in the same
    transaction.
@@ -715,6 +716,7 @@ cd supabase && deno task test        # 72 Deno tests
 psql "$DATABASE_URL" -f supabase/tests/projections.test.sql
 psql "$DATABASE_URL" -f supabase/tests/payroll.test.sql   # 32 assertions
 psql "$DATABASE_URL" -f supabase/tests/tasks.test.sql     # 40 assertions
+psql "$DATABASE_URL" -f supabase/tests/approvals.test.sql # 30 assertions
 # Both suites open with app.assert_guards_can_run() — see section 14.
 cd web && npm run lint && npm run build
 ```
@@ -916,7 +918,70 @@ getting it wrong is the tell of a generated document.
 
 ---
 
-## 14. Tasks and productivity
+## 14. Money going out asks first
+
+`/approvals` exists because "who agreed to this" has to be answerable **before**
+the money leaves, not by reading the ledger afterwards. With one owner it never
+came up; with an accountant in the system it is the whole question.
+
+### The fork is in the database, not on a screen
+
+`add_expense` and `pay_payslip` are the same call for everybody. They look at
+who is calling:
+
+```
+holds approvals.write  →  the money moves, exactly as before
+otherwise              →  the same call raises a REQUEST, nothing moves
+```
+
+The front end does not choose and cannot: it has never been able to write to
+`ledger_entries` at all (rule 8). Both return `{ok, pending, …}` so the screen
+can say which of the two happened — an expense that was *asked for* must not
+close the dialog the same way as one that was *paid*.
+
+### Approving is the spending
+
+Not a signature somebody acts on later. `decide_spend_request` performs the
+spend in the **same transaction** as the decision, so there is never a request
+marked approved with no money behind it, and no second button to forget. For a
+salary it calls `pay_payslip` back rather than duplicating it — the approver
+holds `approvals.write`, so the fork above sends it straight down the paying
+branch and every rule that guards a salary applies once, in one place.
+
+### The rails
+
+| | Why |
+|---|---|
+| No write policy on `spend_requests` at all | Every row is created and decided by a function, exactly like `ledger_entries`. Without this, marking your own request approved is a plain `UPDATE` and no money ever moves — the feature as theatre. |
+| Amount, wallet, description frozen once raised | The approver has to be agreeing to the thing that then happens. Wrong request: withdraw it and raise another. |
+| A payslip with a live request cannot be edited | They agreed to a figure. If it could move in between, a different amount leaves the wallet under the same approval. `decide_spend_request` re-checks the amount too — belt as well as braces. |
+| One live request per payslip | Two people asking to pay one salary is how it gets paid twice. A partial unique index. |
+| Nobody decides their own | Somebody who may authorise never raises one, so this only bites after a promotion — and then a second pair of eyes is exactly what the request was for. They can withdraw it and spend directly. |
+| The ledger row names who asked AND who agreed | A row that can only be explained by opening another screen is a row that gets misread. |
+
+### Two domains, and why `approvals.write` means both things
+
+`approvals.write` means "may decide other people's requests" **and** "does not
+have to raise one". They are deliberately the same authority: letting somebody
+approve spending they are not trusted to do themselves is not a distinction
+worth having.
+
+Seeded so the feature has a point: the accountant gets `approvals.read` — they
+raise requests and watch their own — and nobody but the owner gets
+`approvals.write`.
+
+### What is deliberately outside it
+
+**Transfers between the business's own wallets.** `transfer_between_wallets` is
+P&L neutral and both ends are inside this system; moving cash from the safe to
+the bank is not a disbursement. Putting it behind an approval would train
+everybody to click through approvals for things that are not spending, which is
+how approvals stop being read. Said out loud here rather than left as an
+oversight — if a wallet ever represents somebody's pocket, that changes.
+
+---
+
+## 15. Tasks and productivity
 
 ### The bug this section exists to prevent
 

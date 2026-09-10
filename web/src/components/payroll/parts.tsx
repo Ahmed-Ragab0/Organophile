@@ -160,5 +160,6 @@ export function usePayrollReason(): (reason: string | undefined) => string {
     nothing_to_pay: t.payroll.reasonNothingToPay,
     no_wallet: t.payroll.reasonNoWallet,
     not_paid: t.payroll.reasonNotPaid,
+    already_requested: t.approvals.reasonAlreadyRequested,
   }[reason ?? ''] ?? t.common.error);
 }

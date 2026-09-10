@@ -18,6 +18,9 @@ export const ROUTE_PERMISSIONS: Record<string, string> = {
   '/wallets': 'money.read',
   '/ledger': 'money.read',
   '/expenses': 'money.read',
+  // The queue shows a requester their OWN rows and an approver everybody's,
+  // so the gate is the lower of the two and RLS decides the rest.
+  '/approvals': 'approvals.read',
   '/payroll': 'payroll.read',
   // The board asks only for your OWN tasks. Everything on it that belongs to
   // somebody else is refused by RLS, not by the router — which is why the

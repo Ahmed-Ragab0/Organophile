@@ -29,6 +29,7 @@ const NAV_GROUPS = [
       { href: '/wallets', key: 'wallets' },
       { href: '/ledger', key: 'ledger' },
       { href: '/expenses', key: 'expenses' },
+      { href: '/approvals', key: 'approvals' },
       { href: '/payroll', key: 'payroll' },
       { href: '/reports', key: 'reports' },
     ],
