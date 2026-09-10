@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { Suspense, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useI18n } from '@/lib/i18n/context';
 import { Button, Field, Input, MoleculeField, Notice } from '@/components/ui/primitives';
@@ -77,7 +77,6 @@ function BrandPanel() {
 
 function LoginForm() {
   const { t, toggleLocale } = useI18n();
-  const router = useRouter();
   const params = useSearchParams();
   const denied = params.get('denied') === '1';
 
@@ -103,8 +102,17 @@ function LoginForm() {
     }
 
     const next = params.get('next');
-    router.replace(next && next.startsWith('/') ? next : '/');
-    router.refresh();
+    /*
+     * A full document load, for the same reason sign-out does one: the
+     * dashboard layout reads who you are on the SERVER and hands it down, and
+     * the client router can serve that layout from cache. Signing in as a
+     * second person in the same tab would otherwise render the first person's
+     * screen over the second person's session.
+     *
+     * `next` is checked to start with "/" before it is followed, so a crafted
+     * `?next=https://elsewhere` cannot turn the login form into a redirector.
+     */
+    window.location.replace(next && next.startsWith('/') ? next : '/');
   }
 
   return (

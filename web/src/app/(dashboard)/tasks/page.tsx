@@ -5,6 +5,7 @@ import { useI18n } from '@/lib/i18n/context';
 import { useAccess } from '@/lib/access/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { createClient } from '@/lib/supabase/client';
+import { dbErrorText } from '@/lib/db-errors';
 import {
   Button, Card, EmptyState, ErrorState, Input, Notice, PageHeader, PageSkeleton,
   Select, cx,
@@ -106,7 +107,7 @@ export default function TasksPage() {
       p_task_id: task.id, p_status: status, p_after_id: after?.id ?? null,
     });
     setBusy(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError(dbErrorText(err, t)); return; }
     const result = data as TaskResult | null;
     if (!result?.ok) { setError(reasonText(result?.reason)); return; }
     tasks.reload();
@@ -117,7 +118,7 @@ export default function TasksPage() {
     setError(null);
     const { data, error: err } = await createClient().rpc('stop_task_timer', { p_note: null });
     setBusy(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError(dbErrorText(err, t)); return; }
     const result = data as TaskResult | null;
     if (!result?.ok) { setError(reasonText(result?.reason)); return; }
     reloadAll();

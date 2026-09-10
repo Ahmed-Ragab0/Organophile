@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n/context';
 import { createClient } from '@/lib/supabase/client';
+import { dbErrorText } from '@/lib/db-errors';
 import { formatDate, formatMoney, toCairoDateKey } from '@/lib/format';
 import { messageVariables, renderTemplate, whatsappLink } from '@/lib/payroll';
 import {
@@ -62,7 +63,7 @@ export function PayslipModal({
       label: label.trim() === '' ? null : label.trim(),
     });
     setBusy(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError(dbErrorText(err, t)); return; }
     setComponentId('');
     setLabel('');
     setAmount('');
@@ -74,7 +75,7 @@ export function PayslipModal({
     setError(null);
     const { error: err } = await createClient().from('payslip_items').delete().eq('id', id);
     setBusy(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError(dbErrorText(err, t)); return; }
     onSaved();
   }
 
@@ -86,7 +87,7 @@ export function PayslipModal({
       .update({ base_salary: Number(base), note: note.trim() === '' ? null : note.trim() })
       .eq('id', slip.id);
     setBusy(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError(dbErrorText(err, t)); return; }
     onSaved();
   }
 
@@ -290,7 +291,7 @@ export function PayDialog({
       p_note: note.trim() === '' ? null : note.trim(),
     });
     setBusy(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError(dbErrorText(err, t)); return; }
     const result = data as PayrollResult | null;
     if (!result?.ok) { setError(reasonText(result?.reason)); return; }
     onPaid();
@@ -378,7 +379,7 @@ export function ReverseDialog({
       p_reason: reason.trim() === '' ? null : reason.trim(),
     });
     setBusy(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError(dbErrorText(err, t)); return; }
     const result = data as PayrollResult | null;
     if (!result?.ok) { setError(reasonText(result?.reason)); return; }
     onDone();

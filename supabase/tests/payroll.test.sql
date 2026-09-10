@@ -14,6 +14,17 @@
 
 begin;
 
+/*
+ * Before anything else: can the rails actually run?
+ *
+ * A trigger function in schema `app` that calls a sibling in `app` and is not
+ * SECURITY DEFINER works for the owner and raises `permission denied for
+ * schema app` for every signed-in user. This whole suite runs as the owner,
+ * so it cannot catch that by behaviour — four functions were in that state
+ * while it ran green. The check is structural for exactly that reason.
+ */
+select app.assert_guards_can_run();
+
 do $$
 declare
   v_admin  uuid;
@@ -164,9 +175,21 @@ begin
   assert (select entry_type::text from public.ledger_entries where id = v_entry) = 'expense',
     'P17c: a salary is an expense';
 
-  -- P18: the cycle closes itself when the last person is paid
+  /*
+   * P18: the cycle closes itself when the last person OWED something is paid.
+   *
+   * Not "when every payslip is paid". Somebody put on the roster from the
+   * Staff screen starts with a base of zero, their payslip nets zero, and
+   * `pay_payslip` rightly refuses to write a zero-pound expense — so counting
+   * rows left this cycle open for ever. Found by this suite the day the
+   * database had a second employee in it.
+   */
   assert (select status from public.payroll_periods where id = v_period) = 'closed',
-    'P18: the cycle did not close after the last payment';
+    format('P18: the cycle did not close after the last payment (%s owed, %s unpaid)',
+      (select count(*) from public.payslips
+        where period_id = v_period and paid_at is null and net_amount > 0),
+      (select count(*) from public.payslips where period_id = v_period and paid_at is null));
+
 
   -- P19: paying twice is refused, not doubled
   r := public.pay_payslip(v_slip, v_wallet);
@@ -241,6 +264,25 @@ begin
     'P29: the cycle stayed closed with an unpaid salary in it';
   assert (select paid_at is null from public.payslips where id = v_slip),
     'P29b: the payslip still says paid';
+
+  /*
+   * P29c: a payslip that owes nothing is refused rather than written to the
+   * ledger as a zero-pound expense.
+   *
+   * Checked here, with the cycle reopened to `approved`, because
+   * `pay_payslip` tests the cycle's status before it looks at the amount — so
+   * asking this of a closed cycle only proves the cycle was closed.
+   */
+  declare v_zero uuid;
+  begin
+    select id into v_zero from public.payslips
+     where period_id = v_period and paid_at is null and net_amount = 0 limit 1;
+    if v_zero is not null then
+      r := public.pay_payslip(v_zero, v_wallet);
+      assert (r ->> 'reason') = 'nothing_to_pay',
+        'P29c: a payslip owing nothing was paid: ' || r::text;
+    end if;
+  end;
 
   ------------------------------------------------------- the record families
   -- P30: an employee with payslips is not deletable, and says why

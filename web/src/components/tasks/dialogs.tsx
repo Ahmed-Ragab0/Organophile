@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useI18n } from '@/lib/i18n/context';
 import { createClient } from '@/lib/supabase/client';
+import { dbErrorText } from '@/lib/db-errors';
 import { formatDate, formatDateTime, toCairoDateKey } from '@/lib/format';
 import {
   Badge, Button, Field, Input, Modal, Notice, Select, Textarea, cx,
@@ -77,7 +78,7 @@ export function TaskModal({
       estimate_minutes: draft.estimate_minutes === '' ? null : Number(draft.estimate_minutes),
     }).eq('id', task.id);
     setBusy(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError(dbErrorText(err, t)); return; }
     onChanged();
   }
 
@@ -87,7 +88,7 @@ export function TaskModal({
     const { data, error: err } = await createClient()
       .rpc('move_task', { p_task_id: task.id, p_status: status, p_after_id: null });
     setBusy(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError(dbErrorText(err, t)); return; }
     const result = data as TaskResult | null;
     if (!result?.ok) { setError(reasonText(result?.reason)); return; }
     onChanged();
@@ -101,7 +102,7 @@ export function TaskModal({
       ? await sb.rpc('stop_task_timer', { p_note: null })
       : await sb.rpc('start_task_timer', { p_task_id: task.id });
     setBusy(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError(dbErrorText(err, t)); return; }
     const result = data as TaskResult | null;
     if (!result?.ok) { setError(reasonText(result?.reason)); return; }
     onChanged();
@@ -347,7 +348,7 @@ export function LogTimeModal({
       p_note: note.trim() === '' ? null : note.trim(),
     });
     setBusy(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError(dbErrorText(err, t)); return; }
     const result = data as TaskResult | null;
     if (!result?.ok) { setError(reasonText(result?.reason)); return; }
     onLogged();
@@ -427,7 +428,7 @@ export function NewTaskModal({
       status: defaultStatus,
     });
     setBusy(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError(dbErrorText(err, t)); return; }
     onCreated();
     onClose();
   }

@@ -5,6 +5,7 @@ import { useI18n } from '@/lib/i18n/context';
 import { useAccess } from '@/lib/access/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { createClient } from '@/lib/supabase/client';
+import { dbErrorText } from '@/lib/db-errors';
 import { formatDate } from '@/lib/format';
 import {
   Badge, Button, Card, CardHeader, Checkbox, cx, Field, Input, Modal, Notice,
@@ -418,13 +419,13 @@ function RoleModal({
       const { data, error: err } = await sb.from('roles')
         .insert({ name, name_en: nameEn || null, description: description || null })
         .select('id').single();
-      if (err) { setBusy(false); setError(err.message); return; }
+      if (err) { setBusy(false); setError(dbErrorText(err, t)); return; }
       roleId = (data as { id: string }).id;
     } else {
       const { error: err } = await sb.from('roles').update({
         name, name_en: nameEn || null, description: description || null,
       }).eq('id', roleId);
-      if (err) { setBusy(false); setError(err.message); return; }
+      if (err) { setBusy(false); setError(dbErrorText(err, t)); return; }
     }
 
     if (!superuser) {
@@ -564,7 +565,7 @@ export default function StaffPage() {
       base_salary: 0,
     });
     setEnrolling(null);
-    if (err) { setEnrolError(err.message); return; }
+    if (err) { setEnrolError(dbErrorText(err, t)); return; }
     people.reload();
   }
 

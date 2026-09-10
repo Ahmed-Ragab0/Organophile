@@ -14,6 +14,17 @@
 
 begin;
 
+/*
+ * Before anything else: can the rails actually run?
+ *
+ * A trigger function in schema `app` that calls a sibling in `app` and is not
+ * SECURITY DEFINER works for the owner and raises `permission denied for
+ * schema app` for every signed-in user. This whole suite runs as the owner,
+ * so it cannot catch that by behaviour — four functions were in that state
+ * while it ran green. The check is structural for exactly that reason.
+ */
+select app.assert_guards_can_run();
+
 do $$
 declare
   v_admin  uuid;

@@ -1266,6 +1266,15 @@ export const ar = {
     emptyBoard: 'مفيش مهام عندك دلوقتي',
     emptyBoardManager: 'ابدأ بمشروع، وبعدها وزّع المهام على الفريق',
   },
+  dbErrors: {
+    notAllowed: 'مالكش صلاحية للحاجة دي.',
+    notAllowedOrStale:
+      'مالكش صلاحية للحاجة دي. ولو كنت غيّرت الحساب من شوية، اعمل تسجيل خروج ودخول '
+      + 'عشان الشاشة تبقى بتاعت الحساب اللي انت داخل بيه فعلاً.',
+    duplicate: 'الاسم أو الكود ده مستخدم قبل كده.',
+    stillInUse: 'فيه حاجات مرتبطة بيه، فمينفعش يتغيّر كده.',
+    badValue: 'فيه قيمة مش مقبولة — راجع الخانات.',
+  },
 } as const;
 
 /**
@@ -2540,6 +2549,15 @@ export const en: Dict = {
     nothingLate: 'Nothing late',
     emptyBoard: 'Nothing on your board right now',
     emptyBoardManager: 'Start with a project, then hand the work out',
+  },
+  dbErrors: {
+    notAllowed: 'Not something your role allows.',
+    notAllowedOrStale:
+      'Not something your role allows. If you switched accounts recently, sign out and '
+      + 'back in so the screen belongs to the account you are actually using.',
+    duplicate: 'That name or code is already taken.',
+    stillInUse: 'Something is attached to it, so it cannot change that way.',
+    badValue: 'One of the values is not accepted — check the fields.',
   },
 };
 

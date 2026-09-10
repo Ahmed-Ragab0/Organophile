@@ -460,7 +460,7 @@ returns boolean language sql stable set search_path = '' as $$
 $$;
 
 create or replace function app.guard_payslip()
-returns trigger language plpgsql set search_path = '' as $function$
+returns trigger language plpgsql security definer set search_path = '' as $function$
 declare
   v_paying boolean := app.payroll_is_paying();
   v_status text;
@@ -636,7 +636,7 @@ create trigger payroll_periods_guard
 -- "paid" would leave two records of one fact disagreeing. The reversal has a
 -- door of its own (`unpay_payslip`, 0050); this closes the other one.
 create or replace function app.guard_ledger_payroll_void()
-returns trigger language plpgsql set search_path = '' as $function$
+returns trigger language plpgsql security definer set search_path = '' as $function$
 begin
   if new.voided_at is not null and old.voided_at is null
      and not app.payroll_is_paying()

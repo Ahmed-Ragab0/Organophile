@@ -333,7 +333,7 @@ $$;
 -- A column change is a fact about when, not just what
 -- ---------------------------------------------------------------------------
 create or replace function app.guard_task()
-returns trigger language plpgsql set search_path = '' as $function$
+returns trigger language plpgsql security definer set search_path = '' as $function$
 declare
   v_manager boolean := app.can('team.write');
   v_me      uuid    := app.my_employee_id();
@@ -349,6 +349,14 @@ begin
   if tg_op = 'INSERT' then
     -- Anybody may write down their own to-do. Handing one to somebody else is
     -- a management act.
+    if not v_manager and v_me is null then
+      -- Said apart from the case below, because they are different problems.
+      -- "You can only add tasks for yourself" is baffling advice to somebody
+      -- who has no self here yet: their login was never put on the roster,
+      -- and that is somebody else's to fix.
+      raise exception 'your account is not on the work roster yet'
+        using errcode = 'insufficient_privilege';
+    end if;
     if not v_manager and new.assignee_id is distinct from v_me then
       raise exception 'you can only add tasks for yourself'
         using errcode = 'insufficient_privilege';
@@ -407,7 +415,7 @@ create trigger tasks_stamp_author
 -- Time is claimed by one person and agreed by another
 -- ---------------------------------------------------------------------------
 create or replace function app.guard_task_session()
-returns trigger language plpgsql set search_path = '' as $function$
+returns trigger language plpgsql security definer set search_path = '' as $function$
 declare
   v_manager boolean := app.can('team.write');
   v_me      uuid    := app.my_employee_id();

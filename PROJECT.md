@@ -715,6 +715,7 @@ cd supabase && deno task test        # 72 Deno tests
 psql "$DATABASE_URL" -f supabase/tests/projections.test.sql
 psql "$DATABASE_URL" -f supabase/tests/payroll.test.sql   # 32 assertions
 psql "$DATABASE_URL" -f supabase/tests/tasks.test.sql     # 40 assertions
+# Both suites open with app.assert_guards_can_run() — see section 14.
 cd web && npm run lint && npm run build
 ```
 
@@ -916,6 +917,76 @@ getting it wrong is the tell of a generated document.
 ---
 
 ## 14. Tasks and productivity
+
+### The bug this section exists to prevent
+
+`authenticated` has USAGE on `public` and on `auth`, and **not** on `app`. That
+is deliberate — `app` is this system's private schema. The consequence is not:
+
+| Where `app.can(...)` is written | Works for a signed-in user? |
+|---|---|
+| in an RLS policy | ✅ — the expression was parsed at CREATE POLICY time, by the owner. Execution only checks EXECUTE on the function. |
+| in a view body | ✅ — same reason. |
+| in a plpgsql function marked SECURITY DEFINER | ✅ — it runs as the owner. |
+| **in a plpgsql function that is not** | ❌ **`permission denied for schema app`** — the body resolves the name at RUN time, as the caller. |
+
+So a trigger guard living in `app` and calling a sibling in `app` **works for
+the owner and fails for everybody else**. Four functions were in that state:
+`guard_task`, `guard_task_session`, `guard_payslip` and
+`guard_ledger_payroll_void`. Adding a task as an employee failed with that
+message; adding one as the owner worked.
+
+One of the four was a security hole rather than only an outage.
+`guard_ledger_payroll_void` asks whether a payslip points at the ledger entry
+being voided. Running as the caller it read `payslips` through the caller's
+RLS — so somebody with `money.write` and without `payroll.read` saw no payslip,
+the guard passed, and they could void a salary entry from the ledger screen
+while the payslip went on saying "paid".
+
+**Every test in this repo runs as `postgres`, and `postgres` can see `app`.**
+Worse, `set local role authenticated` inside a `DO` block does not reproduce it
+either, because plpgsql caches plans per session and the name was already
+resolved as the owner. So the guard against this is structural, not
+behavioural: `app.assert_guards_can_run()` fails if any trigger function in
+`app` calls `app.<name>(` without being SECURITY DEFINER, and both SQL suites
+call it before anything else. It matches a CALL, not the string "app.", because
+`app.autoclassify` is a GUC name that needs no such thing.
+
+To test permissions for real, use **top-level statements** in a fresh session:
+
+```sql
+begin;
+select set_config('request.jwt.claims', '{"sub":"…","role":"authenticated"}', true);
+set local role authenticated;
+insert into public.tasks (title, assignee_id) values ('x', '…');
+rollback;
+```
+
+### A cycle waits for money, not for rows
+
+Related, and found the same day: somebody added to the roster from the Staff
+screen starts on a base of zero, their payslip nets zero, and `pay_payslip`
+rightly refuses to write a zero-pound expense. Counting *unpaid rows* to decide
+whether a cycle is finished therefore left it at "1 of 2 paid" for ever, with
+nothing on screen able to explain why. Both `pay_payslip` and the period guard
+now count what is **owed** — `paid_at is null and net_amount > 0`.
+
+### When the screen belongs to the previous account
+
+`new row violates row-level security policy` has a second cause worth knowing:
+who you are is read on the **server**, once, in the dashboard layout. A
+client-side navigation can re-use that layout from the router cache, so signing
+out and back in as somebody else leaves the first account's screen rendered
+over the second account's session — their buttons, your permissions, and the
+database refusing one request at a time.
+
+Sign-in and sign-out therefore do a **full document load**
+(`window.location.replace`), not `router.replace` + `router.refresh`. It costs
+one page load at an event that happens twice a day. `lib/db-errors.ts` also
+translates that message and says so, because "row-level security policy" is not
+a sentence anybody should have to decode.
+
+
 
 `/tasks` is a board, a team report, and a project list. It answers the question
 payroll cannot: **section 13 says what a person cost; this says what they did.**
