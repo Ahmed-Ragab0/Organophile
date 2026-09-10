@@ -627,9 +627,27 @@ export default function StaffPage() {
                     * the owner's own — a superuser watching the team does not
                     * need a payroll row to do their job.
                     */}
-                  {p.employee_id === null && !p.is_superuser && mayPayroll && (
-                    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-field bg-warn-soft px-3 py-2 ring-1 ring-warn/20 ring-inset">
-                      <span className="text-xs text-warn">{t.staffPage.notOnRosterHint}</span>
+                  {/*
+                    * Offered for the owner too, which it was not.
+                    *
+                    * The first version skipped superusers on the theory that
+                    * somebody who watches the team does not need a roster row.
+                    * That is true right up until they have a task of their own
+                    * — and then the board tells them they are not on the
+                    * roster and offers no way to be. An account that is
+                    * BLOCKED by this gets a warning; one that is merely
+                    * missing out gets an offer.
+                    */}
+                  {p.employee_id === null && mayPayroll && (
+                    <div className={cx(
+                      'mt-2 flex flex-wrap items-center gap-2 rounded-field px-3 py-2 ring-1 ring-inset',
+                      p.is_superuser
+                        ? 'bg-info-soft ring-info/20'
+                        : 'bg-warn-soft ring-warn/20',
+                    )}>
+                      <span className={cx('text-xs', p.is_superuser ? 'text-info' : 'text-warn')}>
+                        {p.is_superuser ? t.staffPage.notOnRosterOffer : t.staffPage.notOnRosterHint}
+                      </span>
                       <Button
                         size="sm"
                         variant="secondary"

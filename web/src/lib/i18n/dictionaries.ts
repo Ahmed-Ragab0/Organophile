@@ -781,6 +781,8 @@ export const ar = {
     notOnRoster: 'مش في فريق الشغل',
     notOnRosterHint:
       'الحساب ده مينفعش تديله مهام ولا يشغّل تايمر لحد ما يبقى موظف. دوسة واحدة وخلاص.',
+    notOnRosterOffer:
+      'الحساب ده لسه مش على فريق الشغل. ضيفه عشان يبقى ليه مهام ووقت — من غير مرتب.',
     addToRoster: 'ضيفه لفريق الشغل',
     addingToRoster: 'جارٍ الإضافة…',
     byDomain: {
@@ -1267,6 +1269,12 @@ export const ar = {
     emptyBoardManager: 'ابدأ بمشروع، وبعدها وزّع المهام على الفريق',
     emptyMine: 'مفيش حاجة متسندة ليك — بص على «الفريق كله»',
     emptyNotOnRoster: 'حسابك مش على فريق الشغل، فمفيش مهام متسندة ليك',
+    joinRosterTitle: 'حسابك لسه مش على فريق الشغل',
+    joinRosterHint:
+      'ضيف نفسك عشان تقدر تسند لنفسك مهام وتشغّل التايمر. مش هيتحط عليك مرتب — '
+      + 'ده قرار تاني في صفحة المرتبات.',
+    joinRosterAction: 'ضيفني لفريق الشغل',
+    joinRosterAsk: 'كلّم المسؤول عن السيستم عشان يضيفك لفريق الشغل.',
     showCancelled: 'اعرض الملغية',
     cancelTask: 'الغِ المهمة',
     restoreTask: 'رجّعها',
@@ -2066,6 +2074,8 @@ export const en: Dict = {
     notOnRoster: 'Not on the work roster',
     notOnRosterHint:
       'This account cannot be given tasks or run a timer until it belongs to a person. One click.',
+    notOnRosterOffer:
+      'This account is not on the work roster. Add it so it can hold tasks and time — no salary.',
     addToRoster: 'Add to the roster',
     addingToRoster: 'Adding…',
     byDomain: {
@@ -2557,6 +2567,12 @@ export const en: Dict = {
     emptyBoardManager: 'Start with a project, then hand the work out',
     emptyMine: 'Nothing is assigned to you — try "Whole team"',
     emptyNotOnRoster: 'Your account is not on the work roster, so nothing is assigned to you',
+    joinRosterTitle: 'Your account is not on the work roster yet',
+    joinRosterHint:
+      'Add yourself so you can take tasks and run the timer. No salary comes with it — '
+      + 'that is a separate decision on the Payroll screen.',
+    joinRosterAction: 'Add me to the roster',
+    joinRosterAsk: 'Ask whoever set this up to add you to the work roster.',
     showCancelled: 'Show cancelled',
     cancelTask: 'Cancel task',
     restoreTask: 'Restore',

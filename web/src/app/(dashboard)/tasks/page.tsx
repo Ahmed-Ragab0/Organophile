@@ -93,6 +93,9 @@ export default function TasksPage() {
   // Somebody who is not on the roster has no work of their own to show, so
   // they start on the team's — if they may see it at all.
   const effectiveScope: 'mine' | 'all' = scope ?? (me === null && maySeeTeam ? 'all' : 'mine');
+  // Adding an employees row is a payroll write, so the offer is only made to
+  // somebody who could actually complete it.
+  const canJoin = can('payroll.write');
 
   const allTasks = tasks.data ?? [];
   const visible = allTasks.filter((task) => {
@@ -138,6 +141,30 @@ export default function TasksPage() {
     tasks.reload();
   }
 
+  /**
+   * Put yourself on the work roster.
+   *
+   * The owner has tasks too, and until this existed the board told them they
+   * were not on the roster and offered no way to be — a dead end dressed as an
+   * explanation. The row created here carries no wage: `employees` is who works
+   * here, and what somebody is paid is a separate decision on a separate
+   * screen. That separation is the whole reason a roster row and a login are
+   * two records; it should not also be a chore.
+   */
+  async function joinRoster() {
+    setBusy(true);
+    setError(null);
+    const { error: err } = await createClient().from('employees').insert({
+      full_name: full_name?.trim() || email || '—',
+      email: email ?? null,
+      user_id,
+      base_salary: 0,
+    });
+    setBusy(false);
+    if (err) { setError(dbErrorText(err, t)); return; }
+    people.reload();
+  }
+
   async function stopTimer() {
     setBusy(true);
     setError(null);
@@ -181,13 +208,6 @@ export default function TasksPage() {
         *     which is worse than saying nothing. They get the fact and who to
         *     ask, and the real fix is one click on the Staff screen.
         */}
-      {mayWork && me === null && !maySeeTeam && (
-        <div className="mb-4">
-          <Notice tone={can('payroll.write') ? 'warn' : 'info'}>
-            {can('payroll.write') ? t.tasks.notLinkedNotice : t.tasks.notLinkedForYou}
-          </Notice>
-        </div>
-      )}
 
       {me && <MyDay me={me} name={full_name ?? email ?? null} />}
 
@@ -255,14 +275,30 @@ export default function TasksPage() {
 
       {error && <div className="mb-3"><Notice tone="danger">{error}</Notice></div>}
 
-      {visible.length === 0 ? (
+      {effectiveScope === 'mine' && me === null ? (
+        <Card>
+          <div className="px-5 py-12 text-center">
+            <p className="font-display text-base font-semibold text-ink display-tight">
+              {t.tasks.joinRosterTitle}
+            </p>
+            <p className="mx-auto mt-2 max-w-md text-sm text-ink-muted">
+              {canJoin ? t.tasks.joinRosterHint : t.tasks.joinRosterAsk}
+            </p>
+            {canJoin && (
+              <div className="mt-5 flex justify-center">
+                <Button onClick={() => void joinRoster()} disabled={busy}>
+                  {busy ? t.common.saving : t.tasks.joinRosterAction}
+                </Button>
+              </div>
+            )}
+          </div>
+        </Card>
+      ) : visible.length === 0 ? (
         <Card>
           <EmptyState
-            message={effectiveScope === 'mine' && me === null
-              ? t.tasks.emptyNotOnRoster
-              : effectiveScope === 'mine' && allTasks.length > 0
-                ? t.tasks.emptyMine
-                : mayManage ? t.tasks.emptyBoardManager : t.tasks.emptyBoard}
+            message={effectiveScope === 'mine' && allTasks.length > 0
+              ? t.tasks.emptyMine
+              : mayManage ? t.tasks.emptyBoardManager : t.tasks.emptyBoard}
             action={mayWork
               ? <Button onClick={() => setAdding('todo')}>{t.tasks.addTask}</Button>
               : undefined}

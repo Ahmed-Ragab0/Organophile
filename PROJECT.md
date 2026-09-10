@@ -1024,6 +1024,32 @@ both, or neither, is fine. Proven by booking a revenue entry at 01:00 Cairo on
 the first of the month and watching `month_student_payments` rise by exactly
 its amount.
 
+### The owner has tasks too
+
+`employees` is who works here; `staff` is who may sign in; a task belongs to
+the former. The owner is on neither list by default — they sign in without
+being on the payroll — so the board met them with "your account is not on the
+work roster, so nothing is assigned to you". Accurate, and a dead end: it named
+a state and offered no way out of it.
+
+The board now offers the way out where the need is felt, as a button. The row
+it creates carries **no wage**: `employees` is the people of this business and
+what somebody is paid is separate data on them. That separation is the reason a
+roster row and a login are two records; it should not also be a chore.
+
+The Staff screen makes the same offer, and originally skipped superusers on the
+theory that somebody who watches the team needs no roster row of their own —
+which is true right up until they have a task. It is shown for everybody now,
+as a warning for an account that is BLOCKED by the gap and as a quiet offer for
+one that is merely missing out.
+
+One consequence worth knowing: an employee with a base of zero still gets a
+payslip in each cycle, netting zero. It cannot be paid and does not hold the
+cycle open (see below), and it can be removed from the cycle while that cycle
+is still a draft. If that gets tiresome, the honest fix is a flag saying who
+payroll is FOR, not a rule guessing it from the salary — somebody paid purely
+on commission also has a base of zero.
+
 ### Three that only show up once two people use it
 
 All three were invisible with one account on the system.
