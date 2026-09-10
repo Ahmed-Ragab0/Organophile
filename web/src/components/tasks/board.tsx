@@ -190,9 +190,11 @@ function Column({
 }
 
 export function TaskBoard({
-  tasks, onOpen, onMove, onAdd, showAssignee, mayAdd,
+  tasks, onOpen, onMove, onAdd, showAssignee, mayAdd, columns = TASK_COLUMNS,
 }: {
   tasks: TaskRow[];
+  /** Cancelled work is off the board unless somebody asks for it. */
+  columns?: TaskStatus[];
   onOpen: (task: TaskRow) => void;
   /** `after` is the card it should land below; null means the top. */
   onMove: (task: TaskRow, status: TaskStatus, after: TaskRow | null) => void;
@@ -220,8 +222,8 @@ export function TaskBoard({
   }
 
   return (
-    <div className="grid gap-3 lg:grid-cols-3">
-      {TASK_COLUMNS.map((status) => (
+    <div className={cx('grid gap-3', columns.length > 3 ? 'lg:grid-cols-4' : 'lg:grid-cols-3')}>
+      {columns.map((status) => (
         <Column
           key={status}
           status={status}

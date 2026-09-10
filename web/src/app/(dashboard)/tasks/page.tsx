@@ -7,10 +7,10 @@ import { useSupabaseQuery } from '@/lib/use-query';
 import { createClient } from '@/lib/supabase/client';
 import { dbErrorText } from '@/lib/db-errors';
 import {
-  Button, Card, EmptyState, ErrorState, Input, Notice, PageHeader, PageSkeleton,
-  Select, cx,
+  Button, Card, Checkbox, EmptyState, ErrorState, Input, Notice, PageHeader,
+  PageSkeleton, Select, cx,
 } from '@/components/ui/primitives';
-import { TaskTabs, useTaskReason } from '@/components/tasks/parts';
+import { TASK_COLUMNS, TaskTabs, useTaskReason } from '@/components/tasks/parts';
 import { TaskBoard, TimerStrip } from '@/components/tasks/board';
 import { NewTaskModal, TaskModal } from '@/components/tasks/dialogs';
 import { MyDay } from '@/components/tasks/summary';
@@ -39,19 +39,26 @@ export default function TasksPage() {
   const maySeeTeam = can('team.read');
   const reasonText = useTaskReason();
 
-  const [scope, setScope] = useState<'mine' | 'all'>('mine');
+  /*
+   * Null until somebody chooses, so the default can depend on data that has
+   * not arrived yet: an account with no roster row has no work of its own, and
+   * opening it on an empty "شغلي" would be a blank screen with no explanation.
+   */
+  const [scope, setScope] = useState<'mine' | 'all' | null>(null);
   const [projectId, setProjectId] = useState('');
   const [search, setSearch] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
   const [adding, setAdding] = useState<TaskStatus | null>(null);
+  const [showCancelled, setShowCancelled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const tasks = useSupabaseQuery<TaskRow[]>(
-    (sb) => sb.from('v_tasks').select('*')
-      .neq('status', 'cancelled')
-      .order('position'),
-    [],
+    (sb) => {
+      const q = sb.from('v_tasks').select('*').order('position');
+      return showCancelled ? q : q.neq('status', 'cancelled');
+    },
+    [showCancelled],
   );
   const projects = useSupabaseQuery<ProjectRow[]>(
     (sb) => sb.from('v_projects').select('*').order('sort_order').order('name'), [],
@@ -83,9 +90,21 @@ export default function TasksPage() {
    */
   const me = peopleRows.find((p) => p.user_id !== null && p.user_id === user_id) ?? null;
 
+  // Somebody who is not on the roster has no work of their own to show, so
+  // they start on the team's — if they may see it at all.
+  const effectiveScope: 'mine' | 'all' = scope ?? (me === null && maySeeTeam ? 'all' : 'mine');
+
   const allTasks = tasks.data ?? [];
   const visible = allTasks.filter((task) => {
-    if (scope === 'mine' && me && task.assignee_id !== me.id) return false;
+    /*
+     * "Mine" means assigned to me.
+     *
+     * This read `scope === 'mine' && me && …` — a null guard that quietly
+     * turned the whole filter OFF for anybody without a roster row, so the
+     * owner opened "شغلي" and saw the entire team's board. A missing "me" is
+     * not a reason to show everything; it is a reason to show nothing.
+     */
+    if (effectiveScope === 'mine' && (me === null || task.assignee_id !== me.id)) return false;
     if (projectId && task.project_id !== projectId) return false;
     if (search.trim() !== '') {
       const q = search.trim().toLowerCase();
@@ -97,8 +116,14 @@ export default function TasksPage() {
   });
 
   const openTask = allTasks.find((task) => task.id === openId) ?? null;
-  const running = allTasks.find((task) => task.is_running
-    && me !== null && task.assignee_id === me.id) ?? null;
+  /*
+   * Where MY clock is, not which of my tasks has a clock on it.
+   *
+   * Those differ the moment two people share a task, and the strip is about
+   * the reader's own running timer.
+   */
+  const running = allTasks.find(
+    (task) => me !== null && task.running_employee_id === me.id) ?? null;
 
   async function move(task: TaskRow, status: TaskStatus, after: TaskRow | null) {
     setBusy(true);
@@ -188,11 +213,13 @@ export default function TasksPage() {
                 key={value}
                 type="button"
                 role="radio"
-                aria-checked={scope === value}
+                aria-checked={effectiveScope === value}
                 onClick={() => setScope(value)}
                 className={cx(
                   'rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors',
-                  scope === value ? 'bg-surface text-brand shadow-card' : 'text-ink-muted hover:text-ink',
+                  effectiveScope === value
+                    ? 'bg-surface text-brand shadow-card'
+                    : 'text-ink-muted hover:text-ink',
                 )}
               >
                 {value === 'mine' ? t.tasks.mine : t.tasks.everyone}
@@ -212,6 +239,12 @@ export default function TasksPage() {
           ))}
         </Select>
 
+        <Checkbox
+          checked={showCancelled}
+          onChange={setShowCancelled}
+          label={t.tasks.showCancelled}
+        />
+
         <Input
           value={search}
           placeholder={t.common.search}
@@ -222,10 +255,14 @@ export default function TasksPage() {
 
       {error && <div className="mb-3"><Notice tone="danger">{error}</Notice></div>}
 
-      {allTasks.length === 0 ? (
+      {visible.length === 0 ? (
         <Card>
           <EmptyState
-            message={mayManage ? t.tasks.emptyBoardManager : t.tasks.emptyBoard}
+            message={effectiveScope === 'mine' && me === null
+              ? t.tasks.emptyNotOnRoster
+              : effectiveScope === 'mine' && allTasks.length > 0
+                ? t.tasks.emptyMine
+                : mayManage ? t.tasks.emptyBoardManager : t.tasks.emptyBoard}
             action={mayWork
               ? <Button onClick={() => setAdding('todo')}>{t.tasks.addTask}</Button>
               : undefined}
@@ -234,7 +271,8 @@ export default function TasksPage() {
       ) : (
       <TaskBoard
         tasks={visible}
-        showAssignee={scope === 'all'}
+        showAssignee={effectiveScope === 'all'}
+        columns={showCancelled ? [...TASK_COLUMNS, 'cancelled'] : TASK_COLUMNS}
         mayAdd={mayWork}
         onOpen={(task) => setOpenId(task.id)}
         onMove={(task, status, after) => void move(task, status, after)}
@@ -252,7 +290,7 @@ export default function TasksPage() {
           sessions={sessions.data ?? []}
           mayManage={mayManage}
           mayWork={mayWork}
-          isMine={me !== null && openTask.assignee_id === me.id}
+          myEmployeeId={me?.id ?? null}
           onClose={() => setOpenId(null)}
           onChanged={reloadAll}
         />

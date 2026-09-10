@@ -1003,18 +1003,58 @@ instant. Named functions rather than the expression repeated at each site,
 because the expression already says "Cairo" once and that is exactly what makes
 the missing second application easy to overlook.
 
-**The same pattern is still present in three money views**, all predating this
-work, all with the same three-hour skew at a month boundary:
+**The money views do NOT have this bug**, and the way that was nearly
+mis-reported is worth keeping.
 
-| Where | Figure |
-|---|---|
-| `0005_views.sql:212` | `revenue_this_month` |
-| `0015_financial_system.sql:727` | the money position's month window |
-| `0031_installment_plans.sql:566` | `in_month` on instalment plans |
+Grepping the migration files turns up three money figures that look identical —
+`revenue_this_month` in `0005`, the money position's month window in `0015`,
+`in_month` on instalment plans in `0031`. All three were reported as buggy on
+that basis, and all three were **already correct**, for two separate reasons:
 
-Grouping keys of the form `date_trunc('month', col at time zone 'Africa/Cairo')`
-are fine — both sides are naive Cairo. It is only the COMPARISON against a
-`timestamptz` column that skews.
+- Later migrations replaced those view definitions. A migration file is a
+  record of what was written that day, not of what is running now. Only
+  `pg_get_viewdef` says what is live.
+- The live form converts the COLUMN too:
+  `(occurred_at at time zone 'Africa/Cairo') >= date_trunc('month', now() at time zone 'Africa/Cairo')`.
+  Both sides are naive Cairo, so they compare correctly.
+
+The rule, stated so it is checkable: a comparison is skewed only when one side
+is a raw `timestamptz` and the other is a naive Cairo wall clock. Converting
+both, or neither, is fine. Proven by booking a revenue entry at 01:00 Cairo on
+the first of the month and watching `month_student_payments` rise by exactly
+its amount.
+
+### Three that only show up once two people use it
+
+All three were invisible with one account on the system.
+
+**"شغلي" showed everybody's work.** The filter read:
+
+```js
+if (scope === 'mine' && me && task.assignee_id !== me.id) return false;
+```
+
+`&& me` was meant as a null guard and is instead an off switch: with no roster
+row the whole condition is false, nothing is filtered, and the owner opens "my
+work" to the entire team's board. **A missing "me" is not a reason to show
+everything; it is a reason to show nothing** — and to say so, which the empty
+state now does. Somebody with no roster row who can see the team now also lands
+on "الفريق كله" rather than on a blank tab.
+
+**Stop belonged to the wrong clock.** `v_tasks.is_running` says somebody is
+working on this task; it never said who. Two people can hold sessions on one
+task, and reading the task's flag as the reader's own put a Stop button in
+front of somebody whose timer was elsewhere — pressing it would have stopped
+that one, because `stop_task_timer` stops YOURS. The view now carries
+`running_employee_id`: the pulse on a card still means "somebody is on this",
+and Start/Stop compares it to the reader.
+
+**Cancelling was reachable from nowhere.** `cancelled` is one of four statuses,
+the board drew three columns, and the task modal offered the same three. So the
+fourth existed in the schema, in `archive_record`, and in no user's reach. It
+is now a button in the task, with a "اعرض الملغية" toggle that adds the column
+to the board — deliberately off by default, because a pile nobody looks at is
+not a place work sits.
 
 ### A cycle waits for money, not for rows
 

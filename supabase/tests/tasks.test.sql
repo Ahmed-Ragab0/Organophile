@@ -121,6 +121,18 @@ begin
     from public.task_sessions where employee_id = e_me and ended_at is null;
   assert n = 1, 'T6b: ' || n || ' clocks running for one person';
 
+  /*
+   * T6c: the view names WHOSE clock is running, not just that one is.
+   *
+   * Two people can have sessions on one task. Reading the task's flag as if it
+   * were the reader's own put a Stop button in front of somebody whose timer
+   * was on something else — and pressing it would have stopped that instead.
+   */
+  assert (select is_running from public.v_tasks where id = t_theirs),
+    'T6c: a running clock is not reported on the task';
+  assert (select running_employee_id from public.v_tasks where id = t_theirs) = e_me,
+    'T6d: the view does not say whose clock it is';
+
   r := public.stop_task_timer('خلصت');
   assert (r ->> 'ok')::boolean, 'T7: stopping failed: ' || r::text;
   -- T7b: start and stop inside one transaction is a zero-minute session, not a

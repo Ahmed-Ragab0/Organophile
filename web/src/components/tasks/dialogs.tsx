@@ -26,7 +26,7 @@ import type {
  */
 export function TaskModal({
   task, projects, people, sessions, open, onClose, onChanged,
-  mayManage, mayWork, isMine,
+  mayManage, mayWork, myEmployeeId,
 }: {
   task: TaskRow;
   projects: ProjectRow[];
@@ -37,8 +37,8 @@ export function TaskModal({
   onChanged: () => void;
   mayManage: boolean;
   mayWork: boolean;
-  /** Whether the clock this person would start belongs on this task. */
-  isMine: boolean;
+  /** The reader's own roster row, or null. Decides both "mine" and "my clock". */
+  myEmployeeId: string | null;
 }) {
   const { t, locale } = useI18n();
   const statusLabel = useStatusLabel();
@@ -98,7 +98,7 @@ export function TaskModal({
     setBusy(true);
     setError(null);
     const sb = createClient();
-    const { data, error: err } = task.is_running
+    const { data, error: err } = myClockIsHere
       ? await sb.rpc('stop_task_timer', { p_note: null })
       : await sb.rpc('start_task_timer', { p_task_id: task.id });
     setBusy(false);
@@ -108,6 +108,14 @@ export function TaskModal({
     onChanged();
   }
 
+  const isMine = myEmployeeId !== null && task.assignee_id === myEmployeeId;
+  /*
+   * `is_running` says somebody is working on this; it does not say who. Two
+   * people can have sessions on one task, and reading the task's flag as if it
+   * were the reader's put a Stop button in front of somebody whose own clock
+   * was on something else — and pressing it would have stopped that.
+   */
+  const myClockIsHere = task.is_running && task.running_employee_id === myEmployeeId;
   const canEdit = mayManage;
 
   return (
@@ -147,12 +155,36 @@ export function TaskModal({
             </button>
           ))}
           {task.status === 'cancelled' && <Badge tone="neutral">{t.tasks.cancelled}</Badge>}
+
+          {/*
+            * Cancelling lives here rather than as a fourth column, because a
+            * pile nobody looks at is not a place work sits. Until this button
+            * existed a task could not be cancelled at all — the board drew
+            * three columns and this modal offered the same three, so the
+            * fourth status was reachable from nowhere.
+            */}
+          {mayManage && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="ms-auto"
+              disabled={busy}
+              onClick={() => {
+                if (task.status === 'cancelled') { void move('todo'); return; }
+                if (window.confirm(t.tasks.confirmCancel.replace('{title}', task.title))) {
+                  void move('cancelled');
+                }
+              }}
+            >
+              {task.status === 'cancelled' ? t.tasks.restoreTask : t.tasks.cancelTask}
+            </Button>
+          )}
         </div>
 
         {/* -------------------------------------------------------- clock */}
         {mayWork && isMine && task.status !== 'done' && task.status !== 'cancelled' && (
           <div className="flex flex-wrap items-center gap-3 rounded-field border border-border bg-surface-2 px-3.5 py-3">
-            {task.is_running && task.running_since ? (
+            {myClockIsHere && task.running_since ? (
               <>
                 <span className="text-xs text-ink-muted">{t.tasks.running}</span>
                 <span className="font-display text-lg font-semibold text-ok">

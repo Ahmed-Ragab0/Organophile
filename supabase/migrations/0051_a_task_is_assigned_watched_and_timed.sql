@@ -630,14 +630,25 @@ select t.id, t.project_id, p.name as project_name, p.key as project_key,
        coalesce(s.minutes, 0)   as minutes,
        coalesce(s.sessions, 0)  as sessions,
        s.running_since,
-       (s.running_since is not null) as is_running
+       (s.running_since is not null) as is_running,
+       /**
+        * WHOSE clock is running on this task.
+        *
+        * `is_running` is about the task — somebody is working on it, and that
+        * is worth showing on a shared board. Start and Stop are about YOU, and
+        * conflating the two put a Stop button in front of a person whose own
+        * timer was somewhere else entirely.
+        */
+       s.running_employee_id
   from public.tasks t
   left join public.projects p on p.id = t.project_id
   left join app.team_members() e on e.id = t.assignee_id
   left join lateral (
     select sum(ts.minutes) filter (where app.session_counts(ts.status)) as minutes,
            count(*) filter (where app.session_counts(ts.status))        as sessions,
-           max(ts.started_at) filter (where ts.ended_at is null)        as running_since
+           max(ts.started_at) filter (where ts.ended_at is null)        as running_since,
+           (array_agg(ts.employee_id) filter (where ts.ended_at is null))[1]
+                                                                       as running_employee_id
       from public.task_sessions ts where ts.task_id = t.id
   ) s on true;
 

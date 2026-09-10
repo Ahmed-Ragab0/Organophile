@@ -1287,7 +1287,16 @@ export type TaskRow = {
   minutes: number;
   sessions: number;
   running_since: string | null;
+  /** Somebody is working on this. Not necessarily you — see below. */
   is_running: boolean;
+  /**
+   * Whose clock it is.
+   *
+   * `is_running` is about the task; Start and Stop are about you. Without this
+   * a colleague's timer on a shared task put a Stop button in front of
+   * somebody whose own clock was elsewhere.
+   */
+  running_employee_id: string | null;
 };
 
 /** `v_task_sessions` — a stretch of time, with where it came from. */
