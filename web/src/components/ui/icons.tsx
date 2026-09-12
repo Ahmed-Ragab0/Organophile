@@ -63,6 +63,33 @@ export const IconExpenses = (p: IconProps) => (
   </Svg>
 );
 
+/** Payroll — a banknote. The one thing that leaves the business every month. */
+/** Spend requests — a stamp of approval over a note. */
+export const IconApprovals = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M5 4.6A1.6 1.6 0 0 1 6.6 3H14l5 5v11.4A1.6 1.6 0 0 1 17.4 21H6.6A1.6 1.6 0 0 1 5 19.4z" />
+    <path d="M13.8 3.2V8.2h5" />
+    <path d="m8.6 14.2 2 2 4-4.4" />
+  </Svg>
+);
+
+export const IconPayroll = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
+    <circle cx="12" cy="12" r="2.6" />
+    <path d="M6 9.6v4.8M18 9.6v4.8" />
+  </Svg>
+);
+
+/** Tasks — a checklist. Two done, one still open. */
+export const IconTasks = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m3 6.5 1.6 1.6L8 4.8M3 13l1.6 1.6L8 11.3" />
+    <rect x="3" y="17.4" width="3.4" height="3.4" rx="1" />
+    <path d="M11 6.5h10M11 13h10M11 19.1h10" />
+  </Svg>
+);
+
 export const IconReports = (p: IconProps) => (
   <Svg {...p}>
     <path d="M4 20V4" />
@@ -259,6 +286,9 @@ export const NAV_ICONS = {
   wallets: IconWallet,
   ledger: IconLedger,
   expenses: IconExpenses,
+  approvals: IconApprovals,
+  payroll: IconPayroll,
+  tasks: IconTasks,
   reports: IconReports,
   students: IconStudents,
   courses: IconCourses,

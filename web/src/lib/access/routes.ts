@@ -18,6 +18,19 @@ export const ROUTE_PERMISSIONS: Record<string, string> = {
   '/wallets': 'money.read',
   '/ledger': 'money.read',
   '/expenses': 'money.read',
+  // The queue shows a requester their OWN rows and an approver everybody's,
+  // so the gate is the lower of the two and RLS decides the rest.
+  '/approvals': 'approvals.read',
+  '/payroll': 'payroll.read',
+  // The board asks only for your OWN tasks. Everything on it that belongs to
+  // somebody else is refused by RLS, not by the router — which is why the
+  // team tab below asks for more.
+  '/tasks': 'tasks.read',
+  '/tasks/team': 'team.read',
+  // The printable payslip sits outside the dashboard shell so it can be a
+  // clean sheet of paper, but it is the same confidential document and asks
+  // the same permission.
+  '/payslip': 'payroll.read',
   '/payments': 'payments.read',
   '/payouts': 'payments.read',
   '/reconciliation': 'payments.read',
@@ -57,7 +70,7 @@ export function firstAllowedPath(permissions: readonly string[]): string | null 
   const held = new Set(permissions);
   const order = [
     '/', '/students', '/subscriptions', '/pricing', '/courses', '/classification',
-    '/reports', '/wallets', '/ledger', '/expenses',
+    '/tasks', '/reports', '/wallets', '/ledger', '/expenses', '/payroll',
     '/payments', '/payouts', '/journey', '/reconciliation',
     '/settings', '/staff', '/health',
   ];

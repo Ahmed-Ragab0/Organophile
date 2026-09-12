@@ -788,6 +788,20 @@ export type WebhookRejection = {
   received_at: string;
 };
 
+/* 0059: a failed delivery from EITHER pipeline. The health page listed
+   kashier_events_raw alone, so an ukkera failure — the one shape that strands a
+   paid enrolment with no course — showed up only as a number in a counter. */
+export type FailedEvent = {
+  pipeline: string;
+  id: string;
+  mode: KashierMode | null;
+  event: string | null;
+  subject: string | null;
+  received_at: string;
+  process_attempts: number;
+  process_error: string | null;
+};
+
 export type KashierRawEvent = {
   id: string;
   event: string | null;
@@ -1004,6 +1018,14 @@ export type StaffRow = {
   role_is_active: boolean;
   /** Whether this row is the person looking at it. */
   is_me: boolean;
+  /**
+   * The person behind this login, if there is one.
+   *
+   * Null means the account cannot be given a task or run a timer, because
+   * both belong to an `employees` row. That is a gap for whoever GRANTS the
+   * role to close, not for the account holder to discover.
+   */
+  employee_id: string | null;
 };
 
 /** The `expense_categories` table — what a picker needs and nothing more. */
@@ -1047,4 +1069,384 @@ export type PlanKindRow = {
   updated_at: string;
   packages: number;
   subscriptions: number;
+};
+
+// --- Payroll -----------------------------------------------------------------
+
+/** Which way a salary line moves the total. */
+export type SalaryDirection = 'earning' | 'deduction';
+
+/**
+ * Where a month of payroll is up to.
+ *
+ * Every one of these is branched on here and in the database, which is why it
+ * is a fixed union and not a table the owner can extend.
+ */
+export type PayrollStatus = 'draft' | 'review' | 'approved' | 'closed';
+
+/** `v_employees` — who is on the payroll, and what they have been paid. */
+export type EmployeeRow = {
+  id: string;
+  full_name: string;
+  job_title: string | null;
+  phone: string | null;
+  email: string | null;
+  user_id: string | null;
+  /**
+   * Whether this person can sign in — read off `employees.user_id`, not off
+   * the staff join, which needs `staff.read` and would otherwise report "no
+   * login" to somebody who simply cannot see the staff list.
+   */
+  has_login: boolean;
+  base_salary: number;
+  wallet_id: string | null;
+  wallet_name: string | null;
+  hired_on: string | null;
+  ended_on: string | null;
+  is_active: boolean;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+  role_name: string | null;
+  role_name_en: string | null;
+  payslips: number;
+  paid_count: number;
+  paid_total: number;
+  last_paid_at: string | null;
+  /** How long this person's working day is. What the task target measures against. */
+  daily_target_minutes: number;
+};
+
+/** `v_salary_components` — the lines a payslip can carry. */
+export type SalaryComponentRow = {
+  id: string;
+  code: string;
+  name: string;
+  name_en: string | null;
+  direction: SalaryDirection;
+  /** `commission` and `bonus`: read by name when the message is built. */
+  is_system: boolean;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  lines: number;
+  total: number;
+};
+
+/** `v_payroll_periods` — one month, and how far through it payroll is. */
+export type PayrollPeriodRow = {
+  id: string;
+  /** Always the first of the month. */
+  period_month: string;
+  status: PayrollStatus;
+  note: string | null;
+  approved_at: string | null;
+  approved_by: string | null;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  slips: number;
+  paid_count: number;
+  gross_total: number;
+  net_total: number;
+  paid_total: number;
+};
+
+/** One line of a payslip, as `v_payslips` embeds it. */
+export type PayslipItem = {
+  id: string;
+  component_id: string;
+  code: string;
+  /** What this line is for — the component's name unless something better was typed. */
+  label: string;
+  component_name: string;
+  component_name_en: string | null;
+  direction: SalaryDirection;
+  amount: number;
+};
+
+/** `v_payslips` — one person's month, with everything a document needs. */
+export type PayslipRow = {
+  id: string;
+  period_id: string;
+  period_month: string;
+  period_status: PayrollStatus;
+  employee_id: string;
+  /** Snapshotted when the payslip was created, so a rename cannot rewrite it. */
+  employee_name: string;
+  job_title: string | null;
+  phone: string | null;
+  employee_active: boolean | null;
+  base_salary: number;
+  earnings_total: number;
+  deductions_total: number;
+  gross_amount: number;
+  net_amount: number;
+  /**
+   * The two the thank-you message names separately. Defined so that
+   * `base + commissions + bonus − deductions = net`, exactly.
+   */
+  commissions_total: number;
+  bonus_total: number;
+  note: string | null;
+  paid_at: string | null;
+  paid_wallet_id: string | null;
+  paid_wallet_name: string | null;
+  ledger_entry_id: string | null;
+  message_sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+  items: PayslipItem[];
+};
+
+/** `payroll_settings` — one row, forever. */
+export type PayrollSettingsRow = {
+  id: boolean;
+  company_name: string;
+  /** The thank-you note, with {placeholders} this app fills in. */
+  thanks_template: string;
+  invoice_note: string | null;
+  default_wallet_id: string | null;
+  expense_category_id: string | null;
+  updated_at: string;
+};
+
+/** What `pay_payslip` / `unpay_payslip` / `open_payroll_period` answer with. */
+export type PayrollResult = {
+  ok: boolean;
+  reason?: string;
+  /**
+   * True when the call raised a spend request instead of paying.
+   *
+   * `pay_payslip` is the same call for everybody; whether it moves money
+   * depends on whether the caller may authorise spending, and only the
+   * database knows that.
+   */
+  pending?: boolean;
+  request_id?: string;
+  id?: string;
+  status?: string;
+  added?: number;
+  period_month?: string;
+  ledger_entry_id?: string;
+  voided_entry_id?: string;
+  amount?: number;
+  wallet_id?: string;
+  paid_at?: string;
+};
+
+// --- Tasks -------------------------------------------------------------------
+
+/** The four columns a task can be in. The board IS this union. */
+export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'cancelled';
+
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+/** Where a stretch of time came from: the app watched it, or somebody typed it. */
+export type SessionSource = 'timer' | 'manual';
+
+/**
+ * What a time entry is worth.
+ *
+ * `tracked` and `approved` count towards every total; `pending` is a claim
+ * nobody has agreed to yet and `rejected` is one somebody refused. The
+ * database decides this in `app.session_counts`, and nothing here recomputes it.
+ */
+export type SessionStatus = 'tracked' | 'pending' | 'approved' | 'rejected';
+
+/** The card stripe, as a design-system token rather than a hex. */
+export type ProjectColour =
+  'brand' | 'accent' | 'ok' | 'warn' | 'danger' | 'info' | 'neutral';
+
+/** `v_projects` — a body of work and how far through it is. */
+export type ProjectRow = {
+  id: string;
+  name: string;
+  /** The short code printed on every card. Derived if not given. */
+  key: string;
+  description: string | null;
+  colour: ProjectColour;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  tasks: number;
+  todo: number;
+  in_progress: number;
+  done: number;
+  cancelled: number;
+  /** Cancelled work leaves the denominator rather than capping this below 100. */
+  percent_done: number;
+  overdue: number;
+  minutes: number;
+};
+
+/** `v_tasks` — one card, with everything it needs to draw itself. */
+export type TaskRow = {
+  id: string;
+  project_id: string | null;
+  project_name: string | null;
+  project_key: string | null;
+  project_colour: ProjectColour | null;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  assignee_id: string | null;
+  assignee_name: string | null;
+  assignee_role: string | null;
+  due_on: string | null;
+  /** Late, decided by the database against the Cairo day. */
+  is_overdue: boolean;
+  position: number;
+  estimate_minutes: number | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Counted time only — a running clock is not in here until it stops. */
+  minutes: number;
+  sessions: number;
+  running_since: string | null;
+  /** Somebody is working on this. Not necessarily you — see below. */
+  is_running: boolean;
+  /**
+   * Whose clock it is.
+   *
+   * `is_running` is about the task; Start and Stop are about you. Without this
+   * a colleague's timer on a shared task put a Stop button in front of
+   * somebody whose own clock was elsewhere.
+   */
+  running_employee_id: string | null;
+};
+
+/** `v_task_sessions` — a stretch of time, with where it came from. */
+export type TaskSessionRow = {
+  id: string;
+  task_id: string;
+  task_title: string;
+  project_id: string | null;
+  project_name: string | null;
+  project_key: string | null;
+  employee_id: string;
+  employee_name: string | null;
+  started_at: string;
+  ended_at: string | null;
+  minutes: number | null;
+  source: SessionSource;
+  status: SessionStatus;
+  /** Whether this one is in the totals. Decided once, in the database. */
+  counts: boolean;
+  /** The Cairo day it belongs to. */
+  day: string;
+  note: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * `v_team_productivity` — one row per person.
+ *
+ * Everybody's rows for somebody with `team.read`; just your own otherwise,
+ * because "how is my day going" is a question about yourself.
+ */
+export type ProductivityRow = {
+  id: string;
+  full_name: string;
+  job_title: string | null;
+  is_active: boolean;
+  user_id: string | null;
+  /** What `minutes_today` is a fraction OF. Per person, not global. */
+  daily_target_minutes: number;
+  open_tasks: number;
+  in_progress: number;
+  overdue: number;
+  done_total: number;
+  done_week: number;
+  minutes_today: number;
+  minutes_week: number;
+  minutes_month: number;
+  pending_reviews: number;
+  last_activity_at: string | null;
+  running_task_id: string | null;
+  running_task_title: string | null;
+  running_since: string | null;
+};
+
+/** What the task verbs answer with. */
+export type TaskResult = {
+  ok: boolean;
+  reason?: string;
+  session_id?: string;
+  stopped_previous?: number;
+  minutes?: number;
+  status?: string;
+  position?: number;
+};
+
+// --- Spend approvals ---------------------------------------------------------
+
+/** What a spend request is for. The code branches on both. */
+export type SpendKind = 'expense' | 'payslip';
+
+export type SpendStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+/**
+ * `v_spend_requests` — money somebody wants to send, waiting for somebody who
+ * may authorise it.
+ *
+ * Everybody's rows for a person holding `approvals.*`; your own otherwise,
+ * because a request that vanishes the moment it is sent is worse than none.
+ */
+export type SpendRequestRow = {
+  id: string;
+  kind: SpendKind;
+  status: SpendStatus;
+  /** Frozen when the request was raised: the approver agrees to this figure. */
+  amount: number;
+  occurred_at: string;
+  description: string;
+  note: string | null;
+  wallet_id: string;
+  wallet_name: string;
+  category_id: string | null;
+  category_name: string | null;
+  payslip_id: string | null;
+  employee_name: string | null;
+  period_month: string | null;
+  requested_by: string | null;
+  requested_by_name: string | null;
+  decided_by: string | null;
+  decided_by_name: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+  /** The ledger entry approving it produced. Null until then, always. */
+  result_entry_id: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Nobody decides their own. */
+  is_mine: boolean;
+};
+
+/**
+ * What a spending call answers with.
+ *
+ * `pending` is the whole point: the same call either moved money or raised a
+ * request, and only the database knows which — so it says.
+ */
+export type SpendResult = {
+  ok: boolean;
+  reason?: string;
+  pending?: boolean;
+  request_id?: string;
+  entry_id?: string;
+  ledger_entry_id?: string;
+  status?: string;
+  amount?: number;
+  requested?: number;
+  now?: number;
 };

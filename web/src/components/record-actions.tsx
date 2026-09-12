@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { useI18n } from '@/lib/i18n/context';
+import { dbErrorText } from '@/lib/db-errors';
 import { createClient } from '@/lib/supabase/client';
 import { formatMoney, formatNumber } from '@/lib/format';
 import {
@@ -12,7 +13,9 @@ import {
 export type RecordKind =
   | 'student' | 'course' | 'package' | 'subscription'
   | 'university' | 'track' | 'wallet' | 'installment_plan'
-  | 'expense_category' | 'plan_kind';
+  | 'expense_category' | 'plan_kind'
+  | 'employee' | 'salary_component'
+  | 'project' | 'task';
 
 type LinkRow = { what: string; count: number; money: boolean };
 
@@ -94,9 +97,9 @@ export function DeleteRecordDialog({
     setError(null);
     const { data, error: err } = await createClient()
       .rpc('describe_record', { p_kind: kind, p_id: recordId });
-    if (err) { setError(err.message); return; }
+    if (err) { setError(dbErrorText(err, t)); return; }
     setInfo(data as RecordInfo);
-  }, [kind]);
+  }, [kind, t]);
 
   // Reload when the dialog opens on a different record. Done during render
   // rather than in an effect: both values are already known here, and an
@@ -120,7 +123,7 @@ export function DeleteRecordDialog({
       : await sb.rpc('archive_record', { p_kind: kind, p_id: id, p_archived: true });
     setBusy(false);
 
-    if (err) { setError(err.message); return; }
+    if (err) { setError(dbErrorText(err, t)); return; }
     const result = data as { ok?: boolean; reason?: string } | null;
     if (!result?.ok) {
       // The database refused. Show its reason rather than a generic failure,
@@ -272,7 +275,7 @@ function RecordFormModal<T extends Record<string, unknown>>({
     const { data, error: err } = await createClient()
       .from(f.lookupTable).insert({ name }).select('id, name').single();
     setBusy(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError(dbErrorText(err, t)); return; }
     const row = data as { id: string; name: string };
     setAdded((a) => ({
       ...a, [f.name]: [...(a[f.name] ?? []), { value: row.id, label: row.name }],
@@ -298,7 +301,7 @@ function RecordFormModal<T extends Record<string, unknown>>({
       }
       const { data, error: err } = await sb.from(table).insert(row).select('id').single();
       setBusy(false);
-      if (err) { setError(err.message); return; }
+      if (err) { setError(dbErrorText(err, t)); return; }
       onSaved((data as { id: string } | null)?.id);
       onClose();
       return;
@@ -320,7 +323,7 @@ function RecordFormModal<T extends Record<string, unknown>>({
 
     const { error: err } = await sb.from(table).update(patch).eq('id', id);
     setBusy(false);
-    if (err) { setError(err.message); return; }
+    if (err) { setError(dbErrorText(err, t)); return; }
     onSaved(id);
     onClose();
   }

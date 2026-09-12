@@ -101,7 +101,11 @@ These are not style preferences. Breaking one causes a real, specific bug.
    synthetic 100 EGP as real revenue — fixed in `0017`.
 8. **Direct writes to `ledger_entries` are denied by RLS.** Everything goes
    through `add_expense`, `add_manual_revenue`, `transfer_between_wallets`,
-   `void_ledger_entry`.
+   `void_ledger_entry`, `pay_payslip`, `unpay_payslip`,
+   `decide_spend_request`. Payroll extends the
+   same rule to its own document: `payslips.paid_at` is refused to a client
+   too, so "paid" cannot be written without money moving in the same
+   transaction.
 9. **Signing in, being let in, and being allowed to do a thing are three
    different questions.** Supabase Auth proves who you are; `public.staff`
    decides whether you may see anything at all; `roles` + `role_permissions`
@@ -128,13 +132,25 @@ Four seeded roles, and the owner can add more:
 | Role | Holds |
 |---|---|
 | **مدير** (`admin`) | everything, implicitly and permanently |
-| **محاسب** (`accountant`) | money read+write, payments/reports/students/subscriptions read |
-| **سيلز** (`sales`) | students and subscriptions read+write, courses/reports read |
+| **محاسب** (`accountant`) | money read+write, payroll read+write, own tasks, payments/reports/students/subscriptions read |
+| **سيلز** (`sales`) | students and subscriptions read+write, courses/reports read, own tasks |
 | **مشاهدة** (`viewer`) | every `.read` except staff |
 
-Permissions are `<domain>.<action>` with action ∈ {read, write}, over ten
-domains: overview, students, courses, subscriptions, money, payments, reports,
-settings, staff, system. The **catalogue is seeded and not editable from the
+Permissions are `<domain>.<action>` with action ∈ {read, write}, over thirteen
+domains: overview, students, courses, subscriptions, money, **payroll**,
+**tasks**, **team**, payments, reports, settings, staff, system.
+
+**`tasks` and `team` are two domains rather than three levels of one.** Every
+other domain here is all-or-nothing, which was right while every domain was
+about the business. Tasks are about people: a salesperson must be able to work
+their own board without reading their colleagues'. So `tasks.*` means yours and
+`team.*` means everybody's — and the two-action rule survives intact.
+
+`payroll` is the one domain deliberately kept out of `viewer`. "Every `.read`
+except staff" was written before salaries existed, and a list of what your
+colleagues earn is not a report. It is also the one permission whose name does
+not contain the word money and yet spends it — `payroll.write` includes paying,
+so granting it is a money decision. The **catalogue is seeded and not editable from the
 app** — a permission nobody's code checks is worse than no permission — but
 which of them a role holds is entirely up to the owner.
 
@@ -194,6 +210,24 @@ of it is empty.
 - `students`, `universities`, `courses`, `packages`, `subscriptions`
 - `payments` (Kashier transactions), `payouts` (Kashier transfers),
   `kashier_account` (balance from the API)
+
+**Payroll**
+- `employees` — who is PAID. Not the same list as `staff`, which is who may
+  SIGN IN; the link between them is one nullable column.
+- `payroll_periods` — one month, moving draft → review → approved → closed.
+- `payslips` — one person's month. Snapshots the name and job title, keeps its
+  own totals, and freezes the moment it is paid.
+- `payslip_items` — what the figure is made of. Their sum IS the payslip's
+  totals, kept by trigger.
+- `salary_components` — the vocabulary those lines are filed under.
+- `payroll_settings` — one row: company name, thank-you template, where
+  salaries land in the books.
+
+**Work**
+- `projects` — what tasks are filed under, and where progress is measured.
+- `tasks` — one thing, assigned to one EMPLOYEE, in one of four states.
+- `task_sessions` — a stretch of time on a task, timed by the app or typed in
+  and reviewed. Their sum is every hour figure in the system.
 
 **Access**
 - `staff` — who may use the system. One row per person; there is no second list.
@@ -448,6 +482,64 @@ that is exactly that is nothing else. When a new spelling appears, this is the
 list to add it to — and the symptom to watch for is a filter that returns
 nothing rather than an error.
 
+**A word in front of the subject used to cost three fields at once.** The level
+pattern was anchored at the start of its token, so `العامة ORGANIC 3` matched
+nothing — and an unrecognised token falls through to the university slot. One
+course ended up with no level, a university literally called "العامة ORGANIC 3",
+and Asyut — its real university, sitting in the very next token — dropped as the
+shorter leftover. The student on it inherited all three. Fixed in `0060`: the
+subject may sit at the END of its token, and a word sharing a token with it is a
+**qualifier on the course**, offered as the university only when the title has no
+other leftover at all. The optional prefix is `(?:(.*)\s+)?` and the whitespace
+is load-bearing — without it "BIOORGANIC 3" would read as Organic 3 with a
+qualifier of "BIO". Fifteen titles were parsed before and after: two changed,
+both of them this shape.
+
+#### A renamed course is the same course
+
+ukkera renamed course **2224** between two purchases — "Introduction course -
+الكورس التأسيسي" on 8 Sept, "الكورس التأسيسي -Introduction course" on 12 Sept.
+The projection looked courses up by name (`on conflict (name_key)`), so the new
+spelling was not a conflict, and it went to insert a second course carrying the
+same `ukkera_course_id`. `courses_ukkera_id_uniq` refused, and **the exception
+took the whole projection down with it**: no course, no package, no enrolment.
+Twelve sweeps later the event was out of attempts and one student sat in the
+list having paid 299 EGP for nothing the system could name.
+
+Identity is the number, not the label. `app.resolve_course` asks for the course
+by `ukkera_course_id` first and only then by title; `app.resolve_package` does
+the same within its course. Both adopt whatever is already stored instead of
+inserting a rival, and neither can raise on a key it has just failed to find —
+a `unique_violation` re-reads the row the racing delivery wrote. **A catalogue
+lookup must never be the thing that loses an enrolment.**
+
+The rename itself is not applied. `courses.name` is what the reports group by
+and what the level, university and track were parsed out of; ukkera's latest
+spelling is recorded beside it in `courses.ukkera_course_name`, so a divergence
+is visible rather than either silent or destructive.
+
+Two related shapes, from the same reading-identity-off-a-label mistake:
+
+* **A package with no course is the same package.** ukkera's first payloads
+  carried no course at all, so a course-less package was stored; when the course
+  arrived, the lookup asked for a package on *that* course, found none, and
+  shelved a second copy — splitting one package's enrolments across two rows.
+  It now adopts the orphan.
+* **A package name shared by several courses identifies nothing.** "اشتراك (
+  الكورس كاملا) + المراجعات كاملة مجانا" is sold on four of them. With no course
+  in the payload, only a name held by **exactly one** package may answer;
+  otherwise the course is left empty, because a guess would enrol the student on
+  somebody else's course.
+
+Lookups use `app.text_key(name)`, not the generated `name_key` column — that one
+is a bare `upper(btrim())` and would miss "Asyut  - 2027" against
+"Asyut - 2027".
+
+Fixed in `0059`, with the repair in the same migration and `U7`–`U12` in
+`projections.test.sql`. **A failed ukkera delivery now appears on `/health`**:
+that card read `kashier_events_raw` alone, which is why this one sat for a day
+as nothing but a number in a counter.
+
 #### Packages and instalments
 
 `app.parse_package_name` classifies a package as `full`, `chapter`,
@@ -678,8 +770,12 @@ three places to keep in sync, and native controls would still follow the OS.
 
 ```bash
 cd supabase && deno task test        # 72 Deno tests
-# SQL regression suite:
+# SQL regression suites (both roll themselves back; safe against live):
 psql "$DATABASE_URL" -f supabase/tests/projections.test.sql
+psql "$DATABASE_URL" -f supabase/tests/payroll.test.sql   # 32 assertions
+psql "$DATABASE_URL" -f supabase/tests/tasks.test.sql     # 40 assertions
+psql "$DATABASE_URL" -f supabase/tests/approvals.test.sql # 30 assertions
+# Both suites open with app.assert_guards_can_run() — see section 14.
 cd web && npm run lint && npm run build
 ```
 
@@ -761,3 +857,558 @@ Payments recorded here go through `add_manual_revenue`, never a direct insert:
 RLS denies writes to `ledger_entries`, so the revenue entry and the wallet
 movement stay one transaction the database controls. Nothing is deleted, only
 voided.
+
+---
+
+## 13. Payroll
+
+`/payroll` is three screens behind one tab bar: the monthly **cycles**, the
+**people** who get paid, and the **settings** that decide what the thank-you
+message says and where a salary lands in the books.
+
+### A salary is a document before it is a payment
+
+That order is the whole design. The old way of paying a salary was one line in
+the expenses screen — "مرتبات، 6000، من فودافون كاش" — which keeps the books
+balanced and answers nothing else: not who was paid, not what the figure was
+made of, not whether anybody agreed to it first.
+
+```
+employee → period (draft → review → approved → closed) → payslip → items
+                                        ↓
+                                   pay_payslip
+                                        ↓
+                            one expense in the ledger
+```
+
+Nothing is paid before the cycle is **approved**, and nothing changes after it
+is **paid**. `pay_payslip` writes the ledger entry and stamps the payslip in
+one transaction, so there is no window where a payslip says paid and a wallet
+disagrees.
+
+### The six rails
+
+Each of these is a trigger, and each has a regression test in
+`supabase/tests/payroll.test.sql`:
+
+| Rail | Why |
+|---|---|
+| `paid_at` is refused to clients | otherwise anyone with `payroll.write` marks a salary paid with a plain PostgREST `UPDATE` and no money ever moves |
+| a paid payslip cannot be edited or deleted | a document that changes after the money left records nothing |
+| its lines cannot be added to or removed | same reason, one level down |
+| its ledger entry cannot be voided from the ledger screen | the payslip would still say paid, and two records of one fact would disagree — reverse the payslip instead |
+| deductions cannot exceed the salary | a negative net is not a payroll, it is a bug |
+| a cycle with paid salaries cannot go back to draft, or be deleted | the money has already gone |
+
+`pay_payslip` and `unpay_payslip` are the two doors, and both set a
+transaction-local `app.payroll_paying` flag — the same trick `0048` uses for
+autoclassification. The guards read it, which is how they tell a write of
+their own from a client writing the same column.
+
+### Reversal, not deletion
+
+`unpay_payslip` **voids** the ledger entry (rule 6), returns the money to the
+wallet, reopens the cycle, and makes the payslip editable again. The payslip
+lets go of `ledger_entry_id` because the constraint says paid and entry are one
+fact — but the voided entry still carries the payslip's id in its metadata, so
+"what was this reversal about" stays answerable from the books alone.
+
+### The message
+
+The thank-you note lives in `payroll_settings.thanks_template`, not in the
+code, because it is the owner's voice and the wording of a message about
+somebody's salary should not need a deploy. `{placeholders}` are filled from
+the payslip; an unknown one is left standing rather than blanked, so a typo
+shows up in the preview instead of going out.
+
+`{bonus}` is defined as **every earning that is not a commission**, not as the
+lines filed under the component called حافز. That is what makes the arithmetic
+in the message close exactly:
+
+```
+baseSalary + commissions + bonus − deductions = net
+```
+
+It is sent through a `wa.me` link, so it goes out from the owner's own WhatsApp
+as a person writing to a colleague. Egyptian numbers are written four
+different ways in a phone book (`01012345678`, `+20 10 …`, `0020 …`,
+`1012345678`) and `whatsappNumber()` normalises all of them.
+
+### The printed payslip
+
+`/payslip/[id]` sits **outside** the dashboard shell, because it is a sheet of
+paper and a sheet of paper has no sidebar. It is still gated: the middleware
+asks `payroll.read` for `/payslip`, and RLS refuses the row regardless.
+
+PDF comes from the browser's own print dialog, not a library. That is not a
+shortcut — Arabic needs contextual letter shaping and RTL runs, and the
+client-side PDF libraries either get that wrong or need a shaping engine plus
+an embedded font shipped to every visitor. The browser has both already.
+
+The print stylesheet's first line does most of the work:
+
+```css
+@media print { :root { color-scheme: light !important; } }
+```
+
+Every colour in this system is declared once as `light-dark(…)`, so pinning
+the scheme flips the whole palette back to ink-on-white in one declaration.
+Without it, somebody working in dark mode prints white text on black.
+
+The net is printed twice — in figures and **in words** (تفقيط,
+`lib/number-words.ts`). That is not decoration: every payslip and receipt in
+Egypt carries both, because a digit can be altered after signing and a
+sentence cannot. Arabic number grammar is correctness there, not polish —
+"مائة ألف" and "خمسة وعشرون ألفًا" take different forms of the same word, and
+getting it wrong is the tell of a generated document.
+
+### What is deliberately not built
+
+- **Automatic commission.** Computing "5% of what this person sold" needs
+  sales attributed to a person, and nothing in this database attributes them
+  yet. A commission is a typed line with a note until that exists. The shape is
+  ready for it; the arithmetic is not invented.
+- **A pay grade / contract table.** One base figure per person is what this
+  business has.
+- **Self-service.** An employee cannot read their own payslip, because an
+  employee is not necessarily a login at all. The link exists for the day that
+  changes.
+
+---
+
+## 14. Money going out asks first
+
+`/approvals` exists because "who agreed to this" has to be answerable **before**
+the money leaves, not by reading the ledger afterwards. With one owner it never
+came up; with an accountant in the system it is the whole question.
+
+### The fork is in the database, not on a screen
+
+`add_expense` and `pay_payslip` are the same call for everybody. They look at
+who is calling:
+
+```
+holds approvals.write  →  the money moves, exactly as before
+otherwise              →  the same call raises a REQUEST, nothing moves
+```
+
+The front end does not choose and cannot: it has never been able to write to
+`ledger_entries` at all (rule 8). Both return `{ok, pending, …}` so the screen
+can say which of the two happened — an expense that was *asked for* must not
+close the dialog the same way as one that was *paid*.
+
+### Approving is the spending
+
+Not a signature somebody acts on later. `decide_spend_request` performs the
+spend in the **same transaction** as the decision, so there is never a request
+marked approved with no money behind it, and no second button to forget. For a
+salary it calls `pay_payslip` back rather than duplicating it — the approver
+holds `approvals.write`, so the fork above sends it straight down the paying
+branch and every rule that guards a salary applies once, in one place.
+
+### The rails
+
+| | Why |
+|---|---|
+| No write policy on `spend_requests` at all | Every row is created and decided by a function, exactly like `ledger_entries`. Without this, marking your own request approved is a plain `UPDATE` and no money ever moves — the feature as theatre. |
+| Amount, wallet, description frozen once raised | The approver has to be agreeing to the thing that then happens. Wrong request: withdraw it and raise another. |
+| A payslip with a live request cannot be edited | They agreed to a figure. If it could move in between, a different amount leaves the wallet under the same approval. `decide_spend_request` re-checks the amount too — belt as well as braces. |
+| One live request per payslip | Two people asking to pay one salary is how it gets paid twice. A partial unique index. |
+| Nobody decides their own | Somebody who may authorise never raises one, so this only bites after a promotion — and then a second pair of eyes is exactly what the request was for. They can withdraw it and spend directly. |
+| The ledger row names who asked AND who agreed | A row that can only be explained by opening another screen is a row that gets misread. |
+
+### Two domains, and why `approvals.write` means both things
+
+`approvals.write` means "may decide other people's requests" **and** "does not
+have to raise one". They are deliberately the same authority: letting somebody
+approve spending they are not trusted to do themselves is not a distinction
+worth having.
+
+Seeded so the feature has a point: the accountant gets `approvals.read` — they
+raise requests and watch their own — and nobody but the owner gets
+`approvals.write`.
+
+### What is deliberately outside it
+
+**Transfers between the business's own wallets.** `transfer_between_wallets` is
+P&L neutral and both ends are inside this system; moving cash from the safe to
+the bank is not a disbursement. Putting it behind an approval would train
+everybody to click through approvals for things that are not spending, which is
+how approvals stop being read. Said out loud here rather than left as an
+oversight — if a wallet ever represents somebody's pocket, that changes.
+
+---
+
+## 15. Tasks and productivity
+
+### The bug this section exists to prevent
+
+`authenticated` has USAGE on `public` and on `auth`, and **not** on `app`. That
+is deliberate — `app` is this system's private schema. The consequence is not:
+
+| Where `app.can(...)` is written | Works for a signed-in user? |
+|---|---|
+| in an RLS policy | ✅ — the expression was parsed at CREATE POLICY time, by the owner. Execution only checks EXECUTE on the function. |
+| in a view body | ✅ — same reason. |
+| in a plpgsql function marked SECURITY DEFINER | ✅ — it runs as the owner. |
+| **in a plpgsql function that is not** | ❌ **`permission denied for schema app`** — the body resolves the name at RUN time, as the caller. |
+
+So a trigger guard living in `app` and calling a sibling in `app` **works for
+the owner and fails for everybody else**. Four functions were in that state:
+`guard_task`, `guard_task_session`, `guard_payslip` and
+`guard_ledger_payroll_void`. Adding a task as an employee failed with that
+message; adding one as the owner worked.
+
+One of the four was a security hole rather than only an outage.
+`guard_ledger_payroll_void` asks whether a payslip points at the ledger entry
+being voided. Running as the caller it read `payslips` through the caller's
+RLS — so somebody with `money.write` and without `payroll.read` saw no payslip,
+the guard passed, and they could void a salary entry from the ledger screen
+while the payslip went on saying "paid".
+
+**Every test in this repo runs as `postgres`, and `postgres` can see `app`.**
+Worse, `set local role authenticated` inside a `DO` block does not reproduce it
+either, because plpgsql caches plans per session and the name was already
+resolved as the owner. So the guard against this is structural, not
+behavioural: `app.assert_guards_can_run()` fails if any trigger function in
+`app` calls `app.<name>(` without being SECURITY DEFINER, and both SQL suites
+call it before anything else. It matches a CALL, not the string "app.", because
+`app.autoclassify` is a GUC name that needs no such thing.
+
+To test permissions for real, use **top-level statements** in a fresh session:
+
+```sql
+begin;
+select set_config('request.jwt.claims', '{"sub":"…","role":"authenticated"}', true);
+set local role authenticated;
+insert into public.tasks (title, assignee_id) values ('x', '…');
+rollback;
+```
+
+### How an hour is counted
+
+| | |
+|---|---|
+| **A session** | one row in `task_sessions`: a task, a person, a start, an end |
+| **Its length** | `minutes`, a STORED GENERATED column — whole minutes, floored. Null while it runs. |
+| **The timer** | `start_task_timer` stops whatever was running for that person first, then opens a new session and moves the task to In Progress. One clock per person, enforced by a partial unique index. |
+| **What counts** | `app.session_counts(status)` — `tracked` (the app watched it) and `approved` (a manager agreed to it). Written once and read by every view. |
+| **What does not** | a running clock (its `minutes` is null until it stops), a `pending` claim, a `rejected` one |
+| **Which day** | the day it STARTED, in Cairo. A session across midnight counts wholly on the starting day. |
+| **The target** | `employees.daily_target_minutes`, per person, default 480. |
+
+Rounding is downward to the whole minute, so a start and a stop inside the same
+minute is a zero — deliberately allowed rather than refused, because a misclick
+should be a row you delete, not an error on screen.
+
+The live counter above the board ticks in the browser from `running_since`. It
+is display only; nothing has been counted until the timer stops.
+
+### A week that started at three in the morning
+
+Found while answering the question above, which is the only reason it was found:
+
+```sql
+date_trunc('week', now() at time zone 'Africa/Cairo')   -- ← naive
+```
+
+`now() at time zone 'Africa/Cairo'` returns a timestamp WITHOUT a time zone —
+the wall clock in Cairo, with no memory of where it came from. `date_trunc`
+hands back Monday 00:00, still naive. Comparing that against a `timestamptz`
+makes Postgres cast it using the SESSION's zone, and this database runs in UTC.
+**Monday 00:00 Cairo became Monday 00:00 UTC — three hours late**, so anything
+worked between midnight and 3am on the first day of a week or month was counted
+in the previous one.
+
+`app.cairo_week_start()` and `app.cairo_month_start()` apply `at time zone
+'Africa/Cairo'` a second time, which is what turns the wall clock back into an
+instant. Named functions rather than the expression repeated at each site,
+because the expression already says "Cairo" once and that is exactly what makes
+the missing second application easy to overlook.
+
+**The money views do NOT have this bug**, and the way that was nearly
+mis-reported is worth keeping.
+
+Grepping the migration files turns up three money figures that look identical —
+`revenue_this_month` in `0005`, the money position's month window in `0015`,
+`in_month` on instalment plans in `0031`. All three were reported as buggy on
+that basis, and all three were **already correct**, for two separate reasons:
+
+- Later migrations replaced those view definitions. A migration file is a
+  record of what was written that day, not of what is running now. Only
+  `pg_get_viewdef` says what is live.
+- The live form converts the COLUMN too:
+  `(occurred_at at time zone 'Africa/Cairo') >= date_trunc('month', now() at time zone 'Africa/Cairo')`.
+  Both sides are naive Cairo, so they compare correctly.
+
+The rule, stated so it is checkable: a comparison is skewed only when one side
+is a raw `timestamptz` and the other is a naive Cairo wall clock. Converting
+both, or neither, is fine. Proven by booking a revenue entry at 01:00 Cairo on
+the first of the month and watching `month_student_payments` rise by exactly
+its amount.
+
+### The owner has tasks too
+
+`employees` is who works here; `staff` is who may sign in; a task belongs to
+the former. The owner is on neither list by default — they sign in without
+being on the payroll — so the board met them with "your account is not on the
+work roster, so nothing is assigned to you". Accurate, and a dead end: it named
+a state and offered no way out of it.
+
+The board now offers the way out where the need is felt, as a button. The row
+it creates carries **no wage**: `employees` is the people of this business and
+what somebody is paid is separate data on them. That separation is the reason a
+roster row and a login are two records; it should not also be a chore.
+
+The Staff screen makes the same offer, and originally skipped superusers on the
+theory that somebody who watches the team needs no roster row of their own —
+which is true right up until they have a task. It is shown for everybody now,
+as a warning for an account that is BLOCKED by the gap and as a quiet offer for
+one that is merely missing out.
+
+One consequence worth knowing: an employee with a base of zero still gets a
+payslip in each cycle, netting zero. It cannot be paid and does not hold the
+cycle open (see below), and it can be removed from the cycle while that cycle
+is still a draft. If that gets tiresome, the honest fix is a flag saying who
+payroll is FOR, not a rule guessing it from the salary — somebody paid purely
+on commission also has a base of zero.
+
+### Three that only show up once two people use it
+
+All three were invisible with one account on the system.
+
+**"شغلي" showed everybody's work.** The filter read:
+
+```js
+if (scope === 'mine' && me && task.assignee_id !== me.id) return false;
+```
+
+`&& me` was meant as a null guard and is instead an off switch: with no roster
+row the whole condition is false, nothing is filtered, and the owner opens "my
+work" to the entire team's board. **A missing "me" is not a reason to show
+everything; it is a reason to show nothing** — and to say so, which the empty
+state now does. Somebody with no roster row who can see the team now also lands
+on "الفريق كله" rather than on a blank tab.
+
+**Stop belonged to the wrong clock.** `v_tasks.is_running` says somebody is
+working on this task; it never said who. Two people can hold sessions on one
+task, and reading the task's flag as the reader's own put a Stop button in
+front of somebody whose timer was elsewhere — pressing it would have stopped
+that one, because `stop_task_timer` stops YOURS. The view now carries
+`running_employee_id`: the pulse on a card still means "somebody is on this",
+and Start/Stop compares it to the reader.
+
+**Cancelling was reachable from nowhere.** `cancelled` is one of four statuses,
+the board drew three columns, and the task modal offered the same three. So the
+fourth existed in the schema, in `archive_record`, and in no user's reach. It
+is now a button in the task, with a "اعرض الملغية" toggle that adds the column
+to the board — deliberately off by default, because a pile nobody looks at is
+not a place work sits.
+
+### A cycle waits for money, not for rows
+
+Related, and found the same day: somebody added to the roster from the Staff
+screen starts on a base of zero, their payslip nets zero, and `pay_payslip`
+rightly refuses to write a zero-pound expense. Counting *unpaid rows* to decide
+whether a cycle is finished therefore left it at "1 of 2 paid" for ever, with
+nothing on screen able to explain why. Both `pay_payslip` and the period guard
+now count what is **owed** — `paid_at is null and net_amount > 0`.
+
+### When the screen belongs to the previous account
+
+`new row violates row-level security policy` has a second cause worth knowing:
+who you are is read on the **server**, once, in the dashboard layout. A
+client-side navigation can re-use that layout from the router cache, so signing
+out and back in as somebody else leaves the first account's screen rendered
+over the second account's session — their buttons, your permissions, and the
+database refusing one request at a time.
+
+Sign-in and sign-out therefore do a **full document load**
+(`window.location.replace`), not `router.replace` + `router.refresh`. It costs
+one page load at an event that happens twice a day. `lib/db-errors.ts` also
+translates that message and says so, because "row-level security policy" is not
+a sentence anybody should have to decode.
+
+
+
+`/tasks` is a board, a team report, and a project list. It answers the question
+payroll cannot: **section 13 says what a person cost; this says what they did.**
+
+### A board that opens on your own work
+
+Even for the owner. A board that opens on forty cards belonging to five people
+is a report you have to filter before you can use it; a board that opens on
+yours is a place to start the day. "الفريق كله" is one click away for anybody
+holding `team.read`.
+
+The switch is a **filter on rows the database already agreed to send**. It is
+not the security boundary — RLS is — so somebody without `team.read` who
+somehow flipped it would see exactly what they saw before.
+
+### Working a task and managing it are different jobs
+
+RLS is row-level and cannot say *which columns* somebody may change, so
+`app.guard_task` says it:
+
+| Anyone assigned a task may | Only `team.write` may |
+|---|---|
+| move it across the board | reassign it |
+| reorder it in a column | change its due date, priority or estimate |
+| add a task **for themselves** | assign work to somebody else |
+| log their own time | approve or reject time |
+| | delete a task or a project |
+
+Without that trigger, a salesperson could hand their own overdue work to a
+colleague and the board would look perfectly tidy afterwards.
+
+### The clock
+
+One clock per person, enforced by a partial unique index as well as by
+`start_task_timer` — starting a second task ends the first, because the honest
+reading of "I started something else" is that the previous thing stopped, not
+that the request was invalid. A forgotten Monday timer plus a fresh Tuesday one
+is how every hour after that gets counted twice.
+
+Session boundaries use **`clock_timestamp()`, not `now()`**. `now()` is the
+transaction's start time and does not move while it runs, so a start and a stop
+inside one transaction land on the same instant — a zero-length session the
+check constraint then refuses. This was a real failure, caught by the first
+probe run against the live database.
+
+### Typed-in time is a claim, not a fact
+
+| | counts immediately | needs agreement |
+|---|---|---|
+| **timer** | ✅ the app watched it | |
+| **manual** | | ✅ `pending` until `review_time_entry` |
+
+`app.session_counts(status)` is the single definition of "counts", written once
+and read by every view. Hours appearing with two different definitions on two
+screens is the fastest way to lose trust in both.
+
+`log_manual_time` refuses overlaps outright. Two claims covering the same hour
+is the one error a reviewer cannot catch by reading, because each entry looks
+perfectly reasonable on its own. Back-to-back work is not an overlap — the
+comparison is half-open, so 14:00–15:00 sits happily after 13:00–14:00.
+
+### Names are not salaries
+
+`employees` is gated on `payroll.read`, because that table holds what everybody
+earns. But a card has to say "assigned to Mariam", and a sales manager who may
+see the team's work has no business seeing the team's pay.
+
+Joining `employees` into the task views would have forced the choice: grant
+payroll to everyone with a board, or show every card as unassigned. So the join
+goes through **`app.team_members()`** — SECURITY DEFINER, and the columns it
+returns are the whole of its promise: name, job title, whether they are active,
+and how long their working day is. No salary, no phone, no wallet.
+
+`v_team_productivity` then adds `where app.can('team.read') or e.id =
+app.my_employee_id()`, so somebody with only `tasks.read` sees exactly one row —
+their own. Without that line they would have seen the whole roster with every
+figure zeroed, which leaks the shape of the team while appearing not to.
+
+### A task belongs to an employee, not to a login
+
+`employees` is already this system's answer to "who works here" (section 13),
+and it is the list the owner maintains. Somebody with no login can still be
+given tasks and still appears in the productivity report; they just cannot open
+the app to see them. Assigning to `staff` instead would force the roster of
+people who do work and the roster of people who can sign in to be the same
+list — which they already are not.
+
+The consequence worth knowing: **a login that is not linked to an employee row
+cannot start a timer.** The board says so in a notice rather than failing
+silently, and the fix is one field on Payroll → الموظفين.
+
+### Card positions are fractional
+
+`tasks.position` is `numeric`, and dropping a card between two others writes
+the midpoint of its neighbours — **one row**, not a renumbering of everything
+below it. On a board two people are dragging at once, renumbering is how you
+get an order neither of them chose. `move_task` does that arithmetic inside one
+statement rather than in the browser, for the same reason.
+
+### A login and a person are one click apart
+
+An account and a roster row are two records on purpose (section 13). Crossing
+between them used to be a four-step dance the OWNER had to do, while the
+EMPLOYEE got nagged about it — the first version of the board told an account
+with no roster row to "link it from Payroll → People", a page that needs
+`payroll.write`, which that account does not have. **It told somebody to fix a
+gap they are not allowed to touch, that somebody else left.**
+
+Three changes, in the order they matter:
+
+1. **The link makes itself.** A new `staff` row adopts the `employees` row
+   carrying the same email, case and whitespace ignored. The ordinary sequence
+   is join → payroll → account, and in that sequence the link is not a decision
+   anybody needs to make. It picks exactly ONE row — the oldest match — and
+   only when the account has nobody yet: `employees.user_id` is unique, so two
+   roster rows sharing an address would otherwise abort the whole staff insert
+   with a constraint error nobody could read.
+2. **The staff list says who has nobody behind them**, and offers the one
+   click. That is the screen where the role was granted, so it is the screen
+   where the consequence belongs. The row is created bare — a name, an email,
+   a link, no wage — because being on the roster is about doing work, and pay
+   is a separate decision on a separate screen.
+3. **The board's message is rewritten by who is reading it.** A manager is
+   told nothing (the Start button needs a roster row and is simply not
+   offered). Somebody who can fix it is told where. Somebody who cannot is
+   told the fact and who to ask, and never sent to a page that would refuse
+   them.
+
+`v_staff.employee_id` comes through `app.employee_id_for()` — SECURITY
+DEFINER, because `employees` is gated on `payroll.read` and this question is
+asked from the staff screen by somebody who may hold nothing about salaries.
+What it returns is an id, not a wage.
+
+### The board is somebody's whole app
+
+Somebody given `tasks.*` and nothing else sees one sidebar group, one screen,
+and no overview — `/` needs `overview.read`, so `firstAllowedPath` lands them
+on `/tasks`. For that person the board IS the product, and three empty columns
+with no context reads as a corner of somebody else's system.
+
+So the board opens with **their own day**: a greeting, four figures — open,
+overdue, finished this week, and hours today against their own target — and
+the running clock. Shown to everybody, not only to restricted accounts: a
+screen that changes shape depending on your role is a screen nobody can be
+told how to use.
+
+Three details that only matter for restricted accounts, and all three were
+wrong first time:
+
+- **Tasks is its own sidebar group** (`الشغل`), not filed under `الأكاديمية`.
+  For the owner that is tidiness; for a salesperson it is the whole sidebar.
+- **The "link your account" notice is not shown to managers.** It is a
+  setup warning for somebody who is meant to be timing work. A manager watches
+  the team and may have no payroll row at all; telling them daily that their
+  timer will not run is nagging about something they never asked for. The
+  Start button needs an employee row and simply is not offered without one.
+- **The Team tab is absent, not disabled**, for anybody without `team.read` —
+  a tab that bounces you is worse than no tab.
+
+Granting oversight to somebody else is one role edit: Staff → the role →
+**متابعة الفريق**, which holds `team.read` (see everybody's board and the
+productivity table) and `team.write` (assign work, approve time).
+
+### What is deliberately not built
+
+The reference product (PeakTime) also takes **automatic screenshots** of
+employees' screens and logs **every website and application** they use. Neither
+is here, and neither is a small omission:
+
+- Both need a **desktop agent installed on each machine** with screen-recording
+  permission. That is a signed native app per platform, not a page in this
+  dashboard — no web app can capture the screen of a machine it is not running
+  on.
+- Continuous screen capture and app logging carry consent and notice
+  obligations that vary by jurisdiction, and they collect far more than work
+  data — the reference product's own UI has a "delete this screenshot if it
+  contains personal content" button, which tells you what it captures.
+
+The productivity numbers here come from work: hours against tasks, tasks
+finished, what is overdue, and who is carrying what. If screen monitoring is
+wanted later it is a separate product decision and a separate build, not an
+extension of this one.

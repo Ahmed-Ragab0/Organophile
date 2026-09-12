@@ -8,7 +8,7 @@ import {
   Button, Checkbox, Field, Input, Modal, Notice, Select, Textarea,
 } from './ui/primitives';
 import { useSupabaseQuery } from '@/lib/use-query';
-import type { ExpenseCategory, WalletBalance } from '@/types/database';
+import type { ExpenseCategory, SpendResult, WalletBalance } from '@/types/database';
 
 /**
  * The value the category select carries when the answer is "none of these".
@@ -29,18 +29,26 @@ function useLedgerAction(onDone: () => void) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // PromiseLike, not Promise: PostgREST returns a thenable query builder.
-  async function run(fn: () => PromiseLike<{ error: { message: string } | null }>) {
+  /*
+   * PromiseLike, not Promise: PostgREST returns a thenable query builder.
+   *
+   * The RESULT is handed back now, because `add_expense` no longer always
+   * means the money moved — for somebody who cannot authorise spending it
+   * raises a request instead, and only the database knows which happened.
+   */
+  async function run<T>(
+    fn: () => PromiseLike<{ data: T | null; error: { message: string } | null }>,
+  ): Promise<T | null> {
     setBusy(true);
     setError(null);
-    const { error: err } = await fn();
+    const { data, error: err } = await fn();
     setBusy(false);
     if (err) {
       setError(err.message);
-      return false;
+      return null;
     }
     onDone();
-    return true;
+    return data;
   }
 
   return { busy, error, setError, run };
@@ -78,13 +86,22 @@ export function AddExpenseModal({
     [],
   );
 
+  /*
+   * The modal no longer closes itself.
+   *
+   * An expense recorded by somebody who cannot authorise spending did not
+   * happen — it was ASKED FOR. Closing on that is the same gesture as
+   * closing on success, and the difference between "the money is gone" and
+   * "somebody has to agree first" is not one to communicate by having the
+   * dialog disappear the same way both times.
+   */
+  const [sent, setSent] = useState(false);
   const { busy, error, setError, run } = useLedgerAction(() => {
     setDescription(''); setAmount(''); setNotes(''); setNewCategory('');
     // A category typed into the box is a new row: the list has to catch up
     // before the next expense is recorded from the same open modal.
     categories.reload();
     onSaved();
-    onClose();
   });
 
   const active = wallets.filter((w) => w.is_active);
@@ -99,7 +116,7 @@ export function AddExpenseModal({
       setError(t.wallets.title);
       return;
     }
-    await run(() =>
+    const result = await run<SpendResult>(() =>
       createClient().rpc('add_expense', {
         p_description: description,
         // One or the other. The id is what survives a rename, so it wins
@@ -113,11 +130,20 @@ export function AddExpenseModal({
         p_notes: notes || null,
       }),
     );
+    if (result === null) return;
+    if (result.pending) { setSent(true); return; }
+    onClose();
   }
 
   return (
     <Modal open={open} onClose={onClose} title={t.expenses.addTitle}>
       <form id="expense-form" onSubmit={submit} className="space-y-3">
+        {sent && (
+          <Notice tone="ok">
+            <strong className="block">{t.approvals.sentTitle}</strong>
+            {t.approvals.sentBody}
+          </Notice>
+        )}
         <Field label={`${t.ledger.description} *`}>
           <Input value={description} onChange={(e) => setDescription(e.target.value)} required />
         </Field>

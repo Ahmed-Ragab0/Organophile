@@ -5,6 +5,7 @@ import { useI18n } from '@/lib/i18n/context';
 import { useAccess } from '@/lib/access/context';
 import { useSupabaseQuery } from '@/lib/use-query';
 import { createClient } from '@/lib/supabase/client';
+import { dbErrorText } from '@/lib/db-errors';
 import { formatDate } from '@/lib/format';
 import {
   Badge, Button, Card, CardHeader, Checkbox, cx, Field, Input, Modal, Notice,
@@ -418,13 +419,13 @@ function RoleModal({
       const { data, error: err } = await sb.from('roles')
         .insert({ name, name_en: nameEn || null, description: description || null })
         .select('id').single();
-      if (err) { setBusy(false); setError(err.message); return; }
+      if (err) { setBusy(false); setError(dbErrorText(err, t)); return; }
       roleId = (data as { id: string }).id;
     } else {
       const { error: err } = await sb.from('roles').update({
         name, name_en: nameEn || null, description: description || null,
       }).eq('id', roleId);
-      if (err) { setBusy(false); setError(err.message); return; }
+      if (err) { setBusy(false); setError(dbErrorText(err, t)); return; }
     }
 
     if (!superuser) {
@@ -514,11 +515,16 @@ export default function StaffPage() {
   const { t, locale } = useI18n();
   const { can } = useAccess();
   const mayWrite = can('staff.write');
+  // Creating the employee row is a payroll write, so the offer is only made to
+  // somebody who could actually complete it.
+  const mayPayroll = can('payroll.write');
 
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<StaffRow | null>(null);
   const [passwordFor, setPasswordFor] = useState<StaffRow | null>(null);
   const [removing, setRemoving] = useState<StaffRow | null>(null);
+  const [enrolling, setEnrolling] = useState<string | null>(null);
+  const [enrolError, setEnrolError] = useState<string | null>(null);
   const [roleModal, setRoleModal] = useState<RoleRow | null | undefined>(undefined);
   const [deletingRole, setDeletingRole] = useState<RoleRow | null>(null);
   const [roleError, setRoleError] = useState<string | null>(null);
@@ -534,6 +540,34 @@ export default function StaffPage() {
   );
 
   function reloadAll() { people.reload(); roles.reload(); }
+
+  /**
+   * Put a login on the work roster.
+   *
+   * An account and a person are two records on purpose — somebody paid in
+   * cash has no login, and the owner has a login and no salary (0049). But
+   * crossing that gap used to mean leaving this screen, opening Payroll,
+   * adding a person and picking the account out of a dropdown; and until it
+   * was done the account holder saw a message telling them to go do it on a
+   * page they cannot open.
+   *
+   * The row is created bare: a name, an email and a link. No wage — being on
+   * the roster is about doing work, and what somebody is paid is a separate
+   * decision made on a separate screen.
+   */
+  async function addToRoster(person: StaffRow) {
+    setEnrolling(person.user_id);
+    setEnrolError(null);
+    const { error: err } = await createClient().from('employees').insert({
+      full_name: person.full_name?.trim() || person.email,
+      email: person.email,
+      user_id: person.user_id,
+      base_salary: 0,
+    });
+    setEnrolling(null);
+    if (err) { setEnrolError(dbErrorText(err, t)); return; }
+    people.reload();
+  }
 
   async function deleteRole(role: RoleRow) {
     setRoleError(null);
@@ -564,6 +598,9 @@ export default function StaffPage() {
             title={t.staffPage.people}
             hint={`${staffRows.length} ${t.staffPage.membersCount}`}
           />
+          {enrolError && (
+            <div className="px-5 pt-4"><Notice tone="danger">{enrolError}</Notice></div>
+          )}
           <ul className="divide-y divide-border">
             {staffRows.map((p) => (
               <li key={p.user_id} className="flex flex-wrap items-start justify-between gap-3 px-5 py-3.5">
@@ -576,10 +613,53 @@ export default function StaffPage() {
                   <p className="mt-0.5 truncate text-xs text-ink-faint" dir="ltr">{p.email}</p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-2">
                     <Badge tone={p.is_superuser ? 'warn' : 'neutral'}>{p.role_name}</Badge>
+                    {p.employee_id !== null && (
+                      <Badge tone="ok">{t.staffPage.onRoster}</Badge>
+                    )}
                     <span className="text-xs text-ink-faint">
                       {t.staffPage.addedAt} {formatDate(p.created_at, locale)}
                     </span>
                   </div>
+
+                  {/*
+                    * Said here, where it can be fixed, rather than on the
+                    * board where it cannot. Only for accounts that are not
+                    * the owner's own — a superuser watching the team does not
+                    * need a payroll row to do their job.
+                    */}
+                  {/*
+                    * Offered for the owner too, which it was not.
+                    *
+                    * The first version skipped superusers on the theory that
+                    * somebody who watches the team does not need a roster row.
+                    * That is true right up until they have a task of their own
+                    * — and then the board tells them they are not on the
+                    * roster and offers no way to be. An account that is
+                    * BLOCKED by this gets a warning; one that is merely
+                    * missing out gets an offer.
+                    */}
+                  {p.employee_id === null && mayPayroll && (
+                    <div className={cx(
+                      'mt-2 flex flex-wrap items-center gap-2 rounded-field px-3 py-2 ring-1 ring-inset',
+                      p.is_superuser
+                        ? 'bg-info-soft ring-info/20'
+                        : 'bg-warn-soft ring-warn/20',
+                    )}>
+                      <span className={cx('text-xs', p.is_superuser ? 'text-info' : 'text-warn')}>
+                        {p.is_superuser ? t.staffPage.notOnRosterOffer : t.staffPage.notOnRosterHint}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={enrolling === p.user_id}
+                        onClick={() => void addToRoster(p)}
+                      >
+                        {enrolling === p.user_id
+                          ? t.staffPage.addingToRoster
+                          : t.staffPage.addToRoster}
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 {mayWrite && (
                   <div className="flex shrink-0 items-center gap-1.5">

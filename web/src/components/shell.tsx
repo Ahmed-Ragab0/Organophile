@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useI18n } from '@/lib/i18n/context';
@@ -29,7 +29,23 @@ const NAV_GROUPS = [
       { href: '/wallets', key: 'wallets' },
       { href: '/ledger', key: 'ledger' },
       { href: '/expenses', key: 'expenses' },
+      { href: '/approvals', key: 'approvals' },
+      { href: '/payroll', key: 'payroll' },
       { href: '/reports', key: 'reports' },
+    ],
+  },
+  {
+    /*
+     * Its own group, and not folded into "الأكاديمية".
+     *
+     * For the owner that is a matter of tidiness. For somebody given tasks and
+     * nothing else it is the whole sidebar — and a lone "المهام" filed under
+     * "الأكاديمية" tells them they are looking at a corner of somebody else's
+     * system rather than at their own screen.
+     */
+    key: 'work' as const,
+    items: [
+      { href: '/tasks', key: 'tasks' },
     ],
   },
   {
@@ -171,13 +187,25 @@ export function Shell({ email, children }: { email: string | null; children: Rea
   const { isTest } = useMode();
   const { can, role } = useAccess();
   const pathname = usePathname();
-  const router = useRouter();
   const [open, setOpen] = useState(false);
 
   async function signOut() {
     await createClient().auth.signOut();
-    router.replace('/login');
-    router.refresh();
+    /*
+     * A full document load, not `router.replace` + `router.refresh`.
+     *
+     * Who you are is read on the SERVER, once, in the dashboard layout, and
+     * handed down through `AccessProvider`. A client-side navigation can
+     * re-use that layout from the router cache — so signing out and back in as
+     * somebody else leaves the previous account's screen rendered over the new
+     * account's session: their buttons, your permissions, and the database
+     * refusing one request at a time with "new row violates row-level security
+     * policy". Reported exactly that way.
+     *
+     * This costs one page load at an event that happens twice a day, and it
+     * makes that whole class of confusion impossible.
+     */
+    window.location.replace('/login');
   }
 
   /*
