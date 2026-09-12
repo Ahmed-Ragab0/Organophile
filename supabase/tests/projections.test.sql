@@ -196,6 +196,36 @@ begin
    where ukkera_transfer_id = 'tst-u12b' and course_id is null;
   assert found, 'U12c a shared package name was allowed to pick a course';
 
+  ------------------------------------------------------- course titles
+  -- P1: a qualifier in front of the subject. Anchoring the level pattern at
+  --     the start of the token lost the level AND handed the whole token to
+  --     the university slot — one course became a university called
+  --     "العامة ORGANIC 3" while Asyut, standing right beside it, was dropped.
+  assert (app.parse_course_name('العامة ORGANIC 3 - Asyut  - 2027 - Clinical'))
+         @> '{"level":3,"university":"Asyut","track":"Clinical","class_year":2027}'::jsonb,
+    'P1 qualified title: ' || app.parse_course_name('العامة ORGANIC 3 - Asyut  - 2027 - Clinical')::text;
+
+  -- P2: and the ordinary shape is untouched. This is the assertion that says
+  --     the fix cost nothing.
+  assert (app.parse_course_name('ORGANIC 3 - Azhar Cairo - Girls - 2027 - Ph-D'))
+         @> '{"level":3,"university":"Azhar Cairo","section":"Girls","track":"Pharm D"}'::jsonb,
+    'P2 plain title REGRESSION: ' || app.parse_course_name('ORGANIC 3 - Azhar Cairo - Girls - 2027 - Ph-D')::text;
+
+  -- P3: the subject must start its own word. "BIOORGANIC" is not Organic with
+  --     a qualifier of "BIO", and a greedy prefix would have made it one.
+  assert (app.parse_course_name('BIOORGANIC 3 - Cairo - 2027')) -> 'level' is null,
+    'P3 BIOORGANIC read as a level: ' || app.parse_course_name('BIOORGANIC 3 - Cairo - 2027')::text;
+
+  -- P4: the qualifier stands in as the university only when the title carries
+  --     no other leftover — behind every real one, never in front.
+  assert (app.parse_course_name('العامة ORGANIC 3')) @> '{"university":"العامة"}'::jsonb,
+    'P4 lone qualifier: ' || app.parse_course_name('العامة ORGANIC 3')::text;
+
+  -- P5: a string with no course structure still yields no university, so a
+  --     package name in the course field cannot anchor a reporting group.
+  assert (app.parse_course_name('اشتراك في Introduction course - الكورس التأسيسي')) -> 'university' is null,
+    'P5 structureless title invented a university';
+
   ---------------------------------------------------------------- views
   r := app.ingest_kashier_event(jsonb_build_object('event','refund','data',jsonb_build_object(
     'transactionId','TST-TX-RF','merchantOrderId','tst-order-1','status','SUCCESS',

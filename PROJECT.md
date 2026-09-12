@@ -482,6 +482,19 @@ that is exactly that is nothing else. When a new spelling appears, this is the
 list to add it to — and the symptom to watch for is a filter that returns
 nothing rather than an error.
 
+**A word in front of the subject used to cost three fields at once.** The level
+pattern was anchored at the start of its token, so `العامة ORGANIC 3` matched
+nothing — and an unrecognised token falls through to the university slot. One
+course ended up with no level, a university literally called "العامة ORGANIC 3",
+and Asyut — its real university, sitting in the very next token — dropped as the
+shorter leftover. The student on it inherited all three. Fixed in `0060`: the
+subject may sit at the END of its token, and a word sharing a token with it is a
+**qualifier on the course**, offered as the university only when the title has no
+other leftover at all. The optional prefix is `(?:(.*)\s+)?` and the whitespace
+is load-bearing — without it "BIOORGANIC 3" would read as Organic 3 with a
+qualifier of "BIO". Fifteen titles were parsed before and after: two changed,
+both of them this shape.
+
 #### A renamed course is the same course
 
 ukkera renamed course **2224** between two purchases — "Introduction course -
