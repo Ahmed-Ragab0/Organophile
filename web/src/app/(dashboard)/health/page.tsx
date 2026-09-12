@@ -11,7 +11,7 @@ import { Badge, Button, Card, CardHeader, PageHeader } from '@/components/ui/pri
 import { DataTable, type Column } from '@/components/ui/table';
 import { Mono } from '@/components/domain';
 import type {
-  ClientAccessAudit, IngestHealth, KashierRawEvent, WebhookRejection,
+  ClientAccessAudit, FailedEvent, IngestHealth, WebhookRejection,
 } from '@/types/database';
 
 type StateKey = 'pending' | 'processed' | 'failed' | 'ignored';
@@ -29,9 +29,12 @@ export default function HealthPage() {
     [],
   );
 
-  const failed = useSupabaseQuery<KashierRawEvent[]>(
+  /* Both pipelines. ukkera's raw events carry no mode — a failed delivery
+     there is a stranded purchase whichever side of the toggle you are on — so
+     they are never filtered out by it. */
+  const failed = useSupabaseQuery<FailedEvent[]>(
     (sb) =>
-      sb.from('kashier_events_raw').select('*').eq('state', 'failed').eq('mode', mode)
+      sb.from('v_failed_events').select('*').or(`mode.eq.${mode},mode.is.null`)
         .order('received_at', { ascending: false }).limit(50),
     [sweepResult, mode],
   );
@@ -82,9 +85,12 @@ export default function HealthPage() {
     { key: 'latest', header: t.health.latest, render: (r) => <span className="text-xs text-ink-muted">{formatDateTime(r.latest_at, locale)}</span> },
   ];
 
-  const failedCols: Array<Column<KashierRawEvent>> = [
+  const failedCols: Array<Column<FailedEvent>> = [
     { key: 'received', header: t.health.latest, render: (r) => <span className="text-xs text-ink-muted">{formatDateTime(r.received_at, locale)}</span> },
+    { key: 'pipeline', header: t.health.pipeline, render: (r) => <span className="font-medium text-ink">{r.pipeline}</span> },
     { key: 'event', header: t.payments.event, render: (r) => <Mono value={r.event} /> },
+    // Whose purchase it was. An error with no subject is a line nobody chases.
+    { key: 'subject', header: '', render: (r) => <span className="text-xs text-ink-muted">{r.subject}</span> },
     { key: 'attempts', header: '#', numeric: true, render: (r) => r.process_attempts },
     { key: 'error', header: t.common.error, render: (r) => <span className="text-xs text-danger">{r.process_error}</span> },
   ];

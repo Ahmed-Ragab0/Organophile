@@ -482,6 +482,51 @@ that is exactly that is nothing else. When a new spelling appears, this is the
 list to add it to — and the symptom to watch for is a filter that returns
 nothing rather than an error.
 
+#### A renamed course is the same course
+
+ukkera renamed course **2224** between two purchases — "Introduction course -
+الكورس التأسيسي" on 8 Sept, "الكورس التأسيسي -Introduction course" on 12 Sept.
+The projection looked courses up by name (`on conflict (name_key)`), so the new
+spelling was not a conflict, and it went to insert a second course carrying the
+same `ukkera_course_id`. `courses_ukkera_id_uniq` refused, and **the exception
+took the whole projection down with it**: no course, no package, no enrolment.
+Twelve sweeps later the event was out of attempts and one student sat in the
+list having paid 299 EGP for nothing the system could name.
+
+Identity is the number, not the label. `app.resolve_course` asks for the course
+by `ukkera_course_id` first and only then by title; `app.resolve_package` does
+the same within its course. Both adopt whatever is already stored instead of
+inserting a rival, and neither can raise on a key it has just failed to find —
+a `unique_violation` re-reads the row the racing delivery wrote. **A catalogue
+lookup must never be the thing that loses an enrolment.**
+
+The rename itself is not applied. `courses.name` is what the reports group by
+and what the level, university and track were parsed out of; ukkera's latest
+spelling is recorded beside it in `courses.ukkera_course_name`, so a divergence
+is visible rather than either silent or destructive.
+
+Two related shapes, from the same reading-identity-off-a-label mistake:
+
+* **A package with no course is the same package.** ukkera's first payloads
+  carried no course at all, so a course-less package was stored; when the course
+  arrived, the lookup asked for a package on *that* course, found none, and
+  shelved a second copy — splitting one package's enrolments across two rows.
+  It now adopts the orphan.
+* **A package name shared by several courses identifies nothing.** "اشتراك (
+  الكورس كاملا) + المراجعات كاملة مجانا" is sold on four of them. With no course
+  in the payload, only a name held by **exactly one** package may answer;
+  otherwise the course is left empty, because a guess would enrol the student on
+  somebody else's course.
+
+Lookups use `app.text_key(name)`, not the generated `name_key` column — that one
+is a bare `upper(btrim())` and would miss "Asyut  - 2027" against
+"Asyut - 2027".
+
+Fixed in `0059`, with the repair in the same migration and `U7`–`U12` in
+`projections.test.sql`. **A failed ukkera delivery now appears on `/health`**:
+that card read `kashier_events_raw` alone, which is why this one sat for a day
+as nothing but a number in a counter.
+
 #### Packages and instalments
 
 `app.parse_package_name` classifies a package as `full`, `chapter`,

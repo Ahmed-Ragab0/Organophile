@@ -788,6 +788,20 @@ export type WebhookRejection = {
   received_at: string;
 };
 
+/* 0059: a failed delivery from EITHER pipeline. The health page listed
+   kashier_events_raw alone, so an ukkera failure — the one shape that strands a
+   paid enrolment with no course — showed up only as a number in a counter. */
+export type FailedEvent = {
+  pipeline: string;
+  id: string;
+  mode: KashierMode | null;
+  event: string | null;
+  subject: string | null;
+  received_at: string;
+  process_attempts: number;
+  process_error: string | null;
+};
+
 export type KashierRawEvent = {
   id: string;
   event: string | null;

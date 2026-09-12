@@ -16,6 +16,7 @@ delete from public.ukkera_events_raw  where body_sha256 like 'uhash%';
 delete from public.payments      where transaction_id like 'TST-%';
 delete from public.payouts       where transfer_id like 'TR-%';
 delete from public.subscriptions where order_id like 'tst-%';
+delete from public.packages      where name like 'TSTPKG%';
 delete from public.students      where name like 'TSTSTU%';
 delete from public.courses       where name like 'TSTCRS%';
 
@@ -120,6 +121,80 @@ begin
 
   r := app.ingest_ukkera_event(jsonb_build_object('student_name','x'), 'uhash-3');
   assert r->>'processing' = 'ignored', 'U6 missing order_id: ' || r::text;
+
+  -- U7: ukkera renames a course. Its number is the identity, so the second
+  --     spelling must land on the same row. It used to try to insert a rival
+  --     carrying the same number, and courses_ukkera_id_uniq turned that into a
+  --     failed event that stranded a paid enrolment with no course at all.
+  r := app.ingest_ukkera_event(jsonb_build_object(
+    'event','transfer.success','transfer_id','tst-u7',
+    'student_name','TSTSTU أحمد محمد','student_phone','01012345678',
+    'course_id','9001','course_name','TSTCRS Foundation',
+    'package_name','TSTPKG full','amount',100,'date','2026-09-04T10:00:00Z'), 'uhash-4');
+  assert r->>'processing' = 'processed', 'U7a: ' || r::text;
+
+  r := app.ingest_ukkera_event(jsonb_build_object(
+    'event','transfer.success','transfer_id','tst-u8',
+    'student_name','TSTSTU سارة','student_phone','01099999999',
+    'course_id','9001','course_name','TSTCRS Foundation renamed',
+    'package_name','TSTPKG full','amount',100,'date','2026-09-05T10:00:00Z'), 'uhash-5');
+  assert r->>'processing' = 'processed', 'U7b RENAME REGRESSION: ' || r::text;
+
+  select count(*) into v_cnt from public.courses where ukkera_course_id = '9001';
+  assert v_cnt = 1, 'U8 the rename created a second course, courses=' || v_cnt;
+
+  -- U9: the name we hold is not overwritten — reports group by it and the
+  --     level was parsed out of it — but the new spelling is on the record.
+  perform 1 from public.courses
+   where ukkera_course_id = '9001' and name = 'TSTCRS Foundation'
+     and ukkera_course_name = 'TSTCRS Foundation renamed';
+  assert found, 'U9 stored name changed, or the new spelling was not recorded';
+
+  -- U10: a package from the payloads that carried no course is the same
+  --      package. The course arriving later adopts it rather than shelving a
+  --      second copy and splitting one package across two rows.
+  insert into public.packages (name) values ('TSTPKG orphan');
+  r := app.ingest_ukkera_event(jsonb_build_object(
+    'event','transfer.success','transfer_id','tst-u10',
+    'student_name','TSTSTU أحمد محمد','student_phone','01012345678',
+    'course_id','9001','course_name','TSTCRS Foundation',
+    'package_name','TSTPKG orphan','amount',100,'date','2026-09-06T10:00:00Z'), 'uhash-6');
+  assert r->>'processing' = 'processed', 'U10a: ' || r::text;
+  select count(*) into v_cnt from public.packages where name = 'TSTPKG orphan';
+  assert v_cnt = 1, 'U10b orphan package duplicated, rows=' || v_cnt;
+  perform 1 from public.packages p join public.courses c on c.id = p.course_id
+   where p.name = 'TSTPKG orphan' and c.ukkera_course_id = '9001';
+  assert found, 'U10c orphan package was not adopted by its course';
+
+  -- U11: the older payload shape names a package and no course. One package,
+  --      one course, so the enrolment still knows what was bought.
+  r := app.ingest_ukkera_event(jsonb_build_object(
+    'event','transfer.success','transfer_id','tst-u11',
+    'student_name','TSTSTU سارة','student_phone','01099999999',
+    'package_name','TSTPKG orphan','amount',100,'date','2026-09-07T10:00:00Z'), 'uhash-7');
+  assert r->>'processing' = 'processed', 'U11a: ' || r::text;
+  perform 1 from public.subscriptions s join public.courses c on c.id = s.course_id
+   where s.ukkera_transfer_id = 'tst-u11' and c.ukkera_course_id = '9001';
+  assert found, 'U11b course not inferred from an unambiguous package';
+
+  -- U12: two courses selling the same package name. Now the name identifies
+  --      nothing, and guessing would enrol the student on somebody else's
+  --      course — so the course is left empty and stays answerable.
+  r := app.ingest_ukkera_event(jsonb_build_object(
+    'event','transfer.success','transfer_id','tst-u12a',
+    'student_name','TSTSTU سارة','student_phone','01099999999',
+    'course_id','9002','course_name','TSTCRS Second',
+    'package_name','TSTPKG orphan','amount',150,'date','2026-09-08T10:00:00Z'), 'uhash-8');
+  assert r->>'processing' = 'processed', 'U12a: ' || r::text;
+
+  r := app.ingest_ukkera_event(jsonb_build_object(
+    'event','transfer.success','transfer_id','tst-u12b',
+    'student_name','TSTSTU سارة','student_phone','01099999999',
+    'package_name','TSTPKG orphan','amount',175,'date','2026-09-09T10:00:00Z'), 'uhash-9');
+  assert r->>'processing' = 'processed', 'U12b: ' || r::text;
+  perform 1 from public.subscriptions
+   where ukkera_transfer_id = 'tst-u12b' and course_id is null;
+  assert found, 'U12c a shared package name was allowed to pick a course';
 
   ---------------------------------------------------------------- views
   r := app.ingest_kashier_event(jsonb_build_object('event','refund','data',jsonb_build_object(
